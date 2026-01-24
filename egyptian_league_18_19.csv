@@ -1,0 +1,307 @@
+Matchday,Date,Home Team,Away Team,Time
+1.Matchday,Tue 31/07/18,Ittihad Alex,El Mokawloon,6:00 PM
+1.Matchday,Tue 31/07/18,Petrojet,Zamalek,9:00 PM
+1.Matchday,Wed 01/08/18,El Dakhlia,Wadi Degla,4:00 PM
+1.Matchday,Wed 01/08/18,Entag El Harby,Harras Hodoud,6:15 PM
+1.Matchday,Wed 01/08/18,Nogoom FC,Talaea El Gaish,9:00 PM
+1.Matchday,Thu 02/08/18,El Gouna,El Masry,6:00 PM
+1.Matchday,Thu 02/08/18,Ahly SC,Ismaily,9:00 PM
+1.Matchday,Fri 03/08/18,El Makasa,Smouha,6:00 PM
+1.Matchday,Fri 03/08/18,Enppi SC,Pyramids FC,9:00 PM
+2.Matchday,Sat 04/08/18,Zamalek,Ittihad Alex,8:00 PM
+2.Matchday,Mon 06/08/18,Harras Hodoud,El Dakhlia,4:30 PM
+2.Matchday,Mon 06/08/18,Ismaily,Petrojet,6:45 PM
+2.Matchday,Mon 06/08/18,Wadi Degla,El Gouna,9:00 PM
+2.Matchday,Tue 07/08/18,El Masry,Ahly SC,8:00 PM
+2.Matchday,Wed 08/08/18,Pyramids FC,Entag El Harby,4:30 PM
+2.Matchday,Wed 08/08/18,El Mokawloon,El Makasa,6:45 PM
+2.Matchday,Wed 08/08/18,Smouha,Nogoom FC,Pending
+2.Matchday,Wed 08/08/18,Talaea El Gaish,Enppi SC,9:00 PM
+3.Matchday,Tue 14/08/18,El Dakhlia,Entag El Harby,4:00 PM
+3.Matchday,Tue 14/08/18,El Gouna,Harras Hodoud,6:15 PM
+3.Matchday,Tue 14/08/18,Enppi SC,Smouha,Pending
+3.Matchday,Tue 14/08/18,Petrojet,El Masry,Pending
+3.Matchday,Tue 14/08/18,Talaea El Gaish,Pyramids FC,9:00 PM
+3.Matchday,Wed 15/08/18,Nogoom FC,El Mokawloon,8:00 PM
+3.Matchday,Thu 16/08/18,El Makasa,Zamalek,9:00 PM
+3.Matchday,Fri 17/08/18,Ittihad Alex,Ismaily,6:00 PM
+3.Matchday,Tue 21/08/18,Ahly SC,Wadi Degla,8:00 PM
+4.Matchday,Fri 10/08/18,Wadi Degla,Petrojet,8:00 PM
+4.Matchday,Fri 24/08/18,El Mokawloon,Enppi SC,4:00 PM
+4.Matchday,Fri 24/08/18,Ismaily,El Makasa,6:15 PM
+4.Matchday,Fri 24/08/18,Harras Hodoud,Ahly SC,9:00 PM
+4.Matchday,Sat 25/08/18,El Masry,Ittihad Alex,5:30 PM
+4.Matchday,Sun 26/08/18,Smouha,Talaea El Gaish,4:00 PM
+4.Matchday,Sun 26/08/18,Pyramids FC,El Dakhlia,6:15 PM
+4.Matchday,Sun 26/08/18,Entag El Harby,El Gouna,9:00 PM
+4.Matchday,Mon 27/08/18,Zamalek,Nogoom FC,8:00 PM
+5.Matchday,Fri 31/08/18,Petrojet,Harras Hodoud,6:00 PM
+5.Matchday,Fri 31/08/18,Nogoom FC,Ismaily,Pending
+5.Matchday,Fri 31/08/18,El Gouna,El Dakhlia,9:00 PM
+5.Matchday,Fri 31/08/18,Talaea El Gaish,El Mokawloon,Pending
+5.Matchday,Sat 01/09/18,Enppi SC,Zamalek,9:00 PM
+5.Matchday,Sun 02/09/18,Smouha,Pyramids FC,6:00 PM
+5.Matchday,Sun 02/09/18,Ahly SC,Entag El Harby,9:00 PM
+5.Matchday,Mon 03/09/18,El Makasa,El Masry,8:00 PM
+5.Matchday,Fri 28/09/18,Ittihad Alex,Wadi Degla,5:00 PM
+6.Matchday,Tue 11/09/18,El Masry,Nogoom FC,6:00 PM
+6.Matchday,Wed 12/09/18,Entag El Harby,Petrojet,3:30 PM
+6.Matchday,Wed 12/09/18,Harras Hodoud,Ittihad Alex,Pending
+6.Matchday,Wed 12/09/18,El Mokawloon,Smouha,6:00 PM
+6.Matchday,Wed 12/09/18,Pyramids FC,El Gouna,9:00 PM
+6.Matchday,Wed 12/09/18,Wadi Degla,El Makasa,Pending
+6.Matchday,Thu 13/09/18,Ismaily,Enppi SC,6:00 PM
+6.Matchday,Thu 13/09/18,Zamalek,Talaea El Gaish,9:00 PM
+6.Matchday,Sat 29/12/18,El Dakhlia,Ahly SC,5:00 PM
+7.Matchday,Mon 17/09/18,Petrojet,El Dakhlia,6:00 PM
+7.Matchday,Mon 17/09/18,Ittihad Alex,Entag El Harby,Pending
+7.Matchday,Mon 17/09/18,El Mokawloon,Pyramids FC,9:00 PM
+7.Matchday,Mon 17/09/18,El Makasa,Harras Hodoud,Pending
+7.Matchday,Tue 18/09/18,Talaea El Gaish,Ismaily,3:30 PM
+7.Matchday,Tue 18/09/18,Smouha,Zamalek,6:00 PM
+7.Matchday,Wed 19/09/18,Nogoom FC,Wadi Degla,9:00 PM
+7.Matchday,Thu 29/11/18,Enppi SC,El Masry,6:00 PM
+7.Matchday,Wed 05/12/18,Ahly SC,El Gouna,7:00 PM
+8.Matchday,Fri 21/09/18,El Dakhlia,Ittihad Alex,3:30 PM
+8.Matchday,Fri 21/09/18,Entag El Harby,El Makasa,6:00 PM
+8.Matchday,Sat 22/09/18,Petrojet,El Gouna,3:30 PM
+8.Matchday,Sat 22/09/18,Ismaily,Smouha,6:00 PM
+8.Matchday,Sun 23/09/18,Harras Hodoud,Nogoom FC,3:30 PM
+8.Matchday,Sun 23/09/18,Zamalek,El Mokawloon,9:00 PM
+8.Matchday,Mon 24/09/18,Wadi Degla,Enppi SC,6:00 PM
+8.Matchday,Fri 28/09/18,El Masry,Talaea El Gaish,7:00 PM
+8.Matchday,Fri 04/01/19,Pyramids FC,Ahly SC,5:00 PM
+9.Matchday,Sun 30/09/18,Nogoom FC,Entag El Harby,6:00 PM
+9.Matchday,Sun 30/09/18,El Makasa,El Dakhlia,9:00 PM
+9.Matchday,Mon 01/10/18,Enppi SC,Harras Hodoud,6:00 PM
+9.Matchday,Tue 02/10/18,Ittihad Alex,El Gouna,5:30 PM
+9.Matchday,Wed 03/10/18,Talaea El Gaish,Wadi Degla,9:00 PM
+9.Matchday,Sat 01/12/18,Petrojet,Ahly SC,5:00 PM
+9.Matchday,Sun 30/12/18,Smouha,El Masry,3:00 PM
+9.Matchday,Wed 02/01/19,El Mokawloon,Ismaily,5:00 PM
+9.Matchday,Thu 24/01/19,Zamalek,Pyramids FC,7:00 PM
+10.Matchday,Wed 03/10/18,Pyramids FC,Petrojet,6:00 PM
+10.Matchday,Fri 05/10/18,El Dakhlia,Nogoom FC,3:00 PM
+10.Matchday,Fri 05/10/18,Entag El Harby,Enppi SC,6:00 PM
+10.Matchday,Sat 06/10/18,El Gouna,El Makasa,6:00 PM
+10.Matchday,Sun 07/10/18,Harras Hodoud,Talaea El Gaish,3:00 PM
+10.Matchday,Sun 07/10/18,Wadi Degla,Smouha,6:00 PM
+10.Matchday,Sun 07/10/18,Ahly SC,Ittihad Alex,9:00 PM
+10.Matchday,Fri 25/01/19,El Masry,El Mokawloon,4:00 PM
+10.Matchday,Thu 18/04/19,Ismaily,Zamalek,5:00 PM
+11.Matchday,Thu 18/10/18,Talaea El Gaish,Entag El Harby,3:00 PM
+11.Matchday,Thu 18/10/18,Nogoom FC,El Gouna,6:00 PM
+11.Matchday,Thu 18/10/18,El Mokawloon,Wadi Degla,9:00 PM
+11.Matchday,Fri 19/10/18,Smouha,Harras Hodoud,3:00 PM
+11.Matchday,Fri 19/10/18,Ismaily,Pyramids FC,6:00 PM
+11.Matchday,Fri 19/10/18,Enppi SC,El Dakhlia,9:00 PM
+11.Matchday,Sat 20/10/18,Ittihad Alex,Petrojet,7:00 PM
+11.Matchday,Thu 06/12/18,Zamalek,El Masry,6:00 PM
+11.Matchday,Thu 24/01/19,El Makasa,Ahly SC,4:00 PM
+12.Matchday,Thu 01/11/18,Harras Hodoud,El Mokawloon,2:00 PM
+12.Matchday,Thu 01/11/18,Petrojet,El Makasa,4:30 PM
+12.Matchday,Thu 01/11/18,Wadi Degla,Zamalek,7:30 PM
+12.Matchday,Fri 02/11/18,El Dakhlia,Talaea El Gaish,1:45 PM
+12.Matchday,Fri 02/11/18,El Gouna,Enppi SC,2:30 PM
+12.Matchday,Fri 02/11/18,Entag El Harby,Smouha,4:30 PM
+12.Matchday,Fri 02/11/18,Pyramids FC,Ittihad Alex,Pending
+12.Matchday,Sat 03/11/18,Ismaily,El Masry,4:00 PM
+12.Matchday,Mon 17/12/18,Ahly SC,Nogoom FC,6:00 PM
+13.Matchday,Mon 05/11/18,Zamalek,Harras Hodoud,6:00 PM
+13.Matchday,Tue 06/11/18,Nogoom FC,Petrojet,1:45 PM
+13.Matchday,Tue 06/11/18,Talaea El Gaish,El Gouna,4:00 PM
+13.Matchday,Tue 06/11/18,Smouha,El Dakhlia,Pending
+13.Matchday,Tue 06/11/18,El Mokawloon,Entag El Harby,7:00 PM
+13.Matchday,Wed 07/11/18,Ismaily,Wadi Degla,6:30 PM
+13.Matchday,Thu 08/11/18,El Makasa,Ittihad Alex,6:00 PM
+13.Matchday,Tue 08/01/19,El Masry,Pyramids FC,6:30 PM
+13.Matchday,Tue 05/02/19,Enppi SC,Ahly SC,5:00 PM
+14.Matchday,Sat 10/11/18,Entag El Harby,Zamalek,5:00 PM
+14.Matchday,Sat 10/11/18,El Gouna,Smouha,7:30 PM
+14.Matchday,Sun 11/11/18,Harras Hodoud,Ismaily,1:45 PM
+14.Matchday,Sun 11/11/18,Petrojet,Enppi SC,4:00 PM
+14.Matchday,Sun 11/11/18,Wadi Degla,El Masry,6:30 PM
+14.Matchday,Mon 12/11/18,El Dakhlia,El Mokawloon,1:45 PM
+14.Matchday,Mon 12/11/18,Ittihad Alex,Nogoom FC,4:00 PM
+14.Matchday,Mon 12/11/18,Pyramids FC,El Makasa,7:00 PM
+14.Matchday,Sun 09/12/18,Ahly SC,Talaea El Gaish,6:00 PM
+15.Matchday,Tue 20/11/18,El Mokawloon,El Gouna,1:45 PM
+15.Matchday,Tue 20/11/18,Enppi SC,Ittihad Alex,5:00 PM
+15.Matchday,Wed 21/11/18,Nogoom FC,El Makasa,1:45 PM
+15.Matchday,Wed 21/11/18,Talaea El Gaish,Petrojet,4:15 PM
+15.Matchday,Wed 21/11/18,Harras Hodoud,El Masry,Pending
+15.Matchday,Wed 21/11/18,Ismaily,Entag El Harby,7:00 PM
+15.Matchday,Wed 21/11/18,Wadi Degla,Pyramids FC,Pending
+15.Matchday,Thu 22/11/18,Zamalek,El Dakhlia,6:00 PM
+15.Matchday,Tue 08/01/19,Smouha,Ahly SC,4:00 PM
+16.Matchday,Sun 25/11/18,El Makasa,Enppi SC,2:15 PM
+16.Matchday,Sun 25/11/18,Ittihad Alex,Talaea El Gaish,4:30 PM
+16.Matchday,Sun 25/11/18,Entag El Harby,El Masry,7:00 PM
+16.Matchday,Mon 26/11/18,Harras Hodoud,Wadi Degla,1:45 PM
+16.Matchday,Mon 26/11/18,Petrojet,Smouha,4:15 PM
+16.Matchday,Mon 26/11/18,Zamalek,El Gouna,7:00 PM
+16.Matchday,Tue 27/11/18,Ahly SC,El Mokawloon,6:00 PM
+16.Matchday,Wed 28/11/18,Nogoom FC,Pyramids FC,6:00 PM
+16.Matchday,Sat 05/01/19,El Dakhlia,Ismaily,1:30 PM
+17.Matchday,Mon 10/12/18,El Mokawloon,Petrojet,1:45 PM
+17.Matchday,Mon 10/12/18,El Masry,El Dakhlia,4:00 PM
+17.Matchday,Mon 10/12/18,Pyramids FC,Harras Hodoud,6:30 PM
+17.Matchday,Tue 11/12/18,Wadi Degla,Entag El Harby,4:00 PM
+17.Matchday,Wed 12/12/18,Smouha,Ittihad Alex,4:00 PM
+17.Matchday,Wed 12/12/18,Enppi SC,Nogoom FC,6:30 PM
+17.Matchday,Thu 13/12/18,Talaea El Gaish,El Makasa,6:00 PM
+17.Matchday,Sat 30/03/19,Zamalek,Ahly SC,6:00 PM
+17.Matchday,Wed 10/04/19,Ismaily,El Gouna,5:30 PM
+18.Matchday,Thu 20/12/18,Wadi Degla,El Dakhlia,6:00 PM
+18.Matchday,Fri 21/12/18,El Mokawloon,Ittihad Alex,6:00 PM
+18.Matchday,Sat 22/12/18,Smouha,El Makasa,4:00 PM
+18.Matchday,Sat 22/12/18,Pyramids FC,Enppi SC,6:30 PM
+18.Matchday,Sun 23/12/18,Harras Hodoud,Entag El Harby,4:00 PM
+18.Matchday,Sun 23/12/18,Talaea El Gaish,Nogoom FC,6:30 PM
+18.Matchday,Fri 28/12/18,Zamalek,Petrojet,6:00 PM
+18.Matchday,Thu 03/01/19,El Masry,El Gouna,6:00 PM
+18.Matchday,Wed 22/05/19,Ismaily,Ahly SC,10:00 PM
+19.Matchday,Wed 26/12/18,El Gouna,Wadi Degla,4:00 PM
+19.Matchday,Sat 05/01/19,Ittihad Alex,Zamalek,5:00 PM
+19.Matchday,Wed 09/01/19,Enppi SC,Talaea El Gaish,4:00 PM
+19.Matchday,Mon 14/01/19,El Dakhlia,Harras Hodoud,1:30 PM
+19.Matchday,Tue 15/01/19,El Makasa,El Mokawloon,1:30 PM
+19.Matchday,Tue 15/01/19,Entag El Harby,Pyramids FC,4:00 PM
+19.Matchday,Tue 15/01/19,Nogoom FC,Smouha,7:00 PM
+19.Matchday,Thu 24/01/19,Petrojet,Ismaily,1:30 PM
+19.Matchday,Thu 25/04/19,Ahly SC,El Masry,8:00 PM
+20.Matchday,Sat 19/01/19,El Mokawloon,Nogoom FC,2:00 PM
+20.Matchday,Sat 19/01/19,Pyramids FC,Talaea El Gaish,5:00 PM
+20.Matchday,Wed 23/01/19,Harras Hodoud,El Gouna,2:00 PM
+20.Matchday,Wed 23/01/19,Smouha,Enppi SC,4:30 PM
+20.Matchday,Wed 23/01/19,Entag El Harby,El Dakhlia,7:00 PM
+20.Matchday,Mon 28/01/19,Ismaily,Ittihad Alex,4:00 PM
+20.Matchday,Mon 28/01/19,Wadi Degla,Ahly SC,7:00 PM
+20.Matchday,Tue 29/01/19,Zamalek,El Makasa,7:00 PM
+20.Matchday,Wed 30/01/19,El Masry,Petrojet,3:00 PM
+21.Matchday,Wed 30/01/19,Enppi SC,El Mokawloon,6:00 PM
+21.Matchday,Sun 03/02/19,Talaea El Gaish,Smouha,5:00 PM
+21.Matchday,Mon 04/02/19,Ittihad Alex,El Masry,4:00 PM
+21.Matchday,Mon 04/02/19,El Dakhlia,Pyramids FC,6:30 PM
+21.Matchday,Tue 05/02/19,Petrojet,Wadi Degla,2:00 PM
+21.Matchday,Thu 07/02/19,El Gouna,Entag El Harby,3:00 PM
+21.Matchday,Thu 07/02/19,El Makasa,Ismaily,6:00 PM
+21.Matchday,Fri 08/02/19,Ahly SC,Harras Hodoud,5:00 PM
+21.Matchday,Sat 09/02/19,Nogoom FC,Zamalek,5:00 PM
+22.Matchday,Sun 10/02/19,Wadi Degla,Ittihad Alex,5:00 PM
+22.Matchday,Thu 14/02/19,El Dakhlia,El Gouna,1:30 PM
+22.Matchday,Thu 14/02/19,El Masry,El Makasa,4:00 PM
+22.Matchday,Thu 14/02/19,Pyramids FC,Smouha,6:30 PM
+22.Matchday,Fri 15/02/19,Harras Hodoud,Petrojet,3:00 PM
+22.Matchday,Fri 15/02/19,El Mokawloon,Talaea El Gaish,6:00 PM
+22.Matchday,Sat 16/02/19,Ismaily,Nogoom FC,3:00 PM
+22.Matchday,Sat 16/02/19,Entag El Harby,Ahly SC,6:00 PM
+22.Matchday,Sun 17/02/19,Zamalek,Enppi SC,5:00 PM
+23.Matchday,Mon 18/02/19,El Makasa,Wadi Degla,6:00 PM
+23.Matchday,Tue 19/02/19,El Gouna,Pyramids FC,3:00 PM
+23.Matchday,Wed 20/02/19,Smouha,El Mokawloon,2:00 PM
+23.Matchday,Wed 20/02/19,Talaea El Gaish,Zamalek,4:30 PM
+23.Matchday,Wed 20/02/19,Ahly SC,El Dakhlia,7:00 PM
+23.Matchday,Thu 21/02/19,Petrojet,Entag El Harby,2:00 PM
+23.Matchday,Fri 22/02/19,Nogoom FC,El Masry,5:00 PM
+23.Matchday,Sun 17/03/19,Ittihad Alex,Harras Hodoud,5:00 PM
+23.Matchday,Fri 29/03/19,Enppi SC,Ismaily,6:00 PM
+24.Matchday,Fri 22/02/19,Harras Hodoud,El Makasa,2:00 PM
+24.Matchday,Sun 24/02/19,El Gouna,Ahly SC,3:00 PM
+24.Matchday,Sun 24/02/19,Pyramids FC,El Mokawloon,6:00 PM
+24.Matchday,Mon 25/02/19,El Dakhlia,Petrojet,2:30 PM
+24.Matchday,Tue 26/02/19,Ismaily,Talaea El Gaish,2:00 PM
+24.Matchday,Tue 26/02/19,El Masry,Enppi SC,4:30 PM
+24.Matchday,Tue 26/02/19,Wadi Degla,Nogoom FC,7:00 PM
+24.Matchday,Thu 07/03/19,Entag El Harby,Ittihad Alex,6:00 PM
+24.Matchday,Wed 03/04/19,Zamalek,Smouha,7:00 PM
+25.Matchday,Thu 28/02/19,El Gouna,Petrojet,3:00 PM
+25.Matchday,Sat 02/03/19,Nogoom FC,Harras Hodoud,2:00 PM
+25.Matchday,Sat 02/03/19,Ittihad Alex,El Dakhlia,4:30 PM
+25.Matchday,Sun 03/03/19,Entag El Harby,El Makasa,3:00 PM
+25.Matchday,Sun 03/03/19,Talaea El Gaish,El Masry,Pending
+25.Matchday,Sun 03/03/19,Enppi SC,Wadi Degla,6:00 PM
+25.Matchday,Tue 12/03/19,Smouha,Ismaily,4:30 PM
+25.Matchday,Wed 20/03/19,El Mokawloon,Zamalek,6:00 PM
+25.Matchday,Thu 18/04/19,Ahly SC,Pyramids FC,8:00 PM
+26.Matchday,Mon 04/03/19,Ahly SC,Petrojet,6:00 PM
+26.Matchday,Mon 11/03/19,El Dakhlia,El Makasa,2:00 PM
+26.Matchday,Mon 11/03/19,Harras Hodoud,Enppi SC,4:30 PM
+26.Matchday,Mon 11/03/19,Wadi Degla,Talaea El Gaish,7:00 PM
+26.Matchday,Tue 12/03/19,El Gouna,Ittihad Alex,2:00 PM
+26.Matchday,Fri 15/03/19,Entag El Harby,Nogoom FC,5:00 PM
+26.Matchday,Sat 16/03/19,El Masry,Smouha,5:00 PM
+26.Matchday,Tue 02/04/19,Ismaily,El Mokawloon,5:00 PM
+26.Matchday,Tue 23/04/19,Pyramids FC,Zamalek,8:00 PM
+27.Matchday,Fri 29/03/19,El Mokawloon,El Masry,3:30 PM
+27.Matchday,Fri 29/03/19,Smouha,Wadi Degla,6:00 PM
+27.Matchday,Sun 31/03/19,Nogoom FC,El Dakhlia,5:00 PM
+27.Matchday,Sun 31/03/19,El Makasa,El Gouna,7:30 PM
+27.Matchday,Mon 01/04/19,Talaea El Gaish,Harras Hodoud,5:00 PM
+27.Matchday,Mon 01/04/19,Petrojet,Pyramids FC,7:30 PM
+27.Matchday,Tue 02/04/19,Enppi SC,Entag El Harby,5:00 PM
+27.Matchday,Tue 02/04/19,Ittihad Alex,Ahly SC,7:30 PM
+27.Matchday,Wed 24/07/19,Zamalek,Ismaily,8:00 PM
+28.Matchday,Sat 06/04/19,Entag El Harby,Talaea El Gaish,3:00 PM
+28.Matchday,Sat 06/04/19,El Gouna,Nogoom FC,5:30 PM
+28.Matchday,Sat 06/04/19,Wadi Degla,El Mokawloon,Pending
+28.Matchday,Sat 06/04/19,Pyramids FC,Ismaily,8:00 PM
+28.Matchday,Sun 07/04/19,El Dakhlia,Enppi SC,5:30 PM
+28.Matchday,Sun 07/04/19,Petrojet,Ittihad Alex,Pending
+28.Matchday,Sun 07/04/19,Harras Hodoud,Smouha,8:00 PM
+28.Matchday,Wed 10/04/19,Ahly SC,El Makasa,8:00 PM
+28.Matchday,Thu 11/04/19,El Masry,Zamalek,5:30 PM
+29.Matchday,Thu 11/04/19,Talaea El Gaish,El Dakhlia,5:30 PM
+29.Matchday,Thu 11/04/19,El Mokawloon,Harras Hodoud,8:00 PM
+29.Matchday,Thu 11/04/19,Ittihad Alex,Pyramids FC,Pending
+29.Matchday,Fri 12/04/19,Smouha,Entag El Harby,5:30 PM
+29.Matchday,Sun 14/04/19,El Masry,Ismaily,5:30 PM
+29.Matchday,Mon 15/04/19,El Makasa,Petrojet,5:30 PM
+29.Matchday,Mon 15/04/19,Enppi SC,El Gouna,8:00 PM
+29.Matchday,Sun 05/05/19,Nogoom FC,Ahly SC,7:00 PM
+29.Matchday,Thu 09/05/19,Zamalek,Wadi Degla,10:00 PM
+30.Matchday,Fri 19/04/19,Ittihad Alex,El Makasa,5:30 PM
+30.Matchday,Fri 19/04/19,Entag El Harby,El Mokawloon,Pending
+30.Matchday,Fri 19/04/19,El Gouna,Talaea El Gaish,8:00 PM
+30.Matchday,Fri 19/04/19,El Dakhlia,Smouha,Pending
+30.Matchday,Sat 20/04/19,Petrojet,Nogoom FC,5:30 PM
+30.Matchday,Thu 25/04/19,Wadi Degla,Ismaily,5:00 PM
+30.Matchday,Sun 05/05/19,Pyramids FC,El Masry,5:30 PM
+30.Matchday,Thu 16/05/19,Ahly SC,Enppi SC,10:00 PM
+30.Matchday,Mon 03/06/19,Harras Hodoud,Zamalek,10:00 PM
+31.Matchday,Tue 30/04/19,Nogoom FC,Ittihad Alex,5:30 PM
+31.Matchday,Tue 30/04/19,Ismaily,Harras Hodoud,Pending
+31.Matchday,Tue 30/04/19,Smouha,El Gouna,Pending
+31.Matchday,Tue 30/04/19,El Makasa,Pyramids FC,8:00 PM
+31.Matchday,Tue 30/04/19,El Masry,Wadi Degla,Pending
+31.Matchday,Wed 01/05/19,El Mokawloon,El Dakhlia,4:30 PM
+31.Matchday,Wed 01/05/19,Talaea El Gaish,Ahly SC,6:45 PM
+31.Matchday,Thu 02/05/19,Enppi SC,Petrojet,7:00 PM
+31.Matchday,Thu 30/05/19,Zamalek,Entag El Harby,10:00 PM
+32.Matchday,Fri 10/05/19,El Makasa,Nogoom FC,10:00 PM
+32.Matchday,Fri 10/05/19,Ittihad Alex,Enppi SC,Pending
+32.Matchday,Fri 10/05/19,El Gouna,El Mokawloon,Pending
+32.Matchday,Fri 10/05/19,Entag El Harby,Ismaily,Pending
+32.Matchday,Fri 10/05/19,El Masry,Harras Hodoud,Pending
+32.Matchday,Sat 11/05/19,Petrojet,Talaea El Gaish,10:00 PM
+32.Matchday,Sat 11/05/19,Ahly SC,Smouha,Pending
+32.Matchday,Sun 12/05/19,El Dakhlia,Zamalek,10:00 PM
+32.Matchday,Tue 14/05/19,Pyramids FC,Wadi Degla,10:00 PM
+33.Matchday,Fri 17/05/19,Ismaily,El Dakhlia,10:00 PM
+33.Matchday,Tue 21/05/19,El Masry,Entag El Harby,10:00 PM
+33.Matchday,Tue 21/05/19,Smouha,Petrojet,Pending
+33.Matchday,Tue 21/05/19,Talaea El Gaish,Ittihad Alex,Pending
+33.Matchday,Tue 21/05/19,Wadi Degla,Harras Hodoud,Pending
+33.Matchday,Tue 21/05/19,Enppi SC,El Makasa,Pending
+33.Matchday,Wed 22/05/19,Pyramids FC,Nogoom FC,10:00 PM
+33.Matchday,Sun 21/07/19,El Gouna,Zamalek,8:00 PM
+33.Matchday,Wed 24/07/19,El Mokawloon,Ahly SC,8:00 PM
+34.Matchday,Mon 27/05/19,El Dakhlia,El Masry,10:00 PM
+34.Matchday,Mon 27/05/19,Nogoom FC,Enppi SC,Pending
+34.Matchday,Mon 27/05/19,El Makasa,Talaea El Gaish,Pending
+34.Matchday,Mon 27/05/19,El Gouna,Ismaily,Pending
+34.Matchday,Thu 30/05/19,Harras Hodoud,Pyramids FC,10:00 PM
+34.Matchday,Mon 03/06/19,Petrojet,El Mokawloon,10:00 PM
+34.Matchday,Mon 03/06/19,Entag El Harby,Wadi Degla,Pending
+34.Matchday,Mon 03/06/19,Ittihad Alex,Smouha,Pending
+34.Matchday,Sun 28/07/19,Ahly SC,Zamalek,8:00 PM

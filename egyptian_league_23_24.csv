@@ -1,0 +1,307 @@
+Matchday,Date,Home Team,Away Team,Time
+1.Matchday,Mon 18/09/23,Talaea El Gaish,Bank El Ahly,6:00 PM
+1.Matchday,Tue 19/09/23,Zed FC,Ismaily,3:00 PM
+1.Matchday,Tue 19/09/23,Ahly SC,El Masry,6:00 PM
+1.Matchday,Wed 20/09/23,El Dakhlia,Enppi SC,3:00 PM
+1.Matchday,Wed 20/09/23,El Mokawloon,Baladiya,6:00 PM
+1.Matchday,Wed 20/09/23,Smouha,El Gouna,Pending
+1.Matchday,Thu 21/09/23,Pharco FC,Modern Future,3:00 PM
+1.Matchday,Thu 21/09/23,Ittihad Alex,Cleopatra FC,6:00 PM
+1.Matchday,Thu 21/09/23,Pyramids FC,Zamalek,Pending
+2.Matchday,Mon 25/09/23,Bank El Ahly,Pyramids FC,5:00 PM
+2.Matchday,Mon 25/09/23,Zamalek,El Mokawloon,Pending
+2.Matchday,Tue 26/09/23,Baladiya,Smouha,3:00 PM
+2.Matchday,Tue 26/09/23,Modern Future,El Dakhlia,6:00 PM
+2.Matchday,Wed 27/09/23,Enppi SC,Talaea El Gaish,3:00 PM
+2.Matchday,Wed 27/09/23,Cleopatra FC,Ahly SC,6:00 PM
+2.Matchday,Wed 27/09/23,El Gouna,Zed FC,Pending
+2.Matchday,Thu 28/09/23,El Masry,Pharco FC,3:00 PM
+2.Matchday,Thu 28/09/23,Ismaily,Ittihad Alex,6:00 PM
+3.Matchday,Thu 05/10/23,Zed FC,Baladiya,3:00 PM
+3.Matchday,Thu 05/10/23,Smouha,El Mokawloon,6:00 PM
+3.Matchday,Fri 06/10/23,Ittihad Alex,El Gouna,3:00 PM
+3.Matchday,Fri 06/10/23,Pharco FC,Cleopatra FC,6:00 PM
+3.Matchday,Sat 07/10/23,El Dakhlia,El Masry,3:00 PM
+3.Matchday,Sat 07/10/23,Bank El Ahly,Zamalek,6:00 PM
+3.Matchday,Sat 07/10/23,Talaea El Gaish,Modern Future,Pending
+3.Matchday,Sun 08/10/23,Ahly SC,Ismaily,6:00 PM
+3.Matchday,Sun 08/10/23,Pyramids FC,Enppi SC,Pending
+4.Matchday,Fri 20/10/23,El Masry,Talaea El Gaish,3:00 PM
+4.Matchday,Fri 20/10/23,Cleopatra FC,El Dakhlia,Pending
+4.Matchday,Sat 21/10/23,Baladiya,Ittihad Alex,3:00 PM
+4.Matchday,Sat 21/10/23,Zamalek,Smouha,6:00 PM
+4.Matchday,Sat 21/10/23,Enppi SC,Bank El Ahly,Pending
+4.Matchday,Sun 22/10/23,El Mokawloon,Zed FC,3:00 PM
+4.Matchday,Sun 22/10/23,Ismaily,Pharco FC,6:00 PM
+4.Matchday,Sun 22/10/23,Modern Future,Pyramids FC,Pending
+4.Matchday,Sat 11/11/23,El Gouna,Ahly SC,4:00 PM
+5.Matchday,Fri 27/10/23,Pyramids FC,El Masry,4:00 PM
+5.Matchday,Fri 27/10/23,Enppi SC,Zamalek,7:00 PM
+5.Matchday,Sat 28/10/23,Pharco FC,El Gouna,4:00 PM
+5.Matchday,Sat 28/10/23,Zed FC,Smouha,7:00 PM
+5.Matchday,Sat 28/10/23,Ittihad Alex,El Mokawloon,Pending
+5.Matchday,Sun 29/10/23,Talaea El Gaish,Cleopatra FC,3:00 PM
+5.Matchday,Mon 30/10/23,El Dakhlia,Ismaily,3:00 PM
+5.Matchday,Mon 30/10/23,Bank El Ahly,Modern Future,6:00 PM
+5.Matchday,Tue 27/02/24,Ahly SC,Baladiya,6:00 PM
+6.Matchday,Fri 03/11/23,Smouha,Ittihad Alex,3:00 PM
+6.Matchday,Fri 03/11/23,Cleopatra FC,Pyramids FC,6:00 PM
+6.Matchday,Fri 03/11/23,Zamalek,Zed FC,Pending
+6.Matchday,Sat 04/11/23,El Gouna,El Dakhlia,3:00 PM
+6.Matchday,Sat 04/11/23,Baladiya,Pharco FC,6:00 PM
+6.Matchday,Sat 04/11/23,El Mokawloon,Ahly SC,Pending
+6.Matchday,Sun 05/11/23,Ismaily,Talaea El Gaish,3:00 PM
+6.Matchday,Sun 05/11/23,Modern Future,Enppi SC,6:00 PM
+6.Matchday,Sun 05/11/23,El Masry,Bank El Ahly,Pending
+7.Matchday,Tue 28/11/23,Pyramids FC,Ismaily,3:00 PM
+7.Matchday,Tue 28/11/23,Ahly SC,Smouha,6:00 PM
+7.Matchday,Wed 29/11/23,Modern Future,Zamalek,6:00 PM
+7.Matchday,Thu 30/11/23,Ittihad Alex,Zed FC,3:00 PM
+7.Matchday,Thu 30/11/23,Talaea El Gaish,El Gouna,6:00 PM
+7.Matchday,Thu 30/11/23,Pharco FC,El Mokawloon,Pending
+7.Matchday,Fri 01/12/23,Enppi SC,El Masry,3:00 PM
+7.Matchday,Fri 01/12/23,El Dakhlia,Baladiya,Pending
+7.Matchday,Fri 01/12/23,Bank El Ahly,Cleopatra FC,6:00 PM
+8.Matchday,Mon 04/12/23,Smouha,Pharco FC,6:00 PM
+8.Matchday,Tue 05/12/23,Baladiya,Talaea El Gaish,3:00 PM
+8.Matchday,Tue 05/12/23,Cleopatra FC,Enppi SC,6:00 PM
+8.Matchday,Tue 05/12/23,Ismaily,Bank El Ahly,Pending
+8.Matchday,Wed 06/12/23,El Mokawloon,El Dakhlia,6:00 PM
+8.Matchday,Tue 09/04/24,El Gouna,Pyramids FC,10:00 PM
+8.Matchday,Thu 11/04/24,El Masry,Modern Future,4:00 PM
+8.Matchday,Thu 11/04/24,Zed FC,Ahly SC,7:00 PM
+8.Matchday,Thu 11/04/24,Zamalek,Ittihad Alex,Pending
+9.Matchday,Thu 14/12/23,Bank El Ahly,El Gouna,3:00 PM
+9.Matchday,Thu 14/12/23,Modern Future,Cleopatra FC,Pending
+9.Matchday,Thu 14/12/23,El Masry,Zamalek,6:00 PM
+9.Matchday,Thu 14/12/23,Pyramids FC,Baladiya,Pending
+9.Matchday,Fri 15/12/23,El Dakhlia,Smouha,3:00 PM
+9.Matchday,Fri 15/12/23,Pharco FC,Zed FC,5:00 PM
+9.Matchday,Fri 15/12/23,Talaea El Gaish,El Mokawloon,Pending
+9.Matchday,Sat 16/12/23,Enppi SC,Ismaily,6:00 PM
+9.Matchday,Tue 07/05/24,Ahly SC,Ittihad Alex,6:00 PM
+10.Matchday,Mon 25/12/23,El Gouna,Enppi SC,3:00 PM
+10.Matchday,Mon 25/12/23,Baladiya,Bank El Ahly,6:00 PM
+10.Matchday,Tue 26/12/23,Ittihad Alex,Pharco FC,6:00 PM
+10.Matchday,Wed 27/12/23,Zed FC,El Dakhlia,3:00 PM
+10.Matchday,Wed 27/12/23,Smouha,Talaea El Gaish,6:00 PM
+10.Matchday,Sun 14/04/24,Cleopatra FC,El Masry,4:00 PM
+10.Matchday,Sun 14/04/24,Ismaily,Modern Future,7:00 PM
+10.Matchday,Mon 15/04/24,El Mokawloon,Pyramids FC,4:00 PM
+10.Matchday,Mon 15/04/24,Zamalek,Ahly SC,7:00 PM
+11.Matchday,Sat 30/12/23,Bank El Ahly,El Mokawloon,3:00 PM
+11.Matchday,Sat 30/12/23,Talaea El Gaish,Zed FC,6:00 PM
+11.Matchday,Sat 30/12/23,Enppi SC,Baladiya,Pending
+11.Matchday,Mon 01/01/24,El Dakhlia,Ittihad Alex,3:00 PM
+11.Matchday,Mon 01/01/24,El Masry,Ismaily,6:00 PM
+11.Matchday,Thu 13/06/24,Modern Future,El Gouna,7:00 PM
+11.Matchday,Thu 13/06/24,Pyramids FC,Smouha,Pending
+11.Matchday,Fri 14/06/24,Cleopatra FC,Zamalek,7:00 PM
+11.Matchday,Fri 14/06/24,Pharco FC,Ahly SC,Pending
+12.Matchday,Tue 13/02/24,El Gouna,El Masry,3:00 PM
+12.Matchday,Tue 13/02/24,Smouha,Bank El Ahly,6:00 PM
+12.Matchday,Wed 14/02/24,El Mokawloon,Enppi SC,3:00 PM
+12.Matchday,Wed 14/02/24,Ittihad Alex,Talaea El Gaish,Pending
+12.Matchday,Wed 14/02/24,Zed FC,Pyramids FC,6:00 PM
+12.Matchday,Thu 15/02/24,Baladiya,Modern Future,3:00 PM
+12.Matchday,Thu 15/02/24,Ismaily,Cleopatra FC,6:00 PM
+12.Matchday,Fri 21/06/24,Zamalek,Pharco FC,6:00 PM
+12.Matchday,Fri 21/06/24,El Dakhlia,Ahly SC,Pending
+13.Matchday,Sun 18/02/24,Bank El Ahly,Zed FC,3:00 PM
+13.Matchday,Sun 18/02/24,Enppi SC,Smouha,Pending
+13.Matchday,Sun 18/02/24,Pyramids FC,Ittihad Alex,6:00 PM
+13.Matchday,Mon 19/02/24,Modern Future,El Mokawloon,3:00 PM
+13.Matchday,Mon 19/02/24,Ismaily,Zamalek,6:00 PM
+13.Matchday,Tue 20/02/24,Cleopatra FC,El Gouna,3:00 PM
+13.Matchday,Tue 20/02/24,El Dakhlia,Pharco FC,6:00 PM
+13.Matchday,Tue 20/02/24,El Masry,Baladiya,Pending
+13.Matchday,Mon 01/07/24,Talaea El Gaish,Ahly SC,6:00 PM
+14.Matchday,Fri 23/02/24,Baladiya,Cleopatra FC,7:00 PM
+14.Matchday,Sun 25/02/24,Pharco FC,Talaea El Gaish,3:00 PM
+14.Matchday,Sun 25/02/24,Ittihad Alex,Bank El Ahly,6:00 PM
+14.Matchday,Mon 26/02/24,El Gouna,Ismaily,3:00 PM
+14.Matchday,Mon 26/02/24,Zed FC,Enppi SC,Pending
+14.Matchday,Mon 26/02/24,El Mokawloon,El Masry,6:00 PM
+14.Matchday,Thu 29/02/24,Smouha,Modern Future,6:00 PM
+14.Matchday,Thu 29/02/24,Zamalek,El Dakhlia,Pending
+14.Matchday,Fri 12/07/24,Ahly SC,Pyramids FC,6:00 PM
+15.Matchday,Fri 01/03/24,Cleopatra FC,El Mokawloon,6:00 PM
+15.Matchday,Sat 02/03/24,Ismaily,Baladiya,6:00 PM
+15.Matchday,Sun 03/03/24,Enppi SC,Ittihad Alex,6:00 PM
+15.Matchday,Tue 05/03/24,Talaea El Gaish,El Dakhlia,3:00 PM
+15.Matchday,Tue 05/03/24,El Masry,Smouha,6:00 PM
+15.Matchday,Wed 06/03/24,Pyramids FC,Pharco FC,6:00 PM
+15.Matchday,Thu 07/03/24,Modern Future,Zed FC,6:00 PM
+15.Matchday,Tue 12/03/24,El Gouna,Zamalek,8:30 PM
+15.Matchday,Tue 12/03/24,Bank El Ahly,Ahly SC,Pending
+16.Matchday,Fri 01/03/24,Pharco FC,Bank El Ahly,3:00 PM
+16.Matchday,Fri 08/03/24,Baladiya,El Gouna,3:00 PM
+16.Matchday,Sat 09/03/24,El Mokawloon,Ismaily,3:00 PM
+16.Matchday,Sun 10/03/24,Smouha,Cleopatra FC,3:00 PM
+16.Matchday,Sun 10/03/24,El Dakhlia,Pyramids FC,Pending
+16.Matchday,Mon 11/03/24,Ittihad Alex,Modern Future,8:30 PM
+16.Matchday,Tue 12/03/24,Zed FC,El Masry,8:30 PM
+16.Matchday,Mon 08/04/24,Ahly SC,Enppi SC,9:30 PM
+16.Matchday,Thu 11/07/24,Talaea El Gaish,Zamalek,6:00 PM
+17.Matchday,Wed 03/04/24,Cleopatra FC,Zed FC,10:00 PM
+17.Matchday,Wed 03/04/24,Ismaily,Smouha,Pending
+17.Matchday,Wed 03/04/24,El Gouna,El Mokawloon,10:15 PM
+17.Matchday,Thu 04/04/24,Bank El Ahly,El Dakhlia,10:00 PM
+17.Matchday,Thu 04/04/24,Enppi SC,Pharco FC,Pending
+17.Matchday,Thu 04/04/24,El Masry,Ittihad Alex,Pending
+17.Matchday,Fri 05/04/24,Pyramids FC,Talaea El Gaish,10:00 PM
+17.Matchday,Mon 15/07/24,Zamalek,Baladiya,6:00 PM
+17.Matchday,Tue 16/07/24,Modern Future,Ahly SC,6:00 PM
+18.Matchday,Wed 17/04/24,El Gouna,Smouha,4:00 PM
+18.Matchday,Wed 17/04/24,Enppi SC,El Dakhlia,7:00 PM
+18.Matchday,Wed 17/04/24,Bank El Ahly,Talaea El Gaish,Pending
+18.Matchday,Thu 18/04/24,Cleopatra FC,Ittihad Alex,4:00 PM
+18.Matchday,Thu 18/04/24,Modern Future,Pharco FC,7:00 PM
+18.Matchday,Thu 18/04/24,Ismaily,Zed FC,Pending
+18.Matchday,Fri 19/04/24,Baladiya,El Mokawloon,4:00 PM
+18.Matchday,Fri 26/07/24,El Masry,Ahly SC,6:00 PM
+18.Matchday,Fri 26/07/24,Zamalek,Pyramids FC,Pending
+19.Matchday,Mon 22/04/24,Zed FC,El Gouna,4:00 PM
+19.Matchday,Mon 22/04/24,El Dakhlia,Modern Future,7:00 PM
+19.Matchday,Mon 22/04/24,Ittihad Alex,Ismaily,Pending
+19.Matchday,Tue 23/04/24,Smouha,Baladiya,4:00 PM
+19.Matchday,Tue 23/04/24,Pharco FC,El Masry,7:00 PM
+19.Matchday,Wed 24/04/24,Talaea El Gaish,Enppi SC,4:30 PM
+19.Matchday,Wed 24/04/24,Pyramids FC,Bank El Ahly,7:00 PM
+19.Matchday,Mon 29/07/24,Ahly SC,Cleopatra FC,6:00 PM
+19.Matchday,Mon 29/07/24,El Mokawloon,Zamalek,Pending
+20.Matchday,Sat 27/04/24,Baladiya,Zed FC,3:00 PM
+20.Matchday,Sat 27/04/24,El Gouna,Ittihad Alex,6:00 PM
+20.Matchday,Sun 28/04/24,El Masry,El Dakhlia,3:00 PM
+20.Matchday,Sun 28/04/24,El Mokawloon,Smouha,6:00 PM
+20.Matchday,Mon 29/04/24,Cleopatra FC,Pharco FC,6:00 PM
+20.Matchday,Wed 01/05/24,Enppi SC,Pyramids FC,6:00 PM
+20.Matchday,Wed 01/05/24,Ismaily,Ahly SC,Pending
+20.Matchday,Thu 02/05/24,Modern Future,Talaea El Gaish,6:00 PM
+20.Matchday,Thu 02/05/24,Zamalek,Bank El Ahly,Pending
+21.Matchday,Fri 03/05/24,Ittihad Alex,Baladiya,6:00 PM
+21.Matchday,Fri 03/05/24,Zed FC,El Mokawloon,Pending
+21.Matchday,Sat 04/05/24,Pharco FC,Ismaily,3:00 PM
+21.Matchday,Sat 04/05/24,Ahly SC,El Gouna,6:00 PM
+21.Matchday,Sat 04/05/24,El Dakhlia,Cleopatra FC,Pending
+21.Matchday,Sun 05/05/24,Smouha,Zamalek,6:00 PM
+21.Matchday,Sun 05/05/24,Bank El Ahly,Enppi SC,Pending
+21.Matchday,Mon 06/05/24,Pyramids FC,Modern Future,6:00 PM
+21.Matchday,Mon 06/05/24,Talaea El Gaish,El Masry,Pending
+22.Matchday,Thu 09/05/24,Ismaily,El Dakhlia,3:00 PM
+22.Matchday,Thu 09/05/24,Smouha,Zed FC,6:00 PM
+22.Matchday,Fri 10/05/24,Cleopatra FC,Talaea El Gaish,3:00 PM
+22.Matchday,Fri 10/05/24,El Gouna,Pharco FC,6:00 PM
+22.Matchday,Fri 10/05/24,Modern Future,Bank El Ahly,Pending
+22.Matchday,Sat 11/05/24,El Mokawloon,Ittihad Alex,3:00 PM
+22.Matchday,Sat 11/05/24,Baladiya,Ahly SC,6:00 PM
+22.Matchday,Sat 11/05/24,El Masry,Pyramids FC,Pending
+22.Matchday,Mon 05/08/24,Zamalek,Enppi SC,6:00 PM
+23.Matchday,Tue 14/05/24,Ittihad Alex,Smouha,3:00 PM
+23.Matchday,Tue 14/05/24,Talaea El Gaish,Ismaily,6:00 PM
+23.Matchday,Wed 15/05/24,El Dakhlia,El Gouna,3:00 PM
+23.Matchday,Wed 15/05/24,Pyramids FC,Cleopatra FC,6:00 PM
+23.Matchday,Wed 15/05/24,Pharco FC,Baladiya,Pending
+23.Matchday,Thu 16/05/24,Enppi SC,Modern Future,6:00 PM
+23.Matchday,Thu 16/05/24,Bank El Ahly,El Masry,Pending
+23.Matchday,Sun 04/08/24,Ahly SC,El Mokawloon,6:00 PM
+23.Matchday,Thu 08/08/24,Zed FC,Zamalek,6:00 PM
+24.Matchday,Sun 19/05/24,Ismaily,Pyramids FC,5:00 PM
+24.Matchday,Mon 20/05/24,El Masry,Enppi SC,3:00 PM
+24.Matchday,Mon 20/05/24,Zed FC,Ittihad Alex,6:00 PM
+24.Matchday,Mon 20/05/24,El Mokawloon,Pharco FC,Pending
+24.Matchday,Tue 21/05/24,Baladiya,El Dakhlia,3:00 PM
+24.Matchday,Tue 21/05/24,El Gouna,Talaea El Gaish,6:00 PM
+24.Matchday,Tue 21/05/24,Cleopatra FC,Bank El Ahly,Pending
+24.Matchday,Thu 23/05/24,Zamalek,Modern Future,6:00 PM
+24.Matchday,Thu 08/08/24,Smouha,Ahly SC,6:00 PM
+25.Matchday,Fri 24/05/24,Enppi SC,Cleopatra FC,6:00 PM
+25.Matchday,Fri 24/05/24,Pharco FC,Smouha,Pending
+25.Matchday,Sat 25/05/24,El Dakhlia,El Mokawloon,5:00 PM
+25.Matchday,Sun 26/05/24,Bank El Ahly,Ismaily,3:00 PM
+25.Matchday,Sun 26/05/24,Talaea El Gaish,Baladiya,6:00 PM
+25.Matchday,Sun 26/05/24,Modern Future,El Masry,Pending
+25.Matchday,Mon 27/05/24,Pyramids FC,El Gouna,3:00 PM
+25.Matchday,Mon 27/05/24,Ittihad Alex,Zamalek,6:00 PM
+25.Matchday,Sun 11/08/24,Ahly SC,Zed FC,6:00 PM
+26.Matchday,Sun 16/06/24,El Mokawloon,Talaea El Gaish,6:00 PM
+26.Matchday,Mon 17/06/24,El Gouna,Bank El Ahly,3:00 PM
+26.Matchday,Mon 17/06/24,Ismaily,Enppi SC,6:00 PM
+26.Matchday,Mon 17/06/24,Zamalek,El Masry,Pending
+26.Matchday,Tue 18/06/24,Smouha,El Dakhlia,3:00 PM
+26.Matchday,Tue 18/06/24,Ittihad Alex,Ahly SC,6:00 PM
+26.Matchday,Tue 18/06/24,Zed FC,Pharco FC,Pending
+26.Matchday,Wed 19/06/24,Baladiya,Pyramids FC,6:00 PM
+26.Matchday,Wed 19/06/24,Cleopatra FC,Modern Future,Pending
+27.Matchday,Sat 22/06/24,Enppi SC,El Gouna,6:00 PM
+27.Matchday,Sat 22/06/24,Talaea El Gaish,Smouha,Pending
+27.Matchday,Sun 23/06/24,Modern Future,Ismaily,3:00 PM
+27.Matchday,Sun 23/06/24,El Masry,Cleopatra FC,6:00 PM
+27.Matchday,Sun 23/06/24,Pyramids FC,El Mokawloon,Pending
+27.Matchday,Mon 24/06/24,Bank El Ahly,Baladiya,3:00 PM
+27.Matchday,Mon 24/06/24,El Dakhlia,Zed FC,6:00 PM
+27.Matchday,Mon 24/06/24,Pharco FC,Ittihad Alex,Pending
+27.Matchday,Tue 25/06/24,Ahly SC,Zamalek,6:00 PM
+28.Matchday,Thu 27/06/24,El Gouna,Modern Future,3:00 PM
+28.Matchday,Thu 27/06/24,Ismaily,El Masry,6:00 PM
+28.Matchday,Thu 27/06/24,Zed FC,Talaea El Gaish,Pending
+28.Matchday,Fri 28/06/24,El Mokawloon,Bank El Ahly,3:00 PM
+28.Matchday,Fri 28/06/24,Ahly SC,Pharco FC,6:00 PM
+28.Matchday,Sat 29/06/24,Baladiya,Enppi SC,3:00 PM
+28.Matchday,Sat 29/06/24,Ittihad Alex,El Dakhlia,4:30 PM
+28.Matchday,Sat 29/06/24,Zamalek,Cleopatra FC,6:00 PM
+28.Matchday,Tue 02/07/24,Smouha,Pyramids FC,7:00 PM
+29.Matchday,Mon 01/07/24,El Masry,El Gouna,6:00 PM
+29.Matchday,Tue 02/07/24,Enppi SC,El Mokawloon,6:00 PM
+29.Matchday,Wed 03/07/24,Modern Future,Baladiya,3:00 PM
+29.Matchday,Wed 03/07/24,Cleopatra FC,Ismaily,6:00 PM
+29.Matchday,Wed 03/07/24,Pharco FC,Zamalek,Pending
+29.Matchday,Thu 04/07/24,Ahly SC,El Dakhlia,6:00 PM
+29.Matchday,Thu 04/07/24,Talaea El Gaish,Ittihad Alex,Pending
+29.Matchday,Sat 13/07/24,Bank El Ahly,Smouha,6:00 PM
+29.Matchday,Sun 04/08/24,Pyramids FC,Zed FC,6:00 PM
+30.Matchday,Sat 06/07/24,Smouha,Enppi SC,4:30 PM
+30.Matchday,Sat 06/07/24,Zed FC,Bank El Ahly,6:00 PM
+30.Matchday,Sun 07/07/24,Baladiya,El Masry,3:00 PM
+30.Matchday,Sun 07/07/24,Zamalek,Ismaily,6:00 PM
+30.Matchday,Sun 07/07/24,El Gouna,Cleopatra FC,Pending
+30.Matchday,Mon 08/07/24,Pharco FC,El Dakhlia,3:00 PM
+30.Matchday,Mon 08/07/24,Ittihad Alex,Pyramids FC,4:30 PM
+30.Matchday,Mon 08/07/24,Ahly SC,Talaea El Gaish,6:00 PM
+30.Matchday,Thu 11/07/24,El Mokawloon,Modern Future,8:00 PM
+31.Matchday,Sat 20/07/24,Talaea El Gaish,Pharco FC,3:00 PM
+31.Matchday,Sat 20/07/24,Bank El Ahly,Ittihad Alex,6:00 PM
+31.Matchday,Sat 20/07/24,Cleopatra FC,Baladiya,Pending
+31.Matchday,Sun 21/07/24,El Masry,El Mokawloon,6:00 PM
+31.Matchday,Sun 21/07/24,Enppi SC,Zed FC,Pending
+31.Matchday,Sun 21/07/24,El Dakhlia,Zamalek,Pending
+31.Matchday,Mon 22/07/24,Ismaily,El Gouna,3:00 PM
+31.Matchday,Mon 22/07/24,Pyramids FC,Ahly SC,6:00 PM
+31.Matchday,Mon 22/07/24,Modern Future,Smouha,Pending
+32.Matchday,Tue 30/07/24,El Dakhlia,Talaea El Gaish,3:00 PM
+32.Matchday,Tue 30/07/24,Baladiya,Ismaily,6:00 PM
+32.Matchday,Tue 30/07/24,Pharco FC,Pyramids FC,Pending
+32.Matchday,Wed 31/07/24,Ittihad Alex,Enppi SC,6:00 PM
+32.Matchday,Wed 31/07/24,Zed FC,Modern Future,Pending
+32.Matchday,Thu 01/08/24,El Mokawloon,Cleopatra FC,3:00 PM
+32.Matchday,Thu 01/08/24,Smouha,El Masry,6:00 PM
+32.Matchday,Thu 01/08/24,Ahly SC,Bank El Ahly,Pending
+32.Matchday,Fri 02/08/24,Zamalek,El Gouna,6:00 PM
+33.Matchday,Mon 12/08/24,Cleopatra FC,Smouha,6:00 PM
+33.Matchday,Mon 12/08/24,Modern Future,Ittihad Alex,Pending
+33.Matchday,Tue 13/08/24,Ismaily,El Mokawloon,6:00 PM
+33.Matchday,Tue 13/08/24,El Gouna,Baladiya,Pending
+33.Matchday,Tue 13/08/24,Bank El Ahly,Pharco FC,8:00 PM
+33.Matchday,Wed 14/08/24,El Masry,Zed FC,3:00 PM
+33.Matchday,Wed 14/08/24,Zamalek,Talaea El Gaish,Pending
+33.Matchday,Wed 14/08/24,Pyramids FC,El Dakhlia,6:00 PM
+33.Matchday,Wed 14/08/24,Enppi SC,Ahly SC,Pending
+34.Matchday,Sun 11/08/24,Talaea El Gaish,Pyramids FC,8:00 PM
+34.Matchday,Fri 16/08/24,Smouha,Ismaily,6:00 PM
+34.Matchday,Sat 17/08/24,Pharco FC,Enppi SC,6:00 PM
+34.Matchday,Sat 17/08/24,Ahly SC,Modern Future,Pending
+34.Matchday,Sat 17/08/24,Baladiya,Zamalek,8:00 PM
+34.Matchday,Sun 18/08/24,El Dakhlia,Bank El Ahly,4:30 PM
+34.Matchday,Sun 18/08/24,El Mokawloon,El Gouna,Pending
+34.Matchday,Sun 18/08/24,Ittihad Alex,El Masry,6:00 PM
+34.Matchday,Sun 18/08/24,Zed FC,Cleopatra FC,8:00 PM
