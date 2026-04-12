@@ -107,6 +107,10 @@ The first line of `app.py` inserts `REPO_ROOT` on `sys.path` so `import schedule
 | **Tab · Data library** | Checkbox to add `past seasons data/` root. Lists all `.xlsx`/`.csv` under chosen roots. Select file → if CSV, `load_csv` preview; if Excel, sheet picker then `load_excel_sheet` preview (max 400 rows). |
 | **Tab · Schedule** | Reads `output/optimized_schedule.csv` if present; multiselect filter on `Round`; dataframe + download button. |
 | **Tab · Code documentation** | Renders this markdown file (`CODE_DOCUMENTATION.md`) via `st.markdown`. |
+| **`_schedule_dataframe()`** | Returns the active schedule: in-memory `last_result.schedule_df` after a successful run, otherwise reads `output/optimized_schedule.csv`. |
+| **`_team_list()`** | Builds `(Team_ID, Team_Name)` pairs from `teams_data` (skips blank IDs). |
+| **`_render_club_picker()`** | Six-column grid of `st.button` labels = `Team_ID`; sets `st.session_state["dashboard_club"]`. Marks the active club with a short “selected” line. |
+| **`_club_season_table(sched, club_id)`** | Filters to rows where the club is home or away; adds `H_A` and `Opponent`; keeps key columns; sorts by `Date_time`. |
 
 ### 3.3 [`data_browser.py`](ui/data_browser.py)
 
@@ -144,8 +148,6 @@ The first line of `app.py` inserts `REPO_ROOT` on `sys.path` so `import schedule
 - **pandas / openpyxl**: Excel + CSV I/O.
 - **ortools**: CP-SAT solver.
 - **streamlit**: Web UI.
-- **pillow**: Logo resize and placeholder generation.
-- Logo downloads use **urllib** only (no extra HTTP client dependency).
 
 ---
 
