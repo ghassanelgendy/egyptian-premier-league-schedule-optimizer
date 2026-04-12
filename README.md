@@ -37,6 +37,34 @@ The model evaluates a complex set of constraints to ensure the schedule is viabl
 * **🏆 Continental Participation:** Dynamically adjusts for CAF Champions League and Confederation Cup fixtures.
 * **🇪🇬 Domestic Cup Integration:** Seamlessly fits Egypt Cup matches into the calendar structure.
 
+## Run the optimizer
+
+Requirements: Python 3.11+ recommended (3.14 tested), all workbooks under `data/` and `data/Sources/` as in [Documentations/PRD.md](Documentations/PRD.md).
+
+```bash
+pip install -r requirements.txt
+python -m schedule_optimizer
+```
+
+Outputs:
+
+- `output/optimized_schedule.csv` — full season with `Travel_km` and `Slot_tier`
+- `output/week_round_map.csv` — DRR round index to calendar `Week_Num`
+- `output/data_load_log.txt` — every input file/sheet touched
+
+Optional: `EPL_CAF_BUFFER_DAYS=3` uses a ±3 day buffer around each `cont_blockers` anchor (default **1**; ±3 is often infeasible with the current blocker density).
+
+### Web UI (Streamlit)
+
+```bash
+pip install -r requirements.txt
+python -m streamlit run ui/app.py
+```
+
+On Windows, if `streamlit` is not recognized as a command, always use `python -m streamlit` (or `py -m streamlit`) so the correct Python environment is used.
+
+The UI previews every `.xlsx` / `.csv` under `data/`, can optionally include `past seasons data/`, runs the same optimizer as the CLI, shows solver statistics, and lets you **pick a club on the Dashboard** to view its **full-season** fixtures. In-app **Code documentation** tab renders [Documentations/CODE_DOCUMENTATION.md](Documentations/CODE_DOCUMENTATION.md).
+
 <br />
 
 ---
