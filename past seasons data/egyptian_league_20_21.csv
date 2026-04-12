@@ -1,0 +1,307 @@
+Matchday,Date,Home Team,Away Team,Time
+1.Matchday,Fri 11/12/20,Enppi SC,Aswan SC,1:30 PM
+1.Matchday,Fri 11/12/20,Talaea El Gaish,El Gouna,4:00 PM
+1.Matchday,Fri 11/12/20,Entag El Harby,Cleopatra FC,6:30 PM
+1.Matchday,Sat 12/12/20,Bank El Ahly,Wadi Degla,1:30 PM
+1.Matchday,Sat 12/12/20,Pyramids FC,Ittihad Alex,4:00 PM
+1.Matchday,Sat 12/12/20,El Mokawloon,Zamalek,6:30 PM
+1.Matchday,Sun 13/12/20,El Masry,Ismaily,4:00 PM
+1.Matchday,Sun 13/12/20,Ahly SC,El Makasa,6:30 PM
+1.Matchday,Mon 14/12/20,Smouha,El Mahalla,6:30 PM
+2.Matchday,Wed 16/12/20,Aswan SC,Talaea El Gaish,1:30 PM
+2.Matchday,Wed 16/12/20,Cleopatra FC,Bank El Ahly,4:00 PM
+2.Matchday,Wed 16/12/20,Wadi Degla,El Mokawloon,6:30 PM
+2.Matchday,Thu 17/12/20,El Gouna,El Masry,1:30 PM
+2.Matchday,Thu 17/12/20,Ismaily,Entag El Harby,4:00 PM
+2.Matchday,Thu 17/12/20,Zamalek,Pyramids FC,6:30 PM
+2.Matchday,Fri 18/12/20,El Makasa,Enppi SC,1:30 PM
+2.Matchday,Fri 18/12/20,Ittihad Alex,Smouha,4:00 PM
+2.Matchday,Fri 18/12/20,Ahly SC,El Mahalla,6:30 PM
+3.Matchday,Mon 21/12/20,Bank El Ahly,Entag El Harby,1:30 PM
+3.Matchday,Mon 21/12/20,El Gouna,Ismaily,4:00 PM
+3.Matchday,Mon 21/12/20,El Masry,Aswan SC,6:30 PM
+3.Matchday,Tue 22/12/20,Enppi SC,El Mahalla,4:00 PM
+3.Matchday,Tue 22/12/20,Talaea El Gaish,El Makasa,6:30 PM
+3.Matchday,Mon 28/12/20,Smouha,Zamalek,4:00 PM
+3.Matchday,Mon 28/12/20,Ahly SC,Ittihad Alex,6:30 PM
+3.Matchday,Mon 11/01/21,Pyramids FC,Wadi Degla,4:00 PM
+3.Matchday,Tue 12/01/21,El Mokawloon,Cleopatra FC,4:00 PM
+4.Matchday,Thu 24/12/20,Wadi Degla,Smouha,6:30 PM
+4.Matchday,Fri 25/12/20,Aswan SC,El Gouna,1:30 PM
+4.Matchday,Fri 25/12/20,El Mahalla,Talaea El Gaish,4:00 PM
+4.Matchday,Fri 25/12/20,Ismaily,Bank El Ahly,6:30 PM
+4.Matchday,Sat 26/12/20,Entag El Harby,El Mokawloon,4:00 PM
+4.Matchday,Sat 26/12/20,El Makasa,El Masry,6:30 PM
+4.Matchday,Sun 27/12/20,Cleopatra FC,Pyramids FC,6:30 PM
+4.Matchday,Mon 01/03/21,Ittihad Alex,Enppi SC,4:00 PM
+4.Matchday,Sun 18/04/21,Zamalek,Ahly SC,9:30 PM
+5.Matchday,Tue 29/12/20,Aswan SC,Ismaily,1:30 PM
+5.Matchday,Wed 30/12/20,El Gouna,El Makasa,1:30 PM
+5.Matchday,Wed 30/12/20,El Mokawloon,Bank El Ahly,4:00 PM
+5.Matchday,Wed 30/12/20,El Masry,El Mahalla,6:30 PM
+5.Matchday,Fri 01/01/21,Pyramids FC,Entag El Harby,4:00 PM
+5.Matchday,Fri 01/01/21,Ahly SC,Wadi Degla,6:30 PM
+5.Matchday,Sat 02/01/21,Smouha,Cleopatra FC,1:30 PM
+5.Matchday,Sat 02/01/21,Talaea El Gaish,Ittihad Alex,4:00 PM
+5.Matchday,Sat 02/01/21,Enppi SC,Zamalek,6:30 PM
+6.Matchday,Thu 07/01/21,Ittihad Alex,El Masry,4:00 PM
+6.Matchday,Fri 08/01/21,Bank El Ahly,Pyramids FC,1:30 PM
+6.Matchday,Fri 08/01/21,Wadi Degla,Enppi SC,4:00 PM
+6.Matchday,Fri 08/01/21,Cleopatra FC,Ahly SC,6:30 PM
+6.Matchday,Sat 09/01/21,El Makasa,Aswan SC,1:30 PM
+6.Matchday,Sat 09/01/21,El Mahalla,El Gouna,4:00 PM
+6.Matchday,Sat 09/01/21,Zamalek,Talaea El Gaish,6:30 PM
+6.Matchday,Sun 17/01/21,Entag El Harby,Smouha,1:30 PM
+6.Matchday,Mon 18/01/21,Ismaily,El Mokawloon,4:00 PM
+7.Matchday,Sun 03/01/21,El Makasa,Ismaily,6:30 PM
+7.Matchday,Tue 12/01/21,Smouha,Bank El Ahly,1:30 PM
+7.Matchday,Tue 12/01/21,El Masry,Zamalek,4:00 PM
+7.Matchday,Tue 12/01/21,Ahly SC,Entag El Harby,6:30 PM
+7.Matchday,Thu 14/01/21,Aswan SC,El Mahalla,1:30 PM
+7.Matchday,Thu 14/01/21,El Gouna,Ittihad Alex,4:00 PM
+7.Matchday,Fri 15/01/21,Talaea El Gaish,Wadi Degla,1:30 PM
+7.Matchday,Fri 15/01/21,Enppi SC,Cleopatra FC,Pending
+7.Matchday,Fri 15/01/21,Pyramids FC,El Mokawloon,Pending
+8.Matchday,Sun 17/01/21,Bank El Ahly,Ahly SC,4:00 PM
+8.Matchday,Mon 18/01/21,El Mahalla,El Makasa,1:30 PM
+8.Matchday,Mon 18/01/21,Cleopatra FC,Talaea El Gaish,Pending
+8.Matchday,Tue 19/01/21,Zamalek,El Gouna,4:00 PM
+8.Matchday,Wed 20/01/21,Wadi Degla,El Masry,1:30 PM
+8.Matchday,Tue 26/01/21,El Mokawloon,Smouha,4:00 PM
+8.Matchday,Sat 30/01/21,Ismaily,Pyramids FC,6:30 PM
+8.Matchday,Sun 21/02/21,Ittihad Alex,Aswan SC,6:30 PM
+8.Matchday,Thu 25/02/21,Entag El Harby,Enppi SC,1:30 PM
+9.Matchday,Thu 21/01/21,Ahly SC,El Mokawloon,4:00 PM
+9.Matchday,Fri 22/01/21,Smouha,Pyramids FC,1:30 PM
+9.Matchday,Fri 22/01/21,Talaea El Gaish,Entag El Harby,Pending
+9.Matchday,Sat 23/01/21,El Mahalla,Ismaily,1:30 PM
+9.Matchday,Sat 23/01/21,Aswan SC,Zamalek,4:00 PM
+9.Matchday,Sun 24/01/21,Enppi SC,Bank El Ahly,1:30 PM
+9.Matchday,Sun 24/01/21,El Gouna,Wadi Degla,Pending
+9.Matchday,Wed 03/02/21,El Makasa,Ittihad Alex,4:00 PM
+9.Matchday,Fri 26/02/21,El Masry,Cleopatra FC,4:00 PM
+10.Matchday,Tue 26/01/21,Pyramids FC,Ahly SC,6:30 PM
+10.Matchday,Thu 28/01/21,Bank El Ahly,Talaea El Gaish,1:30 PM
+10.Matchday,Thu 28/01/21,Zamalek,El Makasa,6:30 PM
+10.Matchday,Fri 29/01/21,Cleopatra FC,El Gouna,1:30 PM
+10.Matchday,Fri 29/01/21,Wadi Degla,Aswan SC,Pending
+10.Matchday,Fri 29/01/21,Entag El Harby,El Masry,4:00 PM
+10.Matchday,Sat 30/01/21,El Mokawloon,Enppi SC,4:00 PM
+10.Matchday,Wed 03/02/21,Ismaily,Smouha,6:30 PM
+10.Matchday,Tue 09/03/21,Ittihad Alex,El Mahalla,6:00 PM
+11.Matchday,Tue 02/02/21,Aswan SC,Cleopatra FC,1:30 PM
+11.Matchday,Tue 02/02/21,El Gouna,Entag El Harby,Pending
+11.Matchday,Tue 02/02/21,El Mahalla,Zamalek,4:00 PM
+11.Matchday,Tue 02/02/21,El Masry,Bank El Ahly,6:30 PM
+11.Matchday,Wed 03/02/21,Enppi SC,Pyramids FC,4:00 PM
+11.Matchday,Wed 03/02/21,Talaea El Gaish,El Mokawloon,Pending
+11.Matchday,Thu 11/02/21,Ittihad Alex,Ismaily,6:30 PM
+11.Matchday,Sat 20/02/21,El Makasa,Wadi Degla,4:00 PM
+11.Matchday,Wed 21/04/21,Ahly SC,Smouha,9:30 PM
+12.Matchday,Sat 06/02/21,Bank El Ahly,El Gouna,1:30 PM
+12.Matchday,Sat 06/02/21,Pyramids FC,Talaea El Gaish,4:00 PM
+12.Matchday,Sat 06/02/21,Entag El Harby,Aswan SC,Pending
+12.Matchday,Sat 06/02/21,El Mokawloon,El Masry,6:30 PM
+12.Matchday,Sun 07/02/21,Wadi Degla,El Mahalla,1:30 PM
+12.Matchday,Sun 07/02/21,Zamalek,Ittihad Alex,6:30 PM
+12.Matchday,Mon 08/02/21,Cleopatra FC,El Makasa,1:30 PM
+12.Matchday,Mon 08/02/21,Smouha,Enppi SC,4:00 PM
+12.Matchday,Wed 10/03/21,Ismaily,Ahly SC,6:30 PM
+13.Matchday,Thu 11/02/21,El Mahalla,Cleopatra FC,1:30 PM
+13.Matchday,Thu 11/02/21,El Makasa,Entag El Harby,4:00 PM
+13.Matchday,Fri 12/02/21,Talaea El Gaish,Smouha,4:00 PM
+13.Matchday,Wed 17/02/21,Zamalek,Ismaily,6:30 PM
+13.Matchday,Sun 21/02/21,El Gouna,El Mokawloon,1:30 PM
+13.Matchday,Thu 25/02/21,Ittihad Alex,Wadi Degla,4:00 PM
+13.Matchday,Sun 28/02/21,Aswan SC,Bank El Ahly,1:30 PM
+13.Matchday,Tue 02/03/21,El Masry,Pyramids FC,6:00 PM
+13.Matchday,Sat 24/04/21,Enppi SC,Ahly SC,9:30 PM
+14.Matchday,Tue 16/02/21,Bank El Ahly,El Makasa,1:30 PM
+14.Matchday,Wed 17/02/21,El Mokawloon,Aswan SC,1:30 PM
+14.Matchday,Wed 17/02/21,Cleopatra FC,Ittihad Alex,4:00 PM
+14.Matchday,Wed 17/02/21,Entag El Harby,El Mahalla,Pending
+14.Matchday,Sun 21/02/21,Ismaily,Enppi SC,4:00 PM
+14.Matchday,Mon 22/02/21,Smouha,El Masry,6:30 PM
+14.Matchday,Thu 25/02/21,Pyramids FC,El Gouna,6:30 PM
+14.Matchday,Sun 28/02/21,Ahly SC,Talaea El Gaish,6:30 PM
+14.Matchday,Mon 01/03/21,Wadi Degla,Zamalek,6:30 PM
+15.Matchday,Tue 02/03/21,El Gouna,Smouha,2:00 PM
+15.Matchday,Tue 02/03/21,El Makasa,El Mokawloon,4:00 PM
+15.Matchday,Thu 04/03/21,El Mahalla,Bank El Ahly,2:00 PM
+15.Matchday,Fri 05/03/21,Wadi Degla,Ismaily,2:00 PM
+15.Matchday,Fri 05/03/21,Ittihad Alex,Entag El Harby,4:00 PM
+15.Matchday,Fri 05/03/21,Talaea El Gaish,Enppi SC,6:00 PM
+15.Matchday,Sat 06/03/21,Aswan SC,Pyramids FC,6:00 PM
+15.Matchday,Thu 11/03/21,Zamalek,Cleopatra FC,6:30 PM
+15.Matchday,Tue 27/04/21,El Masry,Ahly SC,9:30 PM
+16.Matchday,Fri 12/03/21,Smouha,Aswan SC,2:00 PM
+16.Matchday,Sat 13/03/21,Enppi SC,El Masry,6:00 PM
+16.Matchday,Sun 14/03/21,El Mokawloon,El Mahalla,2:00 PM
+16.Matchday,Mon 15/03/21,Bank El Ahly,Ittihad Alex,4:00 PM
+16.Matchday,Tue 16/03/21,Cleopatra FC,Wadi Degla,4:00 PM
+16.Matchday,Tue 16/03/21,Talaea El Gaish,Ismaily,6:00 PM
+16.Matchday,Wed 14/04/21,Pyramids FC,El Makasa,9:30 PM
+16.Matchday,Thu 22/04/21,Entag El Harby,Zamalek,9:30 PM
+16.Matchday,Fri 30/04/21,Ahly SC,El Gouna,9:30 PM
+17.Matchday,Fri 02/04/21,Wadi Degla,Entag El Harby,5:00 PM
+17.Matchday,Fri 02/04/21,El Makasa,Smouha,9:00 PM
+17.Matchday,Sat 03/04/21,El Masry,Talaea El Gaish,7:00 PM
+17.Matchday,Sat 03/04/21,Ismaily,Cleopatra FC,9:00 PM
+17.Matchday,Mon 05/04/21,Ittihad Alex,El Mokawloon,7:00 PM
+17.Matchday,Fri 16/04/21,El Gouna,Enppi SC,9:30 PM
+17.Matchday,Sat 17/04/21,El Mahalla,Pyramids FC,9:30 PM
+17.Matchday,Mon 26/04/21,Zamalek,Bank El Ahly,9:30 PM
+17.Matchday,Thu 29/07/21,Aswan SC,Ahly SC,7:00 PM
+18.Matchday,Tue 06/04/21,El Mahalla,Smouha,3:00 PM
+18.Matchday,Tue 06/04/21,Aswan SC,Enppi SC,5:00 PM
+18.Matchday,Wed 07/04/21,El Gouna,Talaea El Gaish,3:00 PM
+18.Matchday,Wed 07/04/21,Wadi Degla,Bank El Ahly,7:00 PM
+18.Matchday,Wed 07/04/21,Ismaily,El Masry,9:00 PM
+18.Matchday,Sun 11/04/21,Cleopatra FC,Entag El Harby,5:00 PM
+18.Matchday,Sat 24/04/21,Ittihad Alex,Pyramids FC,9:30 PM
+18.Matchday,Thu 29/04/21,Zamalek,El Mokawloon,9:30 PM
+18.Matchday,Sun 11/07/21,El Makasa,Ahly SC,5:00 PM
+19.Matchday,Sun 11/04/21,El Masry,El Gouna,7:00 PM
+19.Matchday,Thu 22/04/21,El Mokawloon,Wadi Degla,9:30 PM
+19.Matchday,Fri 30/04/21,Bank El Ahly,Cleopatra FC,9:30 PM
+19.Matchday,Sat 01/05/21,Smouha,Ittihad Alex,9:30 PM
+19.Matchday,Sat 01/05/21,Talaea El Gaish,Aswan SC,Pending
+19.Matchday,Sat 01/05/21,Entag El Harby,Ismaily,Pending
+19.Matchday,Sun 02/05/21,Enppi SC,El Makasa,9:30 PM
+19.Matchday,Sun 02/05/21,Zamalek,Pyramids FC,Pending
+19.Matchday,Mon 03/05/21,El Mahalla,Ahly SC,9:30 PM
+20.Matchday,Tue 04/05/21,Entag El Harby,Bank El Ahly,9:30 PM
+20.Matchday,Wed 05/05/21,Cleopatra FC,El Mokawloon,9:30 PM
+20.Matchday,Wed 05/05/21,Aswan SC,El Masry,Pending
+20.Matchday,Wed 05/05/21,Ismaily,El Gouna,Pending
+20.Matchday,Wed 05/05/21,El Makasa,Talaea El Gaish,Pending
+20.Matchday,Thu 06/05/21,El Mahalla,Enppi SC,9:30 PM
+20.Matchday,Thu 06/05/21,Wadi Degla,Pyramids FC,Pending
+20.Matchday,Thu 06/05/21,Ittihad Alex,Ahly SC,Pending
+20.Matchday,Thu 06/05/21,Zamalek,Smouha,Pending
+21.Matchday,Sat 08/05/21,El Mokawloon,Entag El Harby,9:30 PM
+21.Matchday,Sun 09/05/21,Talaea El Gaish,El Mahalla,9:30 PM
+21.Matchday,Sun 09/05/21,El Masry,El Makasa,Pending
+21.Matchday,Sun 09/05/21,Enppi SC,Ittihad Alex,Pending
+21.Matchday,Sun 09/05/21,Pyramids FC,Cleopatra FC,Pending
+21.Matchday,Mon 10/05/21,El Gouna,Aswan SC,9:30 PM
+21.Matchday,Mon 10/05/21,Bank El Ahly,Ismaily,Pending
+21.Matchday,Mon 10/05/21,Smouha,Wadi Degla,Pending
+21.Matchday,Mon 10/05/21,Ahly SC,Zamalek,Pending
+22.Matchday,Fri 14/05/21,Bank El Ahly,El Mokawloon,5:00 PM
+22.Matchday,Fri 14/05/21,Ismaily,Aswan SC,Pending
+22.Matchday,Fri 14/05/21,El Mahalla,El Masry,7:00 PM
+22.Matchday,Fri 14/05/21,Zamalek,Enppi SC,9:00 PM
+22.Matchday,Sat 15/05/21,Cleopatra FC,Smouha,5:00 PM
+22.Matchday,Sat 15/05/21,El Makasa,El Gouna,7:00 PM
+22.Matchday,Sat 15/05/21,Ittihad Alex,Talaea El Gaish,9:00 PM
+22.Matchday,Thu 08/07/21,Entag El Harby,Pyramids FC,7:00 PM
+22.Matchday,Wed 04/08/21,Wadi Degla,Ahly SC,9:00 PM
+23.Matchday,Wed 19/05/21,El Mokawloon,Ismaily,7:00 PM
+23.Matchday,Wed 19/05/21,Aswan SC,El Makasa,9:00 PM
+23.Matchday,Thu 20/05/21,El Gouna,El Mahalla,7:00 PM
+23.Matchday,Thu 20/05/21,Zamalek,Talaea El Gaish,9:00 PM
+23.Matchday,Thu 20/05/21,El Masry,Ittihad Alex,Pending
+23.Matchday,Fri 21/05/21,Smouha,Entag El Harby,7:00 PM
+23.Matchday,Fri 21/05/21,Enppi SC,Wadi Degla,9:00 PM
+23.Matchday,Mon 26/07/21,Pyramids FC,Bank El Ahly,7:00 PM
+23.Matchday,Sat 07/08/21,Ahly SC,Cleopatra FC,9:00 PM
+24.Matchday,Mon 24/05/21,Ismaily,El Makasa,7:00 PM
+24.Matchday,Mon 24/05/21,Zamalek,El Masry,9:00 PM
+24.Matchday,Tue 25/05/21,Wadi Degla,Talaea El Gaish,7:00 PM
+24.Matchday,Tue 25/05/21,Ittihad Alex,El Gouna,9:00 PM
+24.Matchday,Tue 25/05/21,Aswan SC,El Mahalla,Pending
+24.Matchday,Wed 26/05/21,Bank El Ahly,Smouha,5:00 PM
+24.Matchday,Wed 26/05/21,Cleopatra FC,Enppi SC,7:00 PM
+24.Matchday,Fri 16/07/21,El Mokawloon,Pyramids FC,9:00 PM
+24.Matchday,Sun 25/07/21,Entag El Harby,Ahly SC,7:00 PM
+25.Matchday,Fri 28/05/21,El Makasa,El Mahalla,5:00 PM
+25.Matchday,Fri 28/05/21,El Masry,Wadi Degla,Pending
+25.Matchday,Fri 28/05/21,Aswan SC,Ittihad Alex,9:00 PM
+25.Matchday,Sat 29/05/21,Talaea El Gaish,Cleopatra FC,9:00 PM
+25.Matchday,Sun 30/05/21,Enppi SC,Entag El Harby,5:00 PM
+25.Matchday,Sun 30/05/21,Smouha,El Mokawloon,Pending
+25.Matchday,Sun 30/05/21,El Gouna,Zamalek,9:00 PM
+25.Matchday,Thu 22/07/21,Ahly SC,Bank El Ahly,7:00 PM
+25.Matchday,Wed 04/08/21,Pyramids FC,Ismaily,7:00 PM
+26.Matchday,Tue 15/06/21,Entag El Harby,Talaea El Gaish,7:00 PM
+26.Matchday,Tue 15/06/21,Pyramids FC,Smouha,Pending
+26.Matchday,Wed 16/06/21,Bank El Ahly,Enppi SC,7:00 PM
+26.Matchday,Wed 16/06/21,Cleopatra FC,El Masry,9:00 PM
+26.Matchday,Thu 17/06/21,Ismaily,El Mahalla,5:00 PM
+26.Matchday,Thu 17/06/21,Ittihad Alex,El Makasa,7:00 PM
+26.Matchday,Thu 17/06/21,Zamalek,Aswan SC,Pending
+26.Matchday,Fri 18/06/21,Wadi Degla,El Gouna,7:00 PM
+26.Matchday,Thu 08/07/21,El Mokawloon,Ahly SC,9:00 PM
+27.Matchday,Fri 25/06/21,El Gouna,Cleopatra FC,5:00 PM
+27.Matchday,Fri 25/06/21,El Mahalla,Ittihad Alex,7:00 PM
+27.Matchday,Fri 25/06/21,Aswan SC,Wadi Degla,Pending
+27.Matchday,Fri 25/06/21,El Masry,Entag El Harby,9:00 PM
+27.Matchday,Sun 27/06/21,Talaea El Gaish,Bank El Ahly,5:00 PM
+27.Matchday,Sun 27/06/21,Smouha,Ismaily,7:00 PM
+27.Matchday,Mon 28/06/21,Enppi SC,El Mokawloon,7:00 PM
+27.Matchday,Mon 28/06/21,El Makasa,Zamalek,Pending
+27.Matchday,Thu 01/07/21,Ahly SC,Pyramids FC,9:00 PM
+28.Matchday,Fri 02/07/21,Cleopatra FC,Aswan SC,5:00 PM
+28.Matchday,Fri 02/07/21,Entag El Harby,El Gouna,7:00 PM
+28.Matchday,Fri 02/07/21,Bank El Ahly,El Masry,9:00 PM
+28.Matchday,Sun 04/07/21,El Mokawloon,Talaea El Gaish,5:00 PM
+28.Matchday,Sun 04/07/21,Pyramids FC,Enppi SC,7:00 PM
+28.Matchday,Sun 04/07/21,Smouha,Ahly SC,9:00 PM
+28.Matchday,Mon 05/07/21,Wadi Degla,El Makasa,5:00 PM
+28.Matchday,Mon 05/07/21,Ismaily,Ittihad Alex,7:00 PM
+28.Matchday,Sat 07/08/21,Zamalek,El Mahalla,7:00 PM
+29.Matchday,Sun 08/08/21,El Gouna,Bank El Ahly,7:00 PM
+29.Matchday,Sun 08/08/21,Aswan SC,Entag El Harby,Pending
+29.Matchday,Sun 08/08/21,Talaea El Gaish,Pyramids FC,9:00 PM
+29.Matchday,Sun 08/08/21,El Masry,El Mokawloon,Pending
+29.Matchday,Mon 09/08/21,Enppi SC,Smouha,7:00 PM
+29.Matchday,Tue 10/08/21,El Mahalla,Wadi Degla,7:00 PM
+29.Matchday,Tue 10/08/21,El Makasa,Cleopatra FC,Pending
+29.Matchday,Tue 10/08/21,Ittihad Alex,Zamalek,9:00 PM
+29.Matchday,Wed 11/08/21,Ahly SC,Ismaily,9:00 PM
+30.Matchday,Thu 12/08/21,Bank El Ahly,Aswan SC,7:00 PM
+30.Matchday,Thu 12/08/21,El Mokawloon,El Gouna,Pending
+30.Matchday,Thu 12/08/21,Pyramids FC,El Masry,9:00 PM
+30.Matchday,Fri 13/08/21,Smouha,Talaea El Gaish,7:00 PM
+30.Matchday,Fri 13/08/21,Wadi Degla,Ittihad Alex,9:00 PM
+30.Matchday,Sat 14/08/21,Cleopatra FC,El Mahalla,7:00 PM
+30.Matchday,Sat 14/08/21,Ismaily,Zamalek,Pending
+30.Matchday,Sat 14/08/21,Ahly SC,Enppi SC,9:00 PM
+30.Matchday,Sun 15/08/21,Entag El Harby,El Makasa,7:00 PM
+31.Matchday,Mon 16/08/21,Aswan SC,El Mokawloon,7:00 PM
+31.Matchday,Mon 16/08/21,El Gouna,Pyramids FC,Pending
+31.Matchday,Mon 16/08/21,El Masry,Smouha,9:00 PM
+31.Matchday,Tue 17/08/21,Ittihad Alex,Cleopatra FC,7:00 PM
+31.Matchday,Tue 17/08/21,Enppi SC,Ismaily,Pending
+31.Matchday,Tue 17/08/21,Talaea El Gaish,Ahly SC,9:00 PM
+31.Matchday,Tue 17/08/21,Zamalek,Wadi Degla,Pending
+31.Matchday,Wed 18/08/21,El Mahalla,Entag El Harby,7:00 PM
+31.Matchday,Wed 18/08/21,El Makasa,Bank El Ahly,9:00 PM
+32.Matchday,Thu 19/08/21,Pyramids FC,Aswan SC,9:00 PM
+32.Matchday,Fri 20/08/21,Ismaily,Wadi Degla,7:00 PM
+32.Matchday,Fri 20/08/21,Enppi SC,Talaea El Gaish,9:00 PM
+32.Matchday,Fri 20/08/21,Cleopatra FC,Zamalek,Pending
+32.Matchday,Fri 20/08/21,Ahly SC,El Masry,Pending
+32.Matchday,Sat 21/08/21,Entag El Harby,Ittihad Alex,7:00 PM
+32.Matchday,Sat 21/08/21,Bank El Ahly,El Mahalla,Pending
+32.Matchday,Sat 21/08/21,Smouha,El Gouna,9:00 PM
+32.Matchday,Sat 21/08/21,El Mokawloon,El Makasa,Pending
+33.Matchday,Mon 23/08/21,Ismaily,Talaea El Gaish,7:00 PM
+33.Matchday,Mon 23/08/21,El Masry,Enppi SC,9:00 PM
+33.Matchday,Tue 24/08/21,Wadi Degla,Cleopatra FC,5:30 PM
+33.Matchday,Tue 24/08/21,Aswan SC,Smouha,7:00 PM
+33.Matchday,Tue 24/08/21,Ittihad Alex,Bank El Ahly,Pending
+33.Matchday,Tue 24/08/21,El Gouna,Ahly SC,9:00 PM
+33.Matchday,Tue 24/08/21,Zamalek,Entag El Harby,Pending
+33.Matchday,Wed 25/08/21,El Mahalla,El Mokawloon,7:00 PM
+33.Matchday,Wed 25/08/21,El Makasa,Pyramids FC,9:00 PM
+34.Matchday,Thu 26/08/21,Talaea El Gaish,El Masry,9:00 PM
+34.Matchday,Fri 27/08/21,Cleopatra FC,Ismaily,7:00 PM
+34.Matchday,Fri 27/08/21,Ahly SC,Aswan SC,9:00 PM
+34.Matchday,Fri 27/08/21,Bank El Ahly,Zamalek,Pending
+34.Matchday,Sat 28/08/21,Smouha,El Makasa,5:00 PM
+34.Matchday,Sat 28/08/21,Pyramids FC,El Mahalla,Pending
+34.Matchday,Sat 28/08/21,El Mokawloon,Ittihad Alex,7:00 PM
+34.Matchday,Sat 28/08/21,Entag El Harby,Wadi Degla,Pending
+34.Matchday,Sat 28/08/21,Enppi SC,El Gouna,9:00 PM
