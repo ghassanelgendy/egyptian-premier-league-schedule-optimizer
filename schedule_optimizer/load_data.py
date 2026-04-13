@@ -179,8 +179,9 @@ def build_team_date_blackout(
 
     black: dict[str, set[date]] = {tid: set() for tid in teams.index}
 
-    # CAF CL/CC workbook dates are loaded for audit; continental hard blackouts
-    # use cont_blockers (+/-3) and slot-level Is_CAF (expanded_calendar) in the solver.
+    # Continental blackouts:
+    # - Team-specific anchors from cont_blockers (date_id -> Day_ID -> Date) with ±buffer.
+    # - Team-specific CAF CL/CC workbook dates with ±buffer (Option A).
 
     for _, row in blockers.iterrows():
         tid = strip_team_id(row.get("team_id"))
@@ -193,6 +194,25 @@ def build_team_date_blackout(
             continue
         for k in range(-caf_buffer_days, caf_buffer_days + 1):
             black[tid].add(anchor + timedelta(days=k))
+
+    # Apply CAF CL/CC workbook dates to teams by Cont_Flag (A: team-specific).
+    for tid in list(black.keys()):
+        if tid not in teams.index:
+            continue
+        cf = teams.loc[tid, "Cont_Flag"] if "Cont_Flag" in teams.columns else None
+        if pd.isna(cf):
+            continue
+        cf_s = str(cf).strip().upper()
+        dates: set[date] | None = None
+        if cf_s == "CL":
+            dates = set(caf_cl_dates)
+        elif cf_s == "CC":
+            dates = set(caf_cc_dates)
+        if not dates:
+            continue
+        for d0 in dates:
+            for k in range(-caf_buffer_days, caf_buffer_days + 1):
+                black[tid].add(d0 + timedelta(days=k))
 
     return black
 

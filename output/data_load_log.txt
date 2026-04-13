@@ -1,4 +1,4 @@
-CAF blocker buffer days each side: 5
+CAF blocker buffer days each side: 1
 Data_Model.xlsx sheets=['team_data', 'Stadiums', 'dist_Matrix', 'Sec_Matrix']
 expanded_calendar.xlsx sheets=['unique_CAF_dates', 'expanded _calendar_table', 'cont_blockers_updated1', 'FIFA_DAYS1', 'expanded_calendar']
 expanded_calendar rows=1041
@@ -16,4 +16,4 @@ CAF CL dates=39 CAF CC dates=24
 cont_blockers_table sheets=['cont_blockers_updated', 'cont_blockers']
 merged continental blockers rows=56
 All PRD input files touched.
-INFEASIBLE: match AHL vs PHA round 5 has zero feasible slots.
+CP-SAT failed in phase 1 (feasibility): UNKNOWN

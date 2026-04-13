@@ -2,9 +2,11 @@
 
 ## Egyptian Premier League Schedule Optimizer — Optimization Phase
 
-**Version:** 1.0  
-**Aligned with:** [presentation.pdf](presentation.pdf), Phase I documentation, and all committed data files under `data/` and `data/Sources/`.  
-**Solver:** Google OR-Tools CP-SAT (0–1 integer programming / constraint programming formulation).
+**Version:** 2.0 (implementation-aligned)  
+**Aligned with:** [presentation.pdf](presentation.pdf), committed data under `data/` and `data/Sources/`, and the code in `schedule_optimizer/` + `ui/`.  
+**Solver:** Google OR-Tools **CP-SAT** (`cp_model.CpModel` + `CpSolver`): 0–1 assignment with linear objective and logical constraints.
+
+**Audience:** Product owners, engineers, and **downstream AI implementers** (this document is intended to be sufficient to re-implement or extend the system without reading the whole repo first).
 
 ---
 
@@ -13,190 +15,213 @@
 Build a **single, reproducible pipeline** that:
 
 1. **Loads every** specified spreadsheet/CSV (no synthetic teams, stadiums, fixtures, or distances).
-2. Constructs a **double round-robin (DRR)** fixture list for the teams present in `teams_data.xlsx`.
-3. Assigns each league fixture to **exactly one** time slot from `expanded_calendar.xlsx`, respecting **hard constraints** derived from the data.
-4. **Minimizes** a linear **travel proxy** objective computed only from `Stadium_Distance_Matrix.xlsx`.
-5. Exports **`optimized_schedule.csv`** including **`Travel_km`** and **`Slot_tier`** per row.
+2. Constructs a **double round-robin (DRR)** fixture list for the teams in `teams_data.xlsx`, with **fixture ordering** chosen to maximize **strict-week feasibility** before CP-SAT (see §4.7).
+3. Assigns each league fixture to **exactly one** time slot from `expanded_calendar`, respecting **hard** model constraints and **data-derived** feasible domains.
+4. **Optimizes** a **scalarized linear objective** (travel + TV / tier / postponement / slot-overload penalties — §5).
+5. Writes **auditable phase artifacts** under `output/phases/` (§3.3) so every major step has machine-readable output.
+6. Exposes a **Streamlit UI** including a **full-season calendar** that explains each day using **only** derived ledger data + the active schedule (§10).
 
-If no assignment satisfies all hard constraints, the program **must exit with a non-zero status**, print a concise **infeasibility** explanation, and **must not** fabricate calendar rows, teams, or distances.
+If no assignment satisfies the model, the program **exits non-zero**, logs a concise reason, and **must not** invent calendar rows, teams, or distances.
 
 ---
 
 ## 2. Inputs (Authoritative Files)
 
-All paths are relative to the repository root. The loader **must open each file at least once** and record row counts in a load log.
+All paths are relative to the repository root. The loader **must open each file at least once** and record row counts in `output/data_load_log.txt`.
 
 | # | Path | Required sheets / usage |
 |---|------|-------------------------|
-| 1 | `data/Data_Model.xlsx` | Sheets: `team_data`, `Stadiums`, `dist_Matrix`, `Sec_Matrix` — **cross-check** against Sources; not used to override Sources if conflict (Sources win for optimization; mismatch raises warning). |
+| 1 | `data/Data_Model.xlsx` | Sheets: `team_data`, `Stadiums`, `dist_Matrix`, `Sec_Matrix` — **cross-check** against Sources; Sources win for optimization; mismatch → warning. |
 | 2 | `data/expanded_calendar.xlsx` | Sheets: all (read for completeness). **Slot universe:** sheet `expanded_calendar` only. |
-| 3 | `data/Sources/calendar.xlsx` | Sheet `MAINCALENDAR` — season structure cross-check vs expanded calendar. |
-| 4 | `data/Sources/CAF CL.xlsx` | Sheet `CAF CL` — **loaded and logged**; continental windows for CL clubs are enforced via **`Is_CAF` on slots** (expanded calendar) plus **cont blockers** (H11), not by blanketing every CL sheet date (that combination was infeasible with the current blocker density). |
-| 5 | `data/Sources/CAF CC.xlsx` | Sheet `CAF CC` — same as row 4 for CC clubs. |
-| 6 | `data/Sources/cont_blockers_table.xlsx` | Sheets: `cont_blockers_updated`, `cont_blockers` — merged with CSV (union, dedupe on `date_id` + `team_id` + `competition_name` + `round`). |
-| 7 | `data/Sources/cont_blockers_csv.csv` | Same schema as blocker table; merged as above. |
-| 8 | `data/Sources/expanded_calendar.csv` | Loaded; compared to `expanded_calendar.xlsx` row count (warning on mismatch). |
-| 9 | `data/Sources/FIFA_Days_UPDATED.xlsx` | Sheets: `FIFA_DAYS`, `FIFA_Days_UPDATED` — **union** of calendar dates for global FIFA blackout (see §4.2.2). |
-| 10 | `data/Sources/FIFA Days.xlsx` | Sheet `International Break Schedule Ta` — **union** into FIFA dates. |
-| 11 | `data/Sources/security matrix.xlsx` | Sheet `Sec_Matrix` — venue rules for listed pairings. |
-| 12 | `data/Sources/stadiums.xlsx` | Sheet `Stadiums` — metadata; rows with null `Stadium_ID` dropped. |
-| 13 | `data/Sources/teams_data.xlsx` | Sheet `Teams` — authoritative team list and `Home_Stadium` / `Alt_Stadium` / `Cont_Flag`. |
-| 14 | `data/Sources/Stadium_Distance_Matrix.xlsx` | Sheet `Sheet1` — authoritative **Origin → column stadium** distances (km). |
-| 15 | `data/Sources/Stadium_Distances_Columns.xlsx` | Sheet `Sheet1` — loaded; **spot-check** consistency with matrix (sample symmetric pair); warnings only unless hard failure on NaN core cells. |
+| 3 | `data/Sources/calendar.xlsx` | Sheet `MAINCALENDAR` — season structure cross-check. |
+| 4 | `data/Sources/CAF CL.xlsx` | Sheet `CAF CL` — logged; CL teams get workbook dates in **team blackouts** (see `load_data.build_team_date_blackout`). |
+| 5 | `data/Sources/CAF CC.xlsx` | Sheet `CAF CC` — same for CC. |
+| 6 | `data/Sources/cont_blockers_table.xlsx` | Sheets merged with CSV. |
+| 7 | `data/Sources/cont_blockers_csv.csv` | Merged blockers. |
+| 8 | `data/Sources/expanded_calendar.csv` | Row-count cross-check vs xlsx. |
+| 9 | `data/Sources/FIFA_Days_UPDATED.xlsx` | Union into FIFA dates. |
+| 10 | `data/Sources/FIFA Days.xlsx` | Union into FIFA dates. |
+| 11 | `data/Sources/security matrix.xlsx` | Sheet `Sec_Matrix` — forced venue rules. |
+| 12 | `data/Sources/stadiums.xlsx` | Metadata. |
+| 13 | `data/Sources/teams_data.xlsx` | Sheet `Teams` — `Team_ID`, `Home_Stadium`, `Cont_Flag`, `Tier`, etc. |
+| 14 | `data/Sources/Stadium_Distance_Matrix.xlsx` | Authoritative km matrix. |
+| 15 | `data/Sources/Stadium_Distances_Columns.xlsx` | Spot-check / warnings. |
 
 ---
 
 ## 3. Outputs
 
-### 3.1 Primary artifact: `output/optimized_schedule.csv`
+### 3.1 Primary schedule artifacts
 
-One row per **scheduled match** (306 rows for 18 teams).
+| File | When | Contents |
+|------|------|----------|
+| `output/optimized_schedule.csv` | Successful end-to-end run | One row per match: round, week, IDs, `Date`, `Date_time`, venue, `Travel_km`, `Slot_tier`, tier columns, `Is_FIFA` / `Is_CAF` / `Is_SuperCup`, `Postponed` flag. |
+| `output/optimized_schedule_phase1.csv` | After CP-SAT phase 1 | Feasible assignment (objective not minimized). |
+| `output/optimized_schedule_phase2.csv` | After CP-SAT phase 2 | Optimized assignment. |
+| `output/week_round_map.csv` | Success | Maps abstract `Round` 1…34 → `Calendar_Week_Num` = `W[r]`. |
+| `output/postponed_or_infeasible_matches.csv` | When any fixture used postponement domain or on some failures | Diagnostic columns including strict vs postponed feasible slot counts. |
+| `output/data_load_log.txt` | Always on attempted run | Human-readable log. |
 
-| Column | Type | Definition |
-|--------|------|------------|
-| `Round` | int | Abstract league round **1…34** (DRR second half). |
-| `Calendar_Week_Num` | int | `Week_Num` from `expanded_calendar` for the chosen slot (data field). |
-| `Day_ID` | str | From calendar row. |
-| `Date` | date | From calendar row. |
-| `Date_time` | datetime | From calendar `Date time`. |
-| `Home_Team_ID` | str | Home side of fixture. |
-| `Away_Team_ID` | str | Away side of fixture. |
-| `Venue_Stadium_ID` | str | Stadium hosting the match: forced neutral from security if applicable, else home club `Home_Stadium`. |
-| `Travel_km` | float | **Sum** of `distance(Home_Stadium(home), Venue)` + `distance(Home_Stadium(away), Venue)` from `Stadium_Distance_Matrix.xlsx` (diagonal = 0). If a club’s home stadium ID is missing from the matrix, **fail validation** before solve. |
-| `Slot_tier` | int | **1 = highest commercial desirability**, **3 = lowest**, derived **only** from `Day_name` and clock hour of `Date time` on the assigned slot (see §5.2). No external tier table unless later added to data. |
-| `Is_FIFA` | int | Echo from slot (0/1). |
-| `Is_CAF` | int | Echo from slot. |
-| `Is_SuperCup` | int | Echo from slot. |
+### 3.2 Per-phase audit folder: `output/phases/`
 
-### 3.2 Secondary artifacts
+Each file is written when `write_outputs=True` (Streamlit and default CLI). **Another AI** should treat this folder as the **ground truth** for what the pipeline actually did.
 
-- `output/data_load_log.txt` — list of files, sheets, row counts, merge notes, warnings (e.g. xlsx vs csv row diff).
-- `output/week_round_map.csv` — mapping `Round` → `Calendar_Week_Num` (the 34 calendar weeks selected from data for the 34 DRR rounds).
-
----
-
-## 4. Hard Constraints (Must All Hold)
-
-### 4.1 League structure
-
-- **H1 — Team set:** Exactly the set of `Team_ID` values in `teams_data.xlsx` (`Teams`), after dropping null IDs. **n = 18`** is expected; if not 18, the model still builds DRR for the actual **n** (even **n** required; if odd, **fail** with message).
-- **H2 — DRR:** Each ordered pair of distinct teams meets **twice** (home and away reversed between halves). Total matches **n × (n − 1)**.
-- **H3 — One match per team per round:** For each abstract round **r ∈ {1,…,n_rounds}** with **n_rounds = 2 × (n − 1)** (= 34 for n = 18), each team appears in **exactly one** fixture in that round.
-- **H4 — One slot per fixture:** Each fixture is assigned **exactly one** slot from the expanded calendar slot universe.
-- **H5 — Calendar week for round:** For each round **r**, a **calendar** `Week_Num` value `W[r]` is chosen **only from the data** (see §4.6). Every fixture in round **r** must be placed in a slot whose `Week_Num` equals `W[r]`.
-
-### 4.2 Time / competition blackouts (slot-level)
-
-Let each slot row have `Date` (date), `Is_FIFA`, `Is_CAF`, `Is_SuperCup` from `expanded_calendar`.
-
-- **H6 — FIFA (calendar flag):** No league match in any slot with **`Is_FIFA == 1`** (all teams).
-- **H7 — Super Cup pause:** No league match in any slot with **`Is_SuperCup == 1`** (all teams).
-- **H8 — FIFA (explicit date lists):** No league match on any calendar **date** present in the union of:
-  - `Date` column from both sheets of `FIFA_Days_UPDATED.xlsx`, and  
-  - `Date` from `FIFA Days.xlsx` (`International Break Schedule Ta`),  
-  after normalizing to **date** (strip time). Applies to **all teams** (in addition to H6; duplicates are allowed).
-- **H9 — CAF “slot reservation” flag:** No league match for teams with **`Cont_Flag == 'CL'`** in slots with **`Is_CAF == 1`**. No league match for teams with **`Cont_Flag == 'CC'`** in slots with **`Is_CAF == 1`**. Teams with null `Cont_Flag` are unrestricted by H9.
-- **H10 — CAF workbooks (CL/CC):** Files are read for completeness and logged. **Hard** continental date logic for CL/CC teams is enforced via **H9** (`Is_CAF` on slots) and **H11** (team-specific `cont_blockers`), because applying every `Date` in the CAF CL/CC workbooks as full-day bans for those clubs overlaps almost every gameweek with **H9** and makes the model infeasible on the supplied calendar.
-- **H11 — Continental blockers (buffered):** From merged **cont blockers** (`cont_blockers_table.xlsx` + `cont_blockers_csv.csv`): for each row, resolve anchor **calendar date** by joining `date_id` to `Day_ID` on `expanded_calendar` and taking that row’s `Date`. For that `team_id`, ban league matches on all slots whose `Date` lies in **[anchor_date − B, anchor_date + B]** inclusive, where **B** defaults to **1** day (configurable via environment variable **`EPL_CAF_BUFFER_DAYS`**, e.g. `3` for the presentation’s ±3). With **B = 3** and the current blocker density, the model is typically **infeasible**; **B = 1** is the default that still respects “buffer around listed CAF commitments” without over-covering the season.
-
-### 4.3 Stadium / venue
-
-- **H12 — Venue for fixture:** If `(Home_Team_ID, Away_Team_ID)` (after ID normalization) appears in `Sec_Matrix` with a non-empty **forced** venue, the match **must** use that stadium ID (after normalization). Otherwise venue = **`Home_Stadium`** of the home team from `teams_data`.
-- **H13 — Stadium sharing / double booking:** For every slot **t** and every physical stadium **S**, **at most one** match assigned to **t** may use venue **S** (includes neutral forced venues).
-
-### 4.4 Team / slot incidence
-
-- **H14 — One match per team per datetime:** For each slot **t** and each team **i**, at most **one** match involving **i** at **t** (follows from unique slot timing; enforced explicitly).
-
-### 4.5 Data validity (pre-solve)
-
-- **H15 — Distance matrix coverage:** For every `Home_Stadium` and `Venue` that can appear, both must exist as **row Origin** and **column** in `Stadium_Distance_Matrix.xlsx` after ID normalization; distance lookup must be finite.
-
-### 4.6 Calendar week selection for rounds (data-driven)
-
-- Let **usable(w)** = number of slots in `expanded_calendar` with `Week_Num == w` and **not** blocked by H6–H8 (FIFA/SuperCup/date union).
-- **Eligible weeks** = all `w` with **usable(w) ≥ 9** (nine parallel fixtures per round for 18 teams).
-- Sort eligible weeks by **min(Date)** over slots in that week (chronological).
-- **W[1],…,W[34]** = the **first 34** eligible weeks in that sorted order.  
-- If fewer than **34** eligible weeks exist → **infeasible** (fail before solve).
+| File | Phase | Description |
+|------|-------|-------------|
+| `01_load_summary.json` | After inputs resolved | Slot row count, team count, eligible week count, loaded dict keys. |
+| `02_blackout_summary.csv` | After blackouts | Per-team count of blackout calendar dates (sorted descending). |
+| `03_eligible_calendar_weeks.csv` | After week filter | Ordered list of 34 `Calendar_Week_Num` values `W[0]…W[33]`. |
+| `03b_season_day_ledger.csv` | After slot metadata | **One row per calendar date** in the expanded calendar season span: slot counts, `Slots_league_eligible`, FIFA union flag — used by UI calendar explanations. |
+| `04_drr_selection.json` | After DRR generation | Either `{mode: fixed_seed, seed, score}` or `{mode: scored_tries, tries, best_score_min_sum}`. |
+| `05_fixtures_pre_solve.csv` | After DRR | All fixtures (index, round, home, away) before CP-SAT. |
+| `06_feasible_slot_counts.csv` | After feasible domains | Per fixture: strict-domain length, postponed-domain length, relaxed flag. |
+| `07_phase1_feasibility.json` | After CP-SAT phase 1 | Solver status, time limit, wall time, row count. |
+| `08_phase2_optimize.json` | After CP-SAT phase 2 | Solver status, optional time limit, wall time, objective. |
 
 ---
 
-## 5. Objectives (Optimization)
+## 4. Methodology (Operations Research)
 
-### 5.1 Primary objective (implemented)
+### 4.1 Problem class
 
-**O1 — Minimize total travel proxy (km)**  
+- **Decision:** binary `x[m,t] = 1` iff fixture `m` is assigned to slot index `t`.
+- **Feasibility:** only edges `(m,t)` with `t` in `feasible[m]` are created (sparse graph).
+- **Solver:** CP-SAT supports Boolean linear constraints + linear objective + structures like `AddAutomaton`.
 
-For fixture **m** with home **h**, away **a**, venue **V**:
+### 4.2 End-to-end phases (runtime order)
 
-\[
-c_m = \mathrm{dist}(\mathrm{HomeStadium}(h), V) + \mathrm{dist}(\mathrm{HomeStadium}(a), V)
-\]
+1. **Load & validate** (`load_everything`) → `01_load_summary.json`.
+2. **Blackouts** per team (`build_team_date_blackout` + FIFA dates in season) → `02_blackout_summary.csv`.
+3. **Eligible weeks** (≥9 usable slots/week after H6–H8) → need 34 weeks else **fail** → `03_eligible_calendar_weeks.csv`.
+4. **Slot metadata** + **prime night** flag (Fri/Sat **and** latest `Date time` on that calendar date) + `03b_season_day_ledger.csv`.
+5. **DRR fixtures** (§4.7) → `04_drr_selection.json`, `05_fixtures_pre_solve.csv`.
+6. **Feasible domains** per fixture (strict week = `W[round]`; else postponed = any eligible week) → `06_feasible_slot_counts.csv`.
+7. **CP-SAT phase 1:** any feasible solution, `stop_after_first_solution`, **no objective terms** (`optimize=False`), time limit `EPL_PHASE1_TIME_LIMIT_S` (default 30s) → `optimized_schedule_phase1.csv`, `07_phase1_feasibility.json`.
+8. **CP-SAT phase 2:** minimize full objective (`optimize=True`), optional `time_limit_s` from caller → `optimized_schedule.csv`, `08_phase2_optimize.json`.
 
-Assigning fixture **m** to slot **t** incurs cost **c_m** (independent of **t** in current formulation). **Global objective:** minimize \(\sum_{m,t} x_{m,t} \cdot c_m\) where \(x_{m,t} \in \{0,1\}\).
+Inside each CP-SAT phase, **dynamic repair:** if the model is infeasible, relax one fixture at a time from **strict week** to **postponed week** domain (lowest strict-domain size first) and re-solve until feasible or exhausted.
 
-*Tie-breaking:* CP-SAT minimizes total cost; if multiple optima exist, any optimum is acceptable.
+### 4.3 Hard constraints (CP-SAT, given domains)
 
-### 5.2 Secondary / reporting — Slot_tier (not in solver objective unless extended)
+| ID | Rule |
+|----|------|
+| H4 | Exactly **one** chosen slot per fixture (from its current `feasible[m]`). |
+| H13 | At most **one** match per **venue** per slot index `t` among matches that could share `t`. |
+| H14 | At most **one** match per **team** per slot index `t`. |
+| — | At most **`max_matches_per_slot`** (default **2**) matches per slot index **global** capacity. |
+| H-rest | **Two calendar days rest:** if a team plays on date ordinal `d`, it cannot play on `d+1` or `d+2` (e.g. Sunday → next match Wednesday). |
+| H-HA | **Home/away streak:** in **played-match order** by date, **no more than 2** consecutive HOME and **no more than 2** consecutive AWAY (hard automaton; gaps do not reset streak). |
 
-Computed **after** assignment from slot fields only:
+All **FIFA / SuperCup / team blackout / CAF-slot** rules are enforced by **excluding** bad slots from `feasible[m]` (pre-solve), not as separate CP-SAT linear rows.
 
-| `Slot_tier` | Rule (deterministic) |
-|-------------|----------------------|
-| **1** | `Day_name` ∈ {`FRI`, `SAT`, `SUN`} **and** hour of `Date time` ≥ **20** |
-| **2** | `Day_name` ∈ {`FRI`, `SAT`, `SUN`} **and** hour < **20** |
-| **3** | All other slots |
+### 4.4 Hard vs relaxed (business rules)
 
-*(Hours from data’s local `Date time`; no invented tiers.)*
+| Rule | Strict mode | Relaxed mode |
+|------|-------------|--------------|
+| **H5 — Round ↔ calendar week** | Fixture `m` in round `r` may use only slots with `Week_Num == W[r]`. | **Postponement:** if strict domain empty (or dynamic repair), `m` may use any slot whose `Week_Num` is in the **34 eligible weeks** set. |
+| **Double slot usage** | Prefer **one** match per slot index. | Model allows **up to 2**; **soft** penalty `w_slot_overlap` discourages the second. |
 
-### 5.3 Objectives described in presentation but **not** encoded in v1 solver (future work)
+### 4.5 Soft objectives (Phase 2 only, `optimize=True`)
 
-Documented for traceability; **out of scope** for the first optimization release unless added as data-driven weights:
+All are linear penalties summed into one `Minimize`:
 
-- **O2 — Rest-day balance** between opponents (would need rest variables + multi-round linking).
-- **O3 — Away-break minimization** (H–A pattern quality across season).
-- **O4 — Simultaneous kick-offs** in final critical rounds (would fix equal `Date_time` within a subset of rounds).
-- **O5 — Commercial weighting beyond Slot_tier** (e.g. tier-weighted linear objective).
+| Term | Meaning |
+|------|---------|
+| Travel | `round(Travel_km × 10)` per assignment (fixture cost independent of slot today). |
+| Tier mismatch | If `Slot_tier` > `Match_Tier`, add `w_tier_mismatch × (Slot_tier − Match_Tier)`. |
+| Top-tier weekend | If `Match_Tier == 1` and day not Fri/Sat, add `w_top_tier_non_prime_day`. |
+| **T1 vs T1 prime night** | If both tiers are 1 and slot is not **prime night** (Fri/Sat + latest kickoff that date), add `w_t1vst1_not_prime_night`. **Soft only** — not a hard ban. |
+| Postponement distance | If assigned `Week_order` ≠ nominal `orig_week_order`, add `w_postpone_week_distance × abs(diff) × postpone_weight_mult`. |
+| Slot overload | If 2 matches share a slot index, add `w_slot_overlap`. |
+
+**Continental-aware weighting:** `postpone_weight_mult = EPL_CONT_POSTPONE_MULT` (default **4.0**) when **either** team has `Cont_Flag ∈ {CL, CC}`; else `1.0`. This **prioritizes** keeping continental teams on their nominal league week when possible (higher cost to slide them to other weeks).
+
+Default weights are defined in `schedule_optimizer/cp_sat_model.py:solve_assignment` and passed from `pipeline.py`.
+
+### 4.6 Calendar week selection (unchanged logic)
+
+- **usable(w)** = slots in week `w` not blocked by FIFA flag, SuperCup flag, or FIFA union calendar date.
+- Eligible weeks: `usable(w) ≥ 9`; sort by min date in week; take first **34**.
+- If `< 34` eligible weeks → **fail before CP-SAT**.
+
+### 4.7 DRR fixture ordering (implementation requirement)
+
+**Pairing structure** remains a **double round-robin** (each pair twice, reversed half).
+
+**Team order for the circle method:** sort `Team_ID` by **descending** `|blackout_dates|` so **more constrained** teams anchor the generator order.
+
+**Seed selection:** unless `EPL_DRR_SEED` is set (fixed reproducibility), evaluate up to `EPL_DRR_TRIES` (default **12**) random seeds with `shuffle_teams=False` on that ordered list. Score each candidate by **lexicographic** `(min_strict_feasible_slots, sum_strict_feasible_slots)` where strict means slots obeying H5 + all blackout rules. **Pick the best** tuple. Persist in `04_drr_selection.json`.
+
+This satisfies the product intent: **who plays whom in which abstract round** is not sacred — it should adapt to **future / season-long unavailability** density.
 
 ---
 
-## 6. ID Normalization (Deterministic, Logged)
+## 5. Slot_tier (reporting + objective)
 
-All IDs trimmed; uppercase for matching.
-
-| Raw (examples) | Normalized |
-|----------------|------------|
-| `BORGARAB`, `borg_arab` | `BORG_ARAB` if matrix uses `BORG_ARAB` |
-| `ISMALIA` | `ISMAILIA_ST` if matrix uses `ISMAILIA_ST` |
-| `HARAS_HODOOD` (teams sheet) | `HARAS` (distance matrix row/column) |
-| `GHAZL_MAHALLA` | `MAHALLA` |
-| `KHALED_BICHARA` | `EL_GOUNA` |
-| `Sec_Matrix` column name with leading space | Strip to `forced_venue` |
-
-Forced / banned stadium cells must map to a **column** in the distance matrix after normalization; otherwise **fail** with explicit ID.
+Same hour/day rules as v1 PRD §5.2 for `Slot_tier` **computation**. The solver also uses tier mismatch and top-tier weekend terms (§4.5).
 
 ---
 
-## 7. Non-Goals (v1)
+## 6. UI Requirements (Streamlit)
 
-- TV broadcaster pairwise requests not in security matrix.
-- Weather or dynamic rescheduling.
-- Egypt Cup / Super Cup **fixture generation** (only hard **pause** via `Is_SuperCup`).
-- Player-level international call-ups beyond FIFA date union + `Is_FIFA`.
+### 6.1 Existing surfaces
+
+- Sidebar: **CAF buffer** slider, **Run optimization** with live solver progress JSON.
+- Tabs: Dashboard (club grid, club season, H2H, metrics), Data library, Schedule table + download, embedded Markdown docs.
+
+### 6.2 Full calendar tab (mandatory behavior)
+
+- **Month selector** over all `(year, month)` present in `03b_season_day_ledger.csv`.
+- **Month grid** of days; clicking a **day** shows a **detail panel**:
+  - If **`optimized_schedule.csv`** (or in-memory result) has rows for that `Date`: show those rows (Round, Date_time, teams, venue, travel, flags).
+  - Else: show **bullet reasons** derived **only** from the ledger row: e.g. FIFA union date, no league-eligible slots, or eligible slots exist but solver placed no match that day.
+
+No fabricated reasons — if ledger is missing, UI must say the user must run the pipeline once.
 
 ---
 
-## 8. Acceptance Criteria
+## 7. Environment Variables
 
-1. Fresh clone + `pip install -r requirements.txt` + `python -m schedule_optimizer` produces `output/optimized_schedule.csv` **without** hand-edited inputs beyond the Excel/CSV already in `data/`.
-2. Load log proves **every** input file in §2 was read.
-3. Output has **exactly** `n × (n − 1)` rows and satisfies H1–H14 when verified by a post-solve checker (included in run).
-4. If CP-SAT status is `INFEASIBLE`, process exits **≠ 0** and prints which precondition failed (e.g. fewer than 34 eligible weeks).
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `EPL_CAF_BUFFER_DAYS` | `1` | ±days around continental anchors (CLI default if UI not used). |
+| `EPL_DRR_SEED` | unset | If set, skip multi-try scoring and use this seed only. |
+| `EPL_DRR_TRIES` | `12` | Number of DRR seeds to score when `EPL_DRR_SEED` unset. |
+| `EPL_PHASE2_TIME_LIMIT_S` | unset | If set, CP-SAT phase 2 `max_time_in_seconds` (else unlimited). |
+| `EPL_CONT_POSTPONE_MULT` | `4.0` | Multiplier on postponement penalty for CL/CC matches. |
+| `EPL_PHASE1_TIME_LIMIT_S` | `30` | CP-SAT phase 1 time limit (seconds). |
 
 ---
 
-## 9. References
+## 8. ID Normalization
 
-- Internal: `Documentations/presentation.pdf` (objectives/constraints narrative).  
+Same as v1 PRD (strip, uppercase, known stadium aliases). Fail fast if matrix missing required IDs.
+
+---
+
+## 9. Non-Goals
+
+- Broadcaster pairwise requests not in security matrix.
+- Dynamic weather rescheduling.
+- Egypt Cup / Super Cup **fixture generation** (only `Is_SuperCup` pause).
+- Player-level call-ups beyond FIFA union + `Is_FIFA`.
+
+---
+
+## 10. Acceptance Criteria
+
+1. `pip install -r requirements.txt` + `python -m schedule_optimizer` produces `output/optimized_schedule.csv` on a clean clone with bundled data (or exits with a logged **infeasible** reason).
+2. Load log proves every input in §2 was opened.
+3. Successful run writes **all** §3.2 phase files (when `write_outputs=True`).
+4. `python -m streamlit run ui/app.py` → **Full calendar** tab reads `03b_season_day_ledger.csv` and explains days without matches using ledger columns only.
+5. CP-SAT failure exits non-zero and preserves partial logs / diagnostics where implemented.
+
+---
+
+## 11. References
+
+- `schedule_optimizer/pipeline.py` — orchestration and phase writers.  
+- `schedule_optimizer/cp_sat_model.py` — CP-SAT model.  
+- `schedule_optimizer/day_ledger.py` — `03b` builder.  
+- `ui/app.py`, `ui/calendar_board.py` — UI.  
 - OR-Tools CP-SAT: https://developers.google.com/optimization/cp/cp_solver  

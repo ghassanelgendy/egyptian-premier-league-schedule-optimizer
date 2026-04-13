@@ -15,9 +15,11 @@ if str(ROOT) not in sys.path:
 
 import pandas as pd
 import streamlit as st
+import time
 
 from schedule_optimizer.paths import DATA, OUTPUT, REPO_ROOT
 from schedule_optimizer.pipeline import OptimizationResult, run_optimization
+from calendar_board import load_day_ledger_csv, render_day_detail, render_month_calendar
 from data_browser import describe_path, excel_sheet_names, list_tabular_files, load_csv, load_excel_sheet
 
 DOCS_PATH = REPO_ROOT / "Documentations" / "CODE_DOCUMENTATION.md"
@@ -225,16 +227,38 @@ def main() -> None:
         value=1,
         help="Days before/after each continental blocker anchor. Higher = stricter (often infeasible at 3+).",
     )
-    time_limit = st.sidebar.slider("Solver time limit (seconds)", 30, 600, 180, 30)
 
     run_btn = st.sidebar.button("▶ Run optimization", type="primary", use_container_width=True)
 
     if run_btn:
-        with st.spinner("Running CP-SAT (may take a few minutes)…"):
+        status_box = st.empty()
+        details_box = st.empty()
+        t0 = time.perf_counter()
+        last_push = {"t": 0.0}
+
+        def _ui_progress(ev: dict) -> None:
+            # Throttle UI updates to avoid spamming Streamlit rerenders.
+            now = time.perf_counter() - t0
+            if now - last_push["t"] < 0.25 and ev.get("stage") not in ("solve_done", "solution"):
+                return
+            last_push["t"] = now
+            stage = str(ev.get("stage", ""))
+            if stage == "solution":
+                obj = ev.get("objective")
+                bound = ev.get("best_bound")
+                status_box.markdown(
+                    f"**Working:** phase {ev.get('phase')} · new solution #{ev.get('solutions')} "
+                    f"· obj={obj} · bound={bound}"
+                )
+            else:
+                status_box.markdown(f"**Working:** `{stage}`")
+            details_box.json(ev)
+
+        with st.spinner("Running CP-SAT (live status below)…"):
             st.session_state["last_result"] = run_optimization(
                 caf_buffer_days=int(caf_buffer),
-                time_limit_s=float(time_limit),
                 write_outputs=True,
+                progress_cb=_ui_progress,
             )
 
     st.markdown('<p class="hero">Egyptian Premier League · Schedule Optimizer</p>', unsafe_allow_html=True)
@@ -243,9 +267,10 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    tab_dash, tab_model, tab_data, tab_sched, tab_docs = st.tabs(
+    tab_dash, tab_cal, tab_model, tab_data, tab_sched, tab_docs = st.tabs(
         [
             "Dashboard",
+            "Full calendar",
             "Model explanation",
             "Data library",
             "Schedule",
@@ -333,6 +358,11 @@ def main() -> None:
             c4.metric("Solver", res.solver_status or "—")
             c5.metric("Wall time (s)", f"{res.wall_time_s:.1f}")
 
+            if stats.get("phase1_time_s") is not None or stats.get("phase2_time_s") is not None:
+                p1 = float(stats.get("phase1_time_s") or 0.0)
+                p2 = float(stats.get("phase2_time_s") or 0.0)
+                st.caption(f"Phase 1 (feasible) time: {p1:.1f}s · Phase 2 (optimize) time: {p2:.1f}s")
+
             if res.objective_scaled is not None:
                 st.caption(
                     f"Objective (internal units): {res.objective_scaled:,.0f} · ≈ km ×10 scale"
@@ -352,11 +382,48 @@ def main() -> None:
                         "CAF buffer days": stats.get("caf_buffer_days"),
                     }
                 )
+            with st.expander("DRR & continental weighting (last run)"):
+                st.write(
+                    {
+                        "DRR strict-domain min/sum (pre-solve)": (
+                            stats.get("drr_strict_domain_min"),
+                            stats.get("drr_strict_domain_sum"),
+                        ),
+                        "Cont. postpone objective mult": stats.get("cont_postpone_objective_mult"),
+                        "DRR selection": stats.get("drr_selection"),
+                    }
+                )
         else:
             st.warning(res.message)
             if res.log_lines:
                 with st.expander("Load / solve log"):
                     st.code("\n".join(res.log_lines[-80:]), language="text")
+
+    with tab_cal:
+        st.subheader("Season calendar (data-backed)")
+        st.caption(
+            "Uses `output/phases/03b_season_day_ledger.csv` from the last optimization run "
+            "and the active `optimized_schedule.csv` (or in-memory result)."
+        )
+        ledger_path = OUTPUT / "phases" / "03b_season_day_ledger.csv"
+        ledger = load_day_ledger_csv(ledger_path)
+        sched_cal = _schedule_dataframe()
+        if ledger is None or ledger.empty:
+            st.warning(
+                f"No day ledger at `{ledger_path.relative_to(REPO_ROOT)}`. "
+                "Run **Run optimization** in the sidebar once (writes all `output/phases/*` artifacts)."
+            )
+        else:
+            ym_list = sorted({(d.year, d.month) for d in ledger["Date"].dropna().tolist()})
+            labels = [f"{y}-{m:02d}" for y, m in ym_list]
+            idx = st.selectbox("Month", options=list(range(len(labels))), format_func=lambda i: labels[i])
+            y, m = ym_list[idx]
+            if "calendar_pick" not in st.session_state:
+                st.session_state["calendar_pick"] = None
+            render_month_calendar(year=y, month=m, ledger=ledger, sched=sched_cal)
+            st.divider()
+            render_day_detail(d=st.session_state.get("calendar_pick"), ledger=ledger, sched=sched_cal)
+            st.caption("Tip: pick a month, click a day number, then read the detail block below.")
 
     with tab_model:
         if MODEL_PATH.exists():
