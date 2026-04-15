@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import os
 import random
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -133,9 +134,203 @@ def generate_drr(data: LeagueData, seed: int) -> List[Match]:
             idx += 1
 
     _validate_drr(matches, team_ids)
+    _fix_ha_streaks(matches, teams_dict, data.sec_rules)
     _write_fixture_csv(matches)
 
     return matches
+
+
+def _count_ha_streak_violations(matches: List[Match]) -> int:
+    """Count total number of streak triples (team, round-i) across all teams."""
+    all_ids = list({m.home_team for m in matches} | {m.away_team for m in matches})
+    total = 0
+    for tid in all_ids:
+        seq = sorted(
+            [(m.round_num, m.home_team == tid)
+             for m in matches
+             if m.home_team == tid or m.away_team == tid],
+            key=lambda t: t[0],
+        )
+        for i in range(len(seq) - 2):
+            if seq[i][1] == seq[i + 1][1] == seq[i + 2][1]:
+                total += 1
+    return total
+
+
+def _find_streak_match_idxs(matches: List[Match], team_id: str) -> List[int]:
+    """Return match_idxs of ALL matches involved in streaks for team_id."""
+    seq = sorted(
+        [(m.round_num, m.match_idx, m.home_team == team_id)
+         for m in matches
+         if m.home_team == team_id or m.away_team == team_id],
+        key=lambda t: t[0],
+    )
+    bad: set = set()
+    for i in range(len(seq) - 2):
+        if seq[i][2] == seq[i + 1][2] == seq[i + 2][2]:
+            bad.add(seq[i][1])
+            bad.add(seq[i + 1][1])
+            bad.add(seq[i + 2][1])
+    return list(bad)
+
+
+def _swap_match_ha(
+    matches: List[Match],
+    list_idx: int,
+    teams_dict: Dict[str, dict],
+    sec_rules: List[SecRule],
+    compute_match_tier,
+) -> None:
+    """In-place swap home/away for matches[list_idx]."""
+    m = matches[list_idx]
+    nh, na = m.away_team, m.home_team
+    matches[list_idx] = Match(
+        match_idx=m.match_idx,
+        round_num=m.round_num,
+        home_team=nh,
+        away_team=na,
+        venue=_resolve_venue(nh, na, teams_dict, sec_rules),
+        match_tier=compute_match_tier(teams_dict[nh]["Tier"], teams_dict[na]["Tier"]),
+    )
+
+
+def _fix_ha_streaks(
+    matches: List[Match],
+    teams_dict: Dict[str, dict],
+    sec_rules: List[SecRule],
+    max_iters: int = 2000,
+) -> None:
+    """Eliminate H/A streaks of 3+ in round order for every team.
+
+    Uses a best-improvement local search: for each candidate swap (a match
+    involved in any current streak, plus its leg-1/leg-2 mirror), apply the
+    swap, measure the new total violation count, and keep the swap that
+    reduces violations the most.  Falls back to a random swap if no improving
+    move exists.
+    """
+    from src.tiers import match_tier as compute_match_tier
+
+    all_ids = sorted({m.home_team for m in matches} | {m.away_team for m in matches})
+
+    # Build round-to-listindex map (both legs)
+    def mirror_list_idx(list_idx: int) -> Optional[int]:
+        """Return list-index of the leg-mirror of matches[list_idx]."""
+        m = matches[list_idx]
+        leg1_round = m.round_num if m.round_num <= 17 else m.round_num - 17
+        leg2_round = leg1_round + 17
+        mirror_round = leg2_round if m.round_num == leg1_round else leg1_round
+        for i, mr in enumerate(matches):
+            if (mr.round_num == mirror_round
+                    and mr.home_team == m.away_team
+                    and mr.away_team == m.home_team):
+                return i
+        return None
+
+    current_violations = _count_ha_streak_violations(matches)
+
+    for iteration in range(max_iters):
+        if current_violations == 0:
+            break
+
+        # Collect candidate swap indices: all matches in any current streak
+        candidate_idxs: set = set()
+        for tid in all_ids:
+            for midx in _find_streak_match_idxs(matches, tid):
+                # find list index of this match
+                for li, m in enumerate(matches):
+                    if m.match_idx == midx:
+                        candidate_idxs.add(li)
+                        break
+
+        if not candidate_idxs:
+            break
+
+        best_delta = 0
+        best_move = None  # (list_idx, mirror_list_idx or None)
+
+        for li in candidate_idxs:
+            mi = mirror_list_idx(li)
+            # Evaluate: swap li (and mi)
+            _swap_match_ha(matches, li, teams_dict, sec_rules, compute_match_tier)
+            if mi is not None:
+                _swap_match_ha(matches, mi, teams_dict, sec_rules, compute_match_tier)
+
+            new_v = _count_ha_streak_violations(matches)
+            delta = current_violations - new_v
+
+            # Undo swap
+            _swap_match_ha(matches, li, teams_dict, sec_rules, compute_match_tier)
+            if mi is not None:
+                _swap_match_ha(matches, mi, teams_dict, sec_rules, compute_match_tier)
+
+            if delta > best_delta:
+                best_delta = delta
+                best_move = (li, mi)
+
+        if best_move is not None:
+            li, mi = best_move
+            _swap_match_ha(matches, li, teams_dict, sec_rules, compute_match_tier)
+            if mi is not None:
+                _swap_match_ha(matches, mi, teams_dict, sec_rules, compute_match_tier)
+            current_violations -= best_delta
+        else:
+            # No single-swap improves — try all 2-swap combinations to escape
+            cand_list = sorted(candidate_idxs)
+            best2_delta = 0
+            best2_move = None
+            for ci in range(len(cand_list)):
+                for cj in range(ci + 1, len(cand_list)):
+                    li1, li2 = cand_list[ci], cand_list[cj]
+                    mi1 = mirror_list_idx(li1)
+                    mi2 = mirror_list_idx(li2)
+                    # Apply both swaps
+                    _swap_match_ha(matches, li1, teams_dict, sec_rules, compute_match_tier)
+                    if mi1 is not None:
+                        _swap_match_ha(matches, mi1, teams_dict, sec_rules, compute_match_tier)
+                    _swap_match_ha(matches, li2, teams_dict, sec_rules, compute_match_tier)
+                    if mi2 is not None:
+                        _swap_match_ha(matches, mi2, teams_dict, sec_rules, compute_match_tier)
+                    new_v = _count_ha_streak_violations(matches)
+                    delta2 = current_violations - new_v
+                    # Undo
+                    _swap_match_ha(matches, li1, teams_dict, sec_rules, compute_match_tier)
+                    if mi1 is not None:
+                        _swap_match_ha(matches, mi1, teams_dict, sec_rules, compute_match_tier)
+                    _swap_match_ha(matches, li2, teams_dict, sec_rules, compute_match_tier)
+                    if mi2 is not None:
+                        _swap_match_ha(matches, mi2, teams_dict, sec_rules, compute_match_tier)
+                    if delta2 > best2_delta:
+                        best2_delta = delta2
+                        best2_move = (li1, mi1, li2, mi2)
+
+            if best2_move is not None:
+                li1, mi1, li2, mi2 = best2_move
+                _swap_match_ha(matches, li1, teams_dict, sec_rules, compute_match_tier)
+                if mi1 is not None:
+                    _swap_match_ha(matches, mi1, teams_dict, sec_rules, compute_match_tier)
+                _swap_match_ha(matches, li2, teams_dict, sec_rules, compute_match_tier)
+                if mi2 is not None:
+                    _swap_match_ha(matches, mi2, teams_dict, sec_rules, compute_match_tier)
+                current_violations -= best2_delta
+            else:
+                # Still stuck — random single swap to escape
+                li = cand_list[iteration % len(cand_list)]
+                mi = mirror_list_idx(li)
+                _swap_match_ha(matches, li, teams_dict, sec_rules, compute_match_tier)
+                if mi is not None:
+                    _swap_match_ha(matches, mi, teams_dict, sec_rules, compute_match_tier)
+                current_violations = _count_ha_streak_violations(matches)
+
+    if current_violations > 0:
+        remaining = [
+            tid for tid in all_ids if _find_streak_match_idxs(matches, tid)
+        ]
+        print(
+            f"[fixture] WARNING: H/A streak fix did not fully converge "
+            f"({current_violations} violations remain). Teams: {remaining}"
+        )
+    else:
+        print("[fixture] H/A streak fix: all teams have valid H/A sequences.")
 
 
 def _validate_drr(matches: List[Match], team_ids: List[str]) -> None:

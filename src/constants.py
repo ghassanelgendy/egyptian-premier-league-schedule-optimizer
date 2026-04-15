@@ -36,7 +36,7 @@ MAX_MATCHES_PER_SLOT = 2  # at most 2 matches at the same kickoff time
 # ---------------------------------------------------------------------------
 # Soft-objective weights  (higher = more important)
 # ---------------------------------------------------------------------------
-W_ROUND_ORDER = 100       # keep rounds in chronological week order
+W_ROUND_ORDER = 3000      # keep rounds in chronological week order
 W_WEEK_UNDERLOAD = 50     # penalty per match below SOFT_MIN per week
 W_WEEK_OVERLOAD = 50      # penalty per match above SOFT_MAX per week
 W_TRAVEL = 1              # per-km travel penalty

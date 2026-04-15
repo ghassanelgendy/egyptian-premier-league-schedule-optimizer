@@ -220,6 +220,10 @@ def _find_valid_slots(
 
         # R7: venue is already correct (set at fixture construction)
 
+        # R_FUTURE: rescheduled match must be strictly after its original date
+        if slot_dates[si] <= match.date:
+            continue
+
         # R_SLOT: slot concurrency — at most MAX_MATCHES_PER_SLOT per slot
         if state.slot_usage.get(si, 0) >= MAX_MATCHES_PER_SLOT:
             continue
@@ -295,13 +299,13 @@ def caf_repair(
     queued_list = list(queued_matches.values())
     print(f"[caf_repair] {len(queued_list)} unique matches to repair.")
 
-    # Step 2+3: find valid slots for each, rank by proximity
+    # Step 2+3: find valid slots for each, rank by forward proximity
     match_valid_slots: Dict[int, List[Tuple[int, int]]] = {}
     for m in queued_list:
         valid = _find_valid_slots(m, data, state, slot_dates, slot_weeks, caf_teams)
-        # Rank by proximity to original date
-        ranked = sorted(valid, key=lambda si: abs((slot_dates[si] - m.date).days))
-        match_valid_slots[m.match_idx] = [(si, abs((slot_dates[si] - m.date).days)) for si in ranked]
+        # Rank by nearest FUTURE slot (R_FUTURE already filters out past slots)
+        ranked = sorted(valid, key=lambda si: (slot_dates[si] - m.date).days)
+        match_valid_slots[m.match_idx] = [(si, (slot_dates[si] - m.date).days) for si in ranked]
 
     # Write feasible slot counts
     _write_repair_slot_counts(queued_list, match_valid_slots)
@@ -336,7 +340,7 @@ def caf_repair(
 
         for m in remaining:
             valid = _find_valid_slots(m, data, state, slot_dates, slot_weeks, caf_teams)
-            ranked = sorted(valid, key=lambda si: abs((slot_dates[si] - m.date).days))
+            ranked = sorted(valid, key=lambda si: (slot_dates[si] - m.date).days)
 
             if not ranked:
                 still_unresolved.append(m)

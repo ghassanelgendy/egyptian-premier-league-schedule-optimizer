@@ -12,7 +12,7 @@ import os
 import time
 import calendar
 from datetime import date as pydate
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
@@ -122,8 +122,29 @@ def _run_phase(
 ) -> Any:
     status.update(label=name, state="running")
     start = time.time()
-    with redirect_stdout(log_buffer):
+
+    class _UIStream:
+        def __init__(self, buf: io.StringIO, placeholder: "st.delta_generator.DeltaGenerator"):
+            self.buf = buf
+            self.placeholder = placeholder
+
+        def write(self, s: str) -> int:
+            if not s:
+                return 0
+            self.buf.write(s)
+            # Streamlit UI updates are expensive; keep it simple and update each write.
+            self.placeholder.text(self.buf.getvalue())
+            return len(s)
+
+        def flush(self) -> None:
+            self.placeholder.text(self.buf.getvalue())
+
+    ui_stream = _UIStream(log_buffer, log_box)
+
+    # Capture both stdout and stderr. OR-Tools progress often goes to stderr.
+    with redirect_stdout(ui_stream), redirect_stderr(ui_stream):
         result = fn()
+
     elapsed = time.time() - start
     log_box.text(log_buffer.getvalue())
     status.update(label=f"{name} (done in {elapsed:.1f}s)", state="complete")

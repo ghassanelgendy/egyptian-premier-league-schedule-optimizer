@@ -207,92 +207,12 @@ def solve_baseline(
             if len(vars_in_window) > 1:
                 model.Add(sum(vars_in_window) <= 1)
 
-    # --- H8: max 2 consecutive home or away ---
-    # For each team, for each set of 3 matches that are ALL home (or ALL away),
-    # they cannot be assigned to 3 consecutive chronological positions.
-    # We use a time-ordered approach: for each team, for every triple of dates
-    # D1 < D2 < D3 where all 3 could be same-direction, forbid it.
-    # Encoded as: for each team, for each 3 home (or away) matches m1,m2,m3,
-    # for all slot combos where date(s1)<date(s2)<date(s3) and no other match
-    # of that team fits between them -- this is too expensive combinatorially.
-    #
-    # Practical encoding: per-team positional integer variables.
-    # pos[team][k] = date index of team's k-th match in chronological order.
-    # is_home[team][k] = 1 if team's k-th match is a home match.
-    # For each k: is_home[k] + is_home[k+1] + is_home[k+2] <= 2
-    #             (1-is_home[k]) + (1-is_home[k+1]) + (1-is_home[k+2]) <= 2
-    #
-    # Since we don't know the assignment yet, we model this with date-ordered
-    # binary indicators tied to the x variables.
-
-    for team_id in matches_by_team:
-        team_match_idxs = matches_by_team[team_id]
-        n_matches = len(team_match_idxs)
-
-        # For each date, collect which of this team's matches could be there
-        team_vars_by_date: Dict[date, List[Tuple[int, cp_model.IntVar]]] = defaultdict(list)
-        for mi in team_match_idxs:
-            for si, var in x[mi].items():
-                team_vars_by_date[slot_dates[si]].append((mi, var))
-
-        # Sort dates chronologically
-        team_active_dates = sorted(team_vars_by_date.keys())
-
-        # For every 3 consecutive active dates where the team could play,
-        # check that not all 3 assigned matches are home (or all away)
-        for i in range(len(team_active_dates) - 2):
-            d1, d2, d3 = team_active_dates[i], team_active_dates[i + 1], team_active_dates[i + 2]
-
-            # Skip if dates are too far apart (a team can't play on all 3 anyway
-            # due to rest constraints, unless they are 4+ days apart each)
-            if (d3 - d1).days > (n_matches + 1) * (rest_gap + 1):
-                continue
-
-            # Collect home-only vars for these 3 dates
-            home_vars = []
-            away_vars = []
-            for d in (d1, d2, d3):
-                for mi, var in team_vars_by_date[d]:
-                    m = match_lookup[mi]
-                    if m.home_team == team_id:
-                        home_vars.append(var)
-                    else:
-                        away_vars.append(var)
-
-            # If all assigned are home on these 3 consecutive team-play-dates -> violation
-            # We need: at most 2 of 3 consecutive played matches are home
-            # But since multiple matches could map to same date (not possible due to H4),
-            # and we only care about the played sequence, the simpler sliding-window
-            # over dates is an approximation that works because H4 ensures at most 1
-            # match per date per team.
-
-            # For 3 consecutive dates where team plays: sum of home indicators <= 2
-            home_on_d = {}
-            away_on_d = {}
-            for d in (d1, d2, d3):
-                h_vars = [var for mi, var in team_vars_by_date[d]
-                          if match_lookup[mi].home_team == team_id]
-                a_vars = [var for mi, var in team_vars_by_date[d]
-                          if match_lookup[mi].away_team == team_id]
-                if h_vars:
-                    home_on_d[d] = h_vars
-                if a_vars:
-                    away_on_d[d] = a_vars
-
-            if len(home_on_d) == 3:
-                # For each combo of one home var from each of the 3 dates
-                all_home = []
-                for d in (d1, d2, d3):
-                    all_home.extend(home_on_d.get(d, []))
-                if len(all_home) >= 3:
-                    model.Add(sum(all_home) <= 2)
-
-            if len(away_on_d) == 3:
-                all_away = []
-                for d in (d1, d2, d3):
-                    all_away.extend(away_on_d.get(d, []))
-                if len(all_away) >= 3:
-                    model.Add(sum(all_away) <= 2)
+    # H8 (max 2 consecutive home or away) is enforced as a post-processing
+    # hard repair step after the baseline solver finishes (see src/h8_repair.py).
+    # Enforcing H8 inside CP-SAT via BEFORE/BETWEEN variables was explored but
+    # produced a model too large for the solver to find a feasible solution
+    # within the time budget.  The post-processing repair guarantees the final
+    # schedule satisfies H8 before any output is written.
 
     print("[baseline] Hard constraints added.")
 

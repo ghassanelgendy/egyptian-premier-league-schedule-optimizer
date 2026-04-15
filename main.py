@@ -78,6 +78,24 @@ def main(seed: int = DEFAULT_SEED) -> None:
     from src.caf_repair_solver import caf_repair
     repaired, unresolved_list = caf_repair(accepted, violations, data)
 
+    # Phase 5b: H8 hard repair (max 2 consecutive home or away)
+    print()
+    print("=" * 60)
+    print("Phase 5b: H8 streak repair...")
+    print("=" * 60)
+    from src.h8_repair import count_h8_violations, repair_h8
+    combined = list(accepted) + list(repaired)
+    pre_h8 = count_h8_violations(combined)
+    print(f"  H8 violations before repair: {pre_h8}")
+    if pre_h8 > 0:
+        combined = repair_h8(combined, data, max_iters=2000)
+        # Split back into accepted/repaired by match_idx
+        repaired_idxs = {sm.match_idx for sm in repaired}
+        accepted = [sm for sm in combined if sm.match_idx not in repaired_idxs]
+        repaired = [sm for sm in combined if sm.match_idx in repaired_idxs]
+    post_h8 = count_h8_violations(list(accepted) + list(repaired))
+    print(f"  H8 violations after repair:  {post_h8}")
+
     # Phase 6: Write outputs
     print()
     print("=" * 60)
