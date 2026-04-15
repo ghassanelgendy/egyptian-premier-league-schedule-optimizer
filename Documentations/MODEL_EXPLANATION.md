@@ -1,133 +1,232 @@
-# Model explanation — Egyptian Premier League schedule optimizer
+# Model Explanation - Egyptian Premier League Schedule Optimizer
 
-This document explains **what kind of optimization model** this project uses, **what it optimizes**, **which rules are hard vs soft**, and **how the pipeline phases relate to outputs**. It aligns with [PRD.md](PRD.md) v2.0 and the code in `schedule_optimizer/`.
+This document explains the required optimization model after the v2.2 PRD update. The core change from v2.1 is that CAF blockers are no longer part of the first scheduling feasibility model. The system first builds a full league schedule while ignoring CAF, then audits and repairs CAF conflicts afterward.
 
----
-
-## 1. What type of model is it?
-
-**Binary assignment** on a bipartite-like structure (fixtures → slots), solved with **Google OR-Tools CP-SAT**:
-
-- Variables `x[m,t] ∈ {0,1}`: fixture `m` uses slot row `t`.
-- **Sparse:** only feasible `(m,t)` pairs are created.
-- **Constraints:** mostly linear inequalities on sums of Booleans; **home/away streak** uses an `AddAutomaton` over discretized per-day symbols.
-- **Objective (phase 2):** single linear minimize = travel + several penalty terms (see §3).
-
-Fixtures come from a **double round-robin** pattern. The pipeline mostly **assigns times** to a pre-built fixture list, where the DRR fixture list is chosen either by a **fixture-round CP-SAT** model (when enabled) or by a **scored-seed fallback** that maximizes strict-week feasible slot counts (PRD §4.7).
-
-### 1.1 Upgraded methodology (recommended)
-
-To reliably obtain at least one optimized schedule, the methodology should be decomposed into **two CP-SAT models** with different responsibilities:
-
-1. **Fixture-round CP-SAT (pairings by round):** decide which opponent each team plays in each round (and home/away), subject to DRR and fairness constraints.
-2. **Slot assignment CP-SAT (dates/times):** assign each decided fixture to an exact calendar slot, using explicit postponement decisions and soft objectives.
-
-This prevents the slot assignment model from being forced to “repair” a structurally bad fixture-round ordering only via postponements.
+A second key clarification introduced in v2.2: a team is **not required to play in every calendar round**. If a match is postponed to the CAF queue, that team's slot for that round is simply empty. The governing scheduling constraint is the rest-day gap rule, not round-by-round attendance. Rest rules differ by context: three full rest days between local league matches; four full rest days (minimum) around CAF matches in either direction.
 
 ---
 
-## 2. Decision variables and domains
+## 1. Data Scope
 
-- **`x[m,t]`** — slot assignment, see above.
-- **Venue** is **not** a decision variable: fixed from `sec_matrix` (forced venue when present) or the home team’s stadium ID from `team_data` before solve.
-- **`feasible[m]`** — list of slot indices allowed for `m`. Built from:
-  - FIFA / SuperCup flags and FIFA union dates,
-  - per-team blackout dates derived from the detailed blocker/FIFA expansion tables inside `data/expanded_calendar.xlsx` (joined by `Day_ID` and expanded by a configurable buffer),
-  - CAF/FIFA/Ramadan/SuperCup slot flags from `expanded_calendar_table`,
-  - **either** same calendar week as round `r` (**strict**), **or** any of the 34 eligible weeks (**postponed** / relaxed H5).
+The model may use only:
 
-In the upgraded methodology, Phase 1 introduces an additional binary structure:
+- `data/Data_Model.xlsx`
+- `data/expanded_calendar.xlsx`
 
-- **`y[i,j,r]`** — fixture-round decision: team `i` hosts team `j` in round `r`.
+No other data files are valid model inputs. Previous output files are diagnostics only and must not be read back into the model.
 
-Phase 1 produces the fixture list, then Phase 2 consumes that list as its `matches[]` input.
+`Data_Model.xlsx` provides teams, tiers, CAF participation flags, stadiums, distances, and security/forced-venue rules.
 
-**Important implementation note (how DRR reaches CP-SAT):** the slot-assignment solver does **not** read DRR back from `output/phases/04_drr_selection.json`. That file is an **audit artifact** describing how the DRR was chosen. The solver consumes DRR via the pipeline’s in-memory objects:
-
-- `frs`: list of DRR fixtures (round, home, away)
-- `matches`: list of `Match` derived from `frs`
-- `feasible`: per-match list of allowed slot indices
-
-CP-SAT then creates Boolean variables only for feasible edges \((m,t)\) where \(t \in feasible[m]\).
+`expanded_calendar.xlsx` provides the slot universe, FIFA days, CAF blockers, and calendar flags.
 
 ---
 
-## 3. Objectives (phase 2 only)
+## 2. High-Level Model Flow
 
-Phase 1 (`optimize=False`) finds **any** feasible timetable **without** minimizing the weighted sum.
+The required workflow has four logical phases:
 
-Phase 2 minimizes:
+1. **Load and validate the two workbooks.**
+2. **Generate a double round-robin fixture framework.**
+3. **Solve the baseline league timetable while ignoring CAF blockers.**
+4. **Audit CAF conflicts, queue violating matches, and repair them into free CAF-safe slots.**
 
-1. **Travel proxy** — `10 × Travel_km` (integer-rounded) per fixture (independent of which acceptable slot in domain).
-2. **Slot overload** — penalize second match on same slot index (`w_slot_overlap`).
-3. **Tier mismatch** — slot worse than match minimum tier.
-4. **Top-tier weekend** — tier-1 matches prefer Fri/Sat (`w_top_tier_non_prime_day`).
-5. **Tier1 vs Tier1 prime night** — prefer Fri/Sat **and** latest kickoff that calendar date (`w_t1vst1_not_prime_night`). **Soft** — feasibility wins if calendar forces it.
-6. **Postponement** — penalize assignment away from nominal `Week_order`, scaled by `postpone_weight_mult` (**higher** for matches involving `Cont_Flag ∈ {CL,CC}`) so continental teams are **less** likely to be pushed off-week.
-
-### 3.2 Match_Tier (derived from team tiers)
-
-Each fixture has a **Match_Tier** derived from the two teams’ `Tier` values in `team_data` (PRD §5.1). Interpretation: **1 is the best/premium** and **3 is the lowest priority**; the optimizer should assign **better slots** (lower `Slot_tier`) to lower Match_Tier.
-
-Required derivation table:
-
-| Teams | Match_Tier |
-|------|------------|
-| 1 vs 1 | 1 |
-| 1 vs 2 | 1 |
-| 1 vs 3 | 2 |
-| 2 vs 2 | 2 |
-| 2 vs 3 | 3 |
-| 3 vs 3 | 3 |
-
-### 3.1 Explicit postponement decision (recommended)
-
-Instead of repeated “relax one match and retry” loops, represent postponement directly:
-
-- Define `is_postponed[m] = 1` if the chosen slot’s `Week_order` differs from `orig_week_order` for match `m`.
-- Add a large penalty `big_weight * is_postponed[m]` (in addition to the existing week-distance penalty).
-
-This gives CP-SAT the power to choose *which* matches to postpone with full global context.
+FIFA days are excluded in every phase. CAF dates are ignored only in phase 3.
 
 ---
 
-## 4. Hard constraints (inside CP-SAT)
+## 3. Baseline Assignment Model
 
-| Theme | Rule |
-|-------|------|
-| Assignment | Exactly one `t` per `m` from `feasible[m]`. |
-| Teams | ≤1 match per team per slot index. |
-| Venues | ≤1 match per venue per slot index. |
-| Capacity | ≤2 matches per slot index globally (soft overload discourages 2). |
-| Rest | No team plays on three consecutive calendar ordinals if any of those days could host them (2-day rest rule). |
-| H/A streak | Automaton: max **2** consecutive home or away in **played** order by date (gaps do not reset). |
+The baseline model assigns each league fixture to a calendar slot.
 
-Blackouts and week filters are enforced by **shrinking `feasible[m]`**, not duplicated as redundant linear rows.
+Decision variable:
 
-### 4.1 Fixture-round hard constraints (Phase 1, recommended)
+`x[m,t] = 1` if league match `m` is assigned to slot row `t`.
 
-For the fixture-round model:
+The model is sparse: `x[m,t]` is created only when slot `t` is allowed for match `m` under baseline feasibility.
 
-- Each team plays exactly once per round.
-- Each ordered pair (i hosts j) occurs exactly once across the season.
-- Home/away streak cap: at most 2 consecutive home or away matches (over rounds).
+### 3.1 Baseline Feasible Domain
+
+For baseline scheduling, slot `t` is feasible for match `m` only if:
+
+- the slot date is not a FIFA day,
+- the slot has valid date/time/week metadata,
+- the slot belongs to an allowed scheduling week/domain for the match,
+- venue, team, rest, and home/away rules can be satisfied.
+
+The baseline domain deliberately does not check:
+
+- `Is_CAF`,
+- `cont_blockers_updated1`,
+- `unique_CAF_dates`,
+- team-specific CAF buffers.
+
+This means a match may be placed on or near a CAF date during baseline construction. That is acceptable only temporarily; the CAF audit phase will remove it.
+
+### 3.2 Baseline Hard Constraints
+
+The baseline model enforces:
+
+- every match is assigned exactly one slot,
+- no scheduled match is on a FIFA day,
+- a team cannot play more than one league match on the same date or slot,
+- a venue cannot host more than one league match in the same slot,
+- each team has at least three full calendar days of rest between any two consecutively played league matches (dates must be at least four calendar days apart),
+- no team has more than two consecutive home matches,
+- no team has more than two consecutive away matches,
+- forced venues from `Sec_Matrix` are honored.
+
+**Rest-day rule summary:**
+
+| Context | Full rest days (minimum) | Calendar days apart (minimum) | Preferred gap |
+|---|---|---|---|
+| League match → League match | 3 | 4 | 4+ |
+| League match ↔ CAF match (either direction) | 4 | 5 | 6 |
+
+The CAF buffer rule (bidirectional, four rest days minimum) is not applied in the baseline phase but is enforced during CAF audit and repair.
+
+A team is not required to play in every calendar round. The rest-day rule is measured between consecutive **played** match dates only; a skipped calendar round does not introduce or relax any rest obligation.
+
+### 3.3 Baseline Objective
+
+After hard feasibility, the baseline objective may minimize:
+
+- home/away streak pressure,
+- total travel,
+- mismatch between match tier and slot tier,
+- poor placement of top-tier matches,
+- slot overload where overload is allowed,
+- movement away from nominal round/week.
+
+Hard constraints always dominate soft objectives.
 
 ---
 
-## 5. Pipeline outputs (for debugging / UI)
+## 4. Fixture Framework Model
 
-See PRD §3.2. Notably **`03b_season_day_ledger.csv`** powers the Streamlit **Full calendar** explanations without guessing.
+The fixture framework is a double round-robin:
+
+- each team is assigned to exactly one match per abstract round (nominal ordering),
+- each ordered pair occurs exactly once,
+- each pair appears once at each team's home venue.
+
+**The DRR is generated by a random draw, not an optimizer.** In real-life Egyptian Premier League operations the fixture pairs and home/away assignments are determined by a random draw. The model replicates this: fixture pairing and home/away assignment are produced by a seeded random process. Any valid DRR arrangement that satisfies the completeness rules is acceptable. The system must not prefer or rank one DRR arrangement over another at the fixture-generation stage.
+
+**Important:** the per-round assignment in the framework is a logical ordering aid, not a hard calendar attendance rule. A team does not have to have a match played in every calendar round. When a match is moved to the CAF postponement queue, the team's calendar slot for that round is vacated. The abstract round number is preserved as a metadata field (`Round`) on the postponed record.
+
+The constraint that governs calendar proximity is the rest-day rule, not round presence. A team that skips a calendar round still must satisfy the rest gap between its previous played match and its next played match.
+
+The framework can be generated by a seeded random permutation algorithm, a standard round-robin construction (e.g. circle method) applied to a randomly ordered team list, or any other method that produces a valid, complete DRR from a random seed.
 
 ---
 
-## 6. Relation to “ILP” narrative
+## 5. FIFA Modeling
 
-Same mathematical family as integer linear programming (Boolean + linear constraints + linear objective). CP-SAT is used for maintainability and strong performance on this structure.
+FIFA days are a hard global blackout.
+
+The FIFA date set is the union of:
+
+- `Is_FIFA == 1` in calendar rows,
+- dates listed in `FIFA_DAYS1`,
+- non-empty FIFA label columns such as `FIFA_DAY` or `FIFA_DAYS`.
+
+No decision variable may allow a league match on a FIFA date. If a generated schedule contains a FIFA-day match, the schedule is invalid.
 
 ---
 
-## 7. References
+## 6. CAF Audit Model
 
-- [PRD.md](PRD.md)  
-- [CODE_DOCUMENTATION.md](CODE_DOCUMENTATION.md)  
-- `schedule_optimizer/cp_sat_model.py`, `schedule_optimizer/pipeline.py`, `schedule_optimizer/day_ledger.py`  
+CAF is handled after the baseline schedule exists.
+
+For each scheduled baseline match, the audit checks both teams against CAF data from `expanded_calendar.xlsx`.
+
+A match is CAF-violating if:
+
+- it is on a team-specific CAF blocker date,
+- it involves a `CL` or `CC` team and is fewer than five calendar days before that team's CAF match (i.e. the league match date and the CAF match date are less than five days apart going forward),
+- it involves a `CL` or `CC` team and is fewer than five calendar days after that team's preceding CAF match (i.e. the league match date and the CAF match date are less than five days apart going backward),
+- it breaks final hard constraints when CAF blockers are treated as protected team activity.
+
+The buffer is **bidirectional**: a CAF match creates a protected zone of at least four full rest days on both sides. A league match falling in either the pre-CAF or post-CAF protected window is a violation.
+
+Violating matches are removed from the accepted baseline table and written to `output/caf_postponement_queue.csv`. The remaining accepted matches become fixed commitments for the repair phase.
+
+---
+
+## 7. CAF Repair Model
+
+The repair model places queued matches into genuinely free slots.
+
+Decision variable:
+
+`r[q,t] = 1` if queued match `q` is repaired into free slot `t`.
+
+The repair domain for `r[q,t]` includes only slots where:
+
+- no accepted league match already occupies slot `t`,
+- the slot date is not a FIFA day,
+- both teams have at least three full calendar days from all other accepted league matches (dates at least four apart),
+- inserting the match preserves home/away streak limits,
+- the venue is available,
+- for CAF-participating teams: the inserted date is not a CAF blocker date, is at least five calendar days before any upcoming CAF match, and is at least five calendar days after any preceding CAF match (six calendar days preferred in either direction).
+
+The repair objective should maximize repaired matches first. Secondary objectives may minimize week movement, preserve home/away quality, and prefer suitable slot tiers.
+
+If no feasible `r[q,t]` exists for a queued match, that match remains unresolved and is written to `output/unresolved_caf_postponements.csv`.
+
+---
+
+## 8. Final Schedule Semantics
+
+The final schedule is:
+
+`baseline accepted matches - CAF-violating queued matches + CAF-repaired matches`
+
+Final schedule requirements:
+
+- every row is sourced from the two workbooks and generated fixture data,
+- no league match is on a FIFA day,
+- all accepted rows satisfy hard constraints,
+- repaired rows have `Postponed = True`,
+- unresolved queue rows are not silently included in the final accepted schedule.
+
+If unresolved postponements exist, the run may still produce a partial final accepted schedule, but it must report unresolved matches explicitly.
+
+---
+
+## 9. Hard vs Soft Summary
+
+Hard rules:
+
+- use only the two authoritative workbooks,
+- double round-robin fixture completeness (all fixtures must be scheduled or queued),
+- a team is not required to play in every calendar round; round attendance is not enforced,
+- no FIFA-day league matches,
+- team/date/slot conflicts,
+- venue/slot conflicts,
+- forced venues,
+- three full rest days between consecutive played league matches (four calendar days apart),
+- home/away streak cap (no more than two consecutive in either direction),
+- CAF same-day blackout and **bidirectional** four-full-rest-day buffer (five calendar days minimum, six preferred) around CAF matches during audit/repair.
+
+Soft rules:
+
+- travel minimization,
+- better slots for better matches,
+- top-tier prime-slot preference,
+- lower week movement,
+- lower home/away imbalance beyond the hard streak cap.
+
+---
+
+## 10. Relation to ILP/CP-SAT
+
+The model can be implemented with CP-SAT or another integer optimization method. The mathematical structure is a Boolean assignment problem with linear constraints and a linear weighted objective.
+
+The important modeling requirements are phase separation and rest-gap asymmetry:
+
+- FIFA is always a hard blackout.
+- CAF is not part of baseline feasibility.
+- CAF is enforced through post-baseline audit and repair.
+- Round attendance is not a constraint variable. Teams may have zero matches in a given calendar round.
+- Rest gaps are asymmetric by context: three full rest days for league-to-league, four full rest days (minimum) in either direction around a CAF match. The repair model must encode the bidirectional CAF buffer as two separate gap constraints per queued match per CAF date.
+
