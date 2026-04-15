@@ -46,7 +46,7 @@ W_CAF_PREFERRED = 10      # bonus for achieving 6-day CAF gap instead of 5
 # ---------------------------------------------------------------------------
 # Solver limits
 # ---------------------------------------------------------------------------
-BASELINE_SOLVER_TIME_LIMIT_S = 300   # 5 minutes
+BASELINE_SOLVER_TIME_LIMIT_S = 600   # 5 minutes
 REPAIR_SOLVER_TIME_LIMIT_S = 60     # 1 minute (much smaller model)
 
 # ---------------------------------------------------------------------------
