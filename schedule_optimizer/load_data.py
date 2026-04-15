@@ -32,6 +32,16 @@ def _read_all_sheets(path: Path) -> dict[str, pd.DataFrame]:
     return {sh: pd.read_excel(path, sheet_name=sh) for sh in xl.sheet_names}
 
 
+def _try_read_all_sheets(log: LoadLog, path: Path) -> dict[str, pd.DataFrame] | None:
+    try:
+        if not path.exists():
+            return None
+        return _read_all_sheets(path)
+    except Exception as e:
+        log.add(f"WARN: failed reading excel workbook {path.name}: {type(e).__name__}: {e}")
+        return None
+
+
 def load_everything(log: LoadLog) -> dict:
     out: dict = {}
 
@@ -108,19 +118,38 @@ def load_everything(log: LoadLog) -> dict:
     log.add(f"Stadium_Distances_Columns rows={len(colmat)} cols={list(colmat.columns)[:6]}...")
 
     fifa_dates: set[date] = set()
-    fifa_wb = _read_all_sheets(SOURCES / "FIFA_Days_UPDATED.xlsx")
-    log.add(f"FIFA_Days_UPDATED sheets={list(fifa_wb.keys())}")
-    for sh, df in fifa_wb.items():
-        if "Date" in df.columns:
-            for v in pd.to_datetime(df["Date"], errors="coerce").dropna():
-                fifa_dates.add(v.date())
+    # FIFA days can be provided under multiple filenames in different repo versions.
+    # Prefer the "UPDATED" workbook if present, otherwise fall back to the underscore variant.
+    fifa_candidates = [
+        SOURCES / "FIFA_Days_UPDATED.xlsx",
+        SOURCES / "FIFA_Days.xlsx",
+    ]
+    fifa_wb: dict[str, pd.DataFrame] | None = None
+    fifa_used: Path | None = None
+    for p in fifa_candidates:
+        wb = _try_read_all_sheets(log, p)
+        if wb is not None:
+            fifa_wb = wb
+            fifa_used = p
+            break
+    if fifa_wb is not None:
+        log.add(f"{fifa_used.name} sheets={list(fifa_wb.keys())}")
+        for _sh, df in fifa_wb.items():
+            if "Date" in df.columns:
+                for v in pd.to_datetime(df["Date"], errors="coerce").dropna():
+                    fifa_dates.add(v.date())
+    else:
+        log.add("WARN: no FIFA_Days_UPDATED.xlsx or FIFA_Days.xlsx found; FIFA union dates will be empty.")
 
     fifa2_path = SOURCES / "FIFA Days.xlsx"
-    fifa2 = _read_excel(fifa2_path, "International Break Schedule Ta")
-    log.add(f"FIFA Days.xlsx International Break rows={len(fifa2)}")
-    if "Date" in fifa2.columns:
-        for v in pd.to_datetime(fifa2["Date"], errors="coerce").dropna():
-            fifa_dates.add(v.date())
+    if fifa2_path.exists():
+        fifa2 = _read_excel(fifa2_path, "International Break Schedule Ta")
+        log.add(f"FIFA Days.xlsx International Break rows={len(fifa2)}")
+        if "Date" in fifa2.columns:
+            for v in pd.to_datetime(fifa2["Date"], errors="coerce").dropna():
+                fifa_dates.add(v.date())
+    else:
+        log.add("WARN: FIFA Days.xlsx not found; skipping secondary FIFA union source.")
     log.add(f"union FIFA calendar dates={len(fifa_dates)}")
     out["fifa_dates"] = fifa_dates
 

@@ -31,13 +31,15 @@ def solve_assignment(
     optimize: bool = True,
     stop_after_first_solution: bool = False,
     on_solution: Callable[[dict[str, Any]], None] | None = None,
+    hints: dict[int, int] | None = None,
     max_matches_per_slot: int = 2,
     w_slot_overlap: int = 1_000_000,
     w_tier_mismatch: int = 1_000,
     w_top_tier_non_prime_day: int = 5_000,
     w_postpone_week_distance: int = 50_000,
+    w_postpone_fixed: int = 5_000_000,
     w_t1vst1_not_prime_night: int = 50_000_000,
-) -> tuple[dict[int, int], int, str, float | None]:
+) -> tuple[dict[int, int], int, str, float | None, dict[str, Any]]:
     """feasible[m] = list of slot indices allowed for match m."""
     model = cp_model.CpModel()
     x: dict[tuple[int, int], cp_model.IntVar] = {}
@@ -45,33 +47,57 @@ def solve_assignment(
         for t in slots:
             x[(m, t)] = model.NewBoolVar(f"x_m{m}_t{t}")
 
+    # Warm start hints (best-effort; ignored if edge not present).
+    if hints:
+        for m, t in hints.items():
+            try:
+                key = (int(m), int(t))
+            except Exception:
+                continue
+            var = x.get(key)
+            if var is not None:
+                model.AddHint(var, 1)
+
     for m, slots in enumerate(feasible):
         model.Add(sum(x[(m, t)] for t in slots) == 1)
 
     all_teams = sorted({tm for m in matches for tm in (m.home, m.away)})
 
-    # One match per slot is preferred; allow 2 if needed.
-    for t in range(len(slot_meta)):
-        ms_all = [m for m in range(len(matches)) if t in feasible[m]]
-        if ms_all:
-            model.Add(sum(x[(m, t)] for m in ms_all) <= max_matches_per_slot)
+    # Slot load / team conflicts / venue conflicts.
+    #
+    # IMPORTANT: build constraints sparsely by iterating over feasible (m,t) edges once.
+    # The previous implementation used nested loops over (slot x team x matches),
+    # which can become extremely expensive and can dominate runtime.
+    slot_terms: dict[int, list[cp_model.IntVar]] = {}
+    team_slot_terms: dict[tuple[str, int], list[cp_model.IntVar]] = {}
+    venue_slot_terms: dict[tuple[str, int], list[cp_model.IntVar]] = {}
+    for (m, t), var in x.items():
+        slot_terms.setdefault(t, []).append(var)
+        mm = matches[m]
+        if mm.home:
+            team_slot_terms.setdefault((mm.home, t), []).append(var)
+        if mm.away:
+            team_slot_terms.setdefault((mm.away, t), []).append(var)
+        if mm.venue:
+            venue_slot_terms.setdefault((mm.venue, t), []).append(var)
 
-        for team in all_teams:
-            ms = [
-                m
-                for m in range(len(matches))
-                if team in (matches[m].home, matches[m].away) and t in feasible[m]
-            ]
-            if len(ms) > 1:
-                model.Add(sum(x[(m, t)] for m in ms) <= 1)
+    # Allow up to N matches per slot (default 2).
+    for t, vs in slot_terms.items():
+        if len(vs) > 1:
+            model.Add(sum(vs) <= max_matches_per_slot)
+        else:
+            # Single variable also respects the cap implicitly (x in {0,1}).
+            pass
 
-        venues_at_t: dict[str, list[int]] = {}
-        for m in ms_all:
-            v = matches[m].venue
-            venues_at_t.setdefault(v, []).append(m)
-        for _v, ms2 in venues_at_t.items():
-            if len(ms2) > 1:
-                model.Add(sum(x[(m, t)] for m in ms2) <= 1)
+    # Team cannot play two matches in the same slot.
+    for (_team, t), vs in team_slot_terms.items():
+        if len(vs) > 1:
+            model.Add(sum(vs) <= 1)
+
+    # Only one match per venue per slot.
+    for (_venue, t), vs in venue_slot_terms.items():
+        if len(vs) > 1:
+            model.Add(sum(vs) <= 1)
 
     # Team cannot play two matches on same day, nor on consecutive days.
     # Requires slot_meta[t]["Date_ord"] to be an ordinal int (date.toordinal()).
@@ -102,24 +128,24 @@ def solve_assignment(
             if vs and (vs1 or vs2):
                 model.Add(sum(vs) + sum(vs1) + sum(vs2) <= 1)
 
-    # Max 2 consecutive HOME or AWAY matches in scheduled time order (gaps do NOT reset).
+    # Max 2 consecutive HOME or AWAY matches in scheduled time order.
     #
     # We model each team’s season as a sequence over all distinct Date_ord values:
     #   0 = no match that date, 1 = home, 2 = away.
-    # Gaps (0) do NOT reset the H/A streak, so streak is over consecutive *played* matches.
+    # Gaps (0) reset the H/A streak, matching typical league fairness rules.
     # DFA states:
     # 0 start/none, 1 H1, 2 H2, 3 A1, 4 A2
     transitions = []
     # From start/none
     transitions += [(0, 0, 0), (0, 1, 1), (0, 2, 3)]
     # From H1
-    transitions += [(1, 0, 1), (1, 1, 2), (1, 2, 3)]
+    transitions += [(1, 0, 0), (1, 1, 2), (1, 2, 3)]
     # From H2 (cannot take another HOME)
-    transitions += [(2, 0, 2), (2, 2, 3)]
+    transitions += [(2, 0, 0), (2, 2, 3)]
     # From A1
-    transitions += [(3, 0, 3), (3, 2, 4), (3, 1, 1)]
+    transitions += [(3, 0, 0), (3, 2, 4), (3, 1, 1)]
     # From A2 (cannot take another AWAY)
-    transitions += [(4, 0, 4), (4, 1, 1)]
+    transitions += [(4, 0, 0), (4, 1, 1)]
     final_states = [0, 1, 2, 3, 4]
 
     # Build (team, date_ord) -> list of x vars once (O(#x)).
@@ -240,6 +266,30 @@ def solve_assignment(
                             )
                 except Exception:
                     pass
+
+        # Explicit postponement variable: is_postponed[m] = 1 if assigned week != nominal week.
+        ow = matches[m].orig_week_order
+        if ow is not None and optimize and w_postpone_fixed > 0:
+            try:
+                ow_i = int(ow)
+            except Exception:
+                ow_i = None
+            if ow_i is not None:
+                post_terms: list[cp_model.IntVar] = []
+                for t in slots:
+                    tw = slot_meta[t].get("Week_order")
+                    try:
+                        tw_i = int(tw) if tw is not None else None
+                    except Exception:
+                        tw_i = None
+                    if tw_i is None:
+                        continue
+                    if tw_i != ow_i:
+                        post_terms.append(x[(m, t)])
+                if post_terms:
+                    is_post = model.NewBoolVar(f"is_postponed_m{m}")
+                    model.Add(sum(post_terms) == is_post)
+                    obj.append(int(w_postpone_fixed) * is_post)
     if optimize and obj:
         model.Minimize(sum(obj))
 
@@ -282,8 +332,21 @@ def solve_assignment(
         else:
             status = solver.Solve(model, cb)
     st = solver.StatusName(status)
+    stats: dict[str, Any] = {
+        "status": st,
+        "cp_status": int(status),
+        "optimize": bool(optimize),
+        "stop_after_first_solution": bool(stop_after_first_solution),
+        "time_limit_s": float(time_limit_s) if time_limit_s is not None else None,
+        "objective_value": float(solver.ObjectiveValue()) if optimize and status in (cp_model.OPTIMAL, cp_model.FEASIBLE) else None,
+        "best_bound": float(solver.BestObjectiveBound()) if optimize else None,
+        "num_x_vars": int(len(x)),
+        "num_matches": int(len(matches)),
+        "num_slots": int(len(slot_meta)),
+        "response_stats": str(solver.ResponseStats()).strip(),
+    }
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return {}, status, st, None
+        return {}, status, st, None, stats
 
     assign: dict[int, int] = {}
     for m, slots in enumerate(feasible):
@@ -292,4 +355,4 @@ def solve_assignment(
                 assign[m] = t
                 break
     objective_value = float(solver.ObjectiveValue())
-    return assign, status, st, objective_value
+    return assign, status, st, objective_value, stats

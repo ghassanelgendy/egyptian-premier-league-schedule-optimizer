@@ -1,4 +1,5 @@
 CAF blocker buffer days each side: 1
+Optimizer options (effective): phase1_limit_s=2.0, phase2_limit_s=2.0, drr_tries=12, drr_seed=None, cont_postpone_mult=4.0, max_matches_per_slot=2, weights(slot,tier,top,post_dist,post_fixed,t1)=(1000000,1000,5000,50000,5000000,50000000)
 Data_Model.xlsx sheets=['team_data', 'Stadiums', 'dist_Matrix', 'Sec_Matrix']
 expanded_calendar.xlsx sheets=['unique_CAF_dates', 'expanded _calendar_table', 'cont_blockers_updated1', 'FIFA_DAYS1', 'expanded_calendar']
 expanded_calendar rows=1041
@@ -9,11 +10,12 @@ stadiums.xlsx Stadiums rows=22
 security matrix Sec_Matrix rows=4
 Stadium_Distance_Matrix entries=484
 Stadium_Distances_Columns rows=462 cols=['Stadium_ID_Origin', 'Stadium_ID_Destination', 'Distance_KM']...
-FIFA_Days_UPDATED sheets=['FIFA_DAYS', 'FIFA_Days_UPDATED']
+FIFA_Days.xlsx sheets=['FIFA_DAYS', 'FIFA_Days_UPDATED']
 FIFA Days.xlsx International Break rows=43
 union FIFA calendar dates=118
 CAF CL dates=39 CAF CC dates=24
 cont_blockers_table sheets=['cont_blockers_updated', 'cont_blockers']
 merged continental blockers rows=56
 All PRD input files touched.
+DRR strict-domain score (min,sum)=[0, 6094]
 CP-SAT failed in phase 1 (feasibility): UNKNOWN

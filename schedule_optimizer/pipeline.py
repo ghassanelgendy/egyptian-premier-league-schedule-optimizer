@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 import json
 import time
+import random
+import bisect
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Callable
@@ -25,7 +27,8 @@ from .day_ledger import build_day_ledger
 from .normalize import strip_team_id
 from .paths import OUTPUT
 from .phases_dir import phases_dir
-from .round_robin import double_round_robin_randomized
+from .round_robin import Fixture, double_round_robin_randomized
+from .fixture_round_model import solve_fixture_rounds
 
 
 @dataclass
@@ -48,16 +51,38 @@ def run_optimization(
     *,
     caf_buffer_days: int | None = None,
     time_limit_s: float | None = None,
+    phase1_time_limit_s: float | None = None,
+    drr_tries: int | None = None,
+    drr_seed: int | None = None,
+    cont_postpone_mult: float | None = None,
     write_outputs: bool = True,
+    max_matches_per_slot: int | None = None,
+    w_slot_overlap: int | None = None,
+    w_tier_mismatch: int | None = None,
+    w_top_tier_non_prime_day: int | None = None,
+    w_postpone_week_distance: int | None = None,
+    w_postpone_fixed: int | None = None,
+    w_t1vst1_not_prime_night: int | None = None,
     progress_cb: Callable[[dict[str, Any]], None] | None = None,
 ) -> OptimizationResult:
     """
     Run full load + build + CP-SAT + optional CSV export.
 
     ``caf_buffer_days`` defaults from env ``EPL_CAF_BUFFER_DAYS`` or ``1``.
+    Any argument left ``None`` falls back to the matching ``EPL_*`` environment
+    variable where documented in the PRD, otherwise code defaults.
     """
     t0 = time.perf_counter()
     log = LoadLog()
+    timings: dict[str, float] = {}
+    _t_mark = time.perf_counter()
+
+    def _mark_timing(key: str) -> None:
+        nonlocal _t_mark
+        now = time.perf_counter()
+        timings[key] = round(now - _t_mark, 6)
+        _t_mark = now
+
     def _progress(stage: str, **data: Any) -> None:
         if progress_cb is None:
             return
@@ -74,7 +99,37 @@ def run_optimization(
         if tls is not None and str(tls).strip() != "":
             time_limit_s = float(tls)
 
+    phase1_limit = float(phase1_time_limit_s) if phase1_time_limit_s is not None else float(
+        os.environ.get("EPL_PHASE1_TIME_LIMIT_S", "30")
+    )
+    drr_tries_eff = int(drr_tries) if drr_tries is not None else int(os.environ.get("EPL_DRR_TRIES", "12"))
+    drr_seed_eff: int | None = int(drr_seed) if drr_seed is not None else None
+    if drr_seed_eff is None:
+        seed_env = os.environ.get("EPL_DRR_SEED")
+        if seed_env is not None and str(seed_env).strip() != "":
+            drr_seed_eff = int(seed_env)
+    cont_mult_eff = float(cont_postpone_mult) if cont_postpone_mult is not None else float(
+        os.environ.get("EPL_CONT_POSTPONE_MULT", "4.0")
+    )
+    max_slot_eff = int(max_matches_per_slot) if max_matches_per_slot is not None else 2
+    w_so = int(w_slot_overlap) if w_slot_overlap is not None else 1_000_000
+    w_tm = int(w_tier_mismatch) if w_tier_mismatch is not None else 1_000
+    w_tp = int(w_top_tier_non_prime_day) if w_top_tier_non_prime_day is not None else 5_000
+    w_pw = int(w_postpone_week_distance) if w_postpone_week_distance is not None else 50_000
+    w_pf = int(w_postpone_fixed) if w_postpone_fixed is not None else int(os.environ.get("EPL_W_POSTPONE_FIXED", "5000000"))
+    w_t1 = int(w_t1vst1_not_prime_night) if w_t1vst1_not_prime_night is not None else 50_000_000
+    if max_slot_eff < 1 or max_slot_eff > 2:
+        max_slot_eff = 2
+
+    log.add(
+        "Optimizer options (effective): "
+        f"phase1_limit_s={phase1_limit}, phase2_limit_s={time_limit_s}, "
+        f"drr_tries={drr_tries_eff}, drr_seed={drr_seed_eff}, cont_postpone_mult={cont_mult_eff}, "
+        f"max_matches_per_slot={max_slot_eff}, weights(slot,tier,top,post_dist,post_fixed,t1)=({w_so},{w_tm},{w_tp},{w_pw},{w_pf},{w_t1})"
+    )
+
     data = load_everything(log)
+    _mark_timing("load_inputs_s")
     _progress("loaded_inputs")
     teams = data["teams"]
     slots = data["slots"].reset_index(drop=True)
@@ -99,9 +154,11 @@ def run_optimization(
     )
     for tid in black:
         black[tid].update(fifa_in_season)
+    _mark_timing("build_blackouts_s")
     _progress("built_blackouts")
 
     eligible = eligible_calendar_weeks(slots, fifa_dates)
+    _mark_timing("eligible_weeks_s")
     _progress("eligible_weeks", count=len(eligible))
     if len(eligible) < 34:
         msg = f"INFEASIBLE: only {len(eligible)} calendar weeks with>=9 usable slots (need 34)."
@@ -203,8 +260,10 @@ def run_optimization(
                 "Is_Prime_Night": int(1 if is_prime_night else 0),
             }
         )
+    _mark_timing("build_slot_meta_s")
 
     day_ledger_df = build_day_ledger(slots, fifa_dates)
+    _mark_timing("build_day_ledger_s")
     if write_outputs:
         day_ledger_df.to_csv(ph_root / "03b_season_day_ledger.csv", index=False)
 
@@ -239,7 +298,7 @@ def run_optimization(
         return True
 
     ordered_team_ids = sorted(team_ids, key=lambda tid: len(black.get(tid, set())), reverse=True)
-    cont_postpone_mult = float(os.environ.get("EPL_CONT_POSTPONE_MULT", "4.0"))
+    cont_postpone_mult = cont_mult_eff
 
     def _postpone_weight_mult(home: str, away: str) -> float:
         for tid in (home, away):
@@ -252,60 +311,187 @@ def run_optimization(
                 return cont_postpone_mult
         return 1.0
 
-    def _drr_strict_domain_score(frs_list: list) -> tuple[int, int]:
-        """(min_strict_feasible_slots, sum) for a candidate DRR — higher tuple is better (lexicographic)."""
-        cand: list[Match] = []
-        for k, fx in enumerate(frs_list):
-            try:
-                v = venue_for_fixture(fx.home, fx.away, teams, sec)
-            except Exception:
-                return (-10**9, -10**9)
-            # Travel not used by slot_ok; skip matrix lookups here for speed (validated later).
-            c = 0.0
-            ht = int(teams.loc[fx.home, "Tier"]) if "Tier" in teams.columns and fx.home in teams.index else None
-            at = int(teams.loc[fx.away, "Tier"]) if "Tier" in teams.columns and fx.away in teams.index else None
-            mt = int(min(ht, at)) if ht is not None and at is not None else None
-            ow = int(week_order_for_weeknum[int(week_for_round[fx.round_idx])])
-            is_t1vst1 = bool(ht == 1 and at == 1)
-            cand.append(
-                Match(
-                    k,
-                    fx.round_idx,
-                    fx.home,
-                    fx.away,
-                    v,
-                    c,
-                    mt,
-                    ow,
-                    is_t1vst1,
-                    _postpone_weight_mult(fx.home, fx.away),
-                )
-            )
-        counts = [len([t for t in range(len(slot_meta)) if slot_ok_for_match(mm, t)]) for mm in cand]
-        return (min(counts), sum(counts))
-
-    seed_env = os.environ.get("EPL_DRR_SEED")
-    seed = int(seed_env) if seed_env is not None and str(seed_env).strip() != "" else None
-    drr_tries = int(os.environ.get("EPL_DRR_TRIES", "12"))
-    drr_pick: dict[str, Any]
-    if seed is not None:
-        frs = double_round_robin_randomized(
-            ordered_team_ids, seed=seed, max_streak=2, streak_scope="half", shuffle_teams=False
+    def _strict_feasible_count(*, home: str, away: str, round_idx: int) -> int:
+        """Count strict-week feasible slots for a single ordered pairing in a specific round."""
+        try:
+            v = venue_for_fixture(home, away, teams, sec)
+        except Exception:
+            return 0
+        ht = int(teams.loc[home, "Tier"]) if "Tier" in teams.columns and home in teams.index else None
+        at = int(teams.loc[away, "Tier"]) if "Tier" in teams.columns and away in teams.index else None
+        mt = int(min(ht, at)) if ht is not None and at is not None else None
+        ow = int(week_order_for_weeknum[int(week_for_round[round_idx])])
+        mm = Match(
+            0,
+            int(round_idx),
+            home,
+            away,
+            v,
+            0.0,
+            mt,
+            ow,
+            bool(ht == 1 and at == 1),
+            _postpone_weight_mult(home, away),
         )
-        drr_pick = {"mode": "fixed_seed", "seed": int(seed), "score": list(_drr_strict_domain_score(frs))}
+        wk = int(week_for_round[int(round_idx)])
+        cnt = 0
+        for t in slots_by_week.get(wk, []):
+            if slot_ok_for_match(mm, int(t), allow_postponed=False):
+                cnt += 1
+        return int(cnt)
+
+    def _drr_strict_domain_score(frs_list: list[Fixture]) -> tuple[int, int]:
+        """(min_strict_feasible_slots, sum) for reporting/debug; higher tuple is better."""
+        counts = [
+            _strict_feasible_count(home=fx.home, away=fx.away, round_idx=int(fx.round_idx)) for fx in frs_list
+        ]
+        return (min(counts) if counts else 0, sum(counts))
+
+    # Pre-index slots by week for fast strict-week feasible counting (used by fixture-round CP-SAT).
+    slots_by_week: dict[int, list[int]] = {}
+    for t in range(len(slot_meta)):
+        try:
+            wk = int(slot_meta[t].get("Week_Num"))
+        except Exception:
+            continue
+        slots_by_week.setdefault(wk, []).append(t)
+
+    # Phase 1-A: fixture-round CP-SAT (choose which pairing belongs in which round).
+    fixture_tl_s = float(os.environ.get("EPL_FIXTURE_TIME_LIMIT_S", "20"))
+    fixture_top_k = int(os.environ.get("EPL_FIXTURE_TOP_K", "3"))
+    target_slots = int(os.environ.get("EPL_FIXTURE_TARGET_STRICT_SLOTS", "5"))
+    zero_penalty = int(os.environ.get("EPL_FIXTURE_ZERO_STRICT_PENALTY", "1000"))
+    penalty: dict[tuple[str, str, int], int] = {}
+    rounds = 2 * (len(team_ids) - 1)
+    for r in range(rounds):
+        for h in team_ids:
+            for a in team_ids:
+                if h == a:
+                    continue
+                c = _strict_feasible_count(home=h, away=a, round_idx=r)
+                p = 0
+                if c <= 0:
+                    p += zero_penalty
+                if c < target_slots:
+                    p += (target_slots - c)
+                penalty[(h, a, r)] = int(p)
+
+    sols = solve_fixture_rounds(
+        team_ids=team_ids,
+        rounds=rounds,
+        penalty=penalty,
+        time_limit_s=fixture_tl_s,
+        max_solutions=max(1, fixture_top_k),
+        on_solution=(lambda ev: _progress("fixture_round_solution", **ev)) if progress_cb is not None else None,
+    )
+    _mark_timing("fixture_round_model_s")
+
+    drr_pick: dict[str, Any]
+    frs_candidates: list[list[Fixture]] = []
+    if sols:
+        for sol in sols:
+            fx_list = [Fixture(round_idx=r, home=h, away=a) for (r, h, a) in sol.fixtures]
+            fx_list.sort(key=lambda f: (int(f.round_idx), str(f.home), str(f.away)))
+            frs_candidates.append(fx_list)
+        # Optional: evaluate top-K fixture-round candidates by running a short slot-optimization
+        # and keep the best objective.
+        frs = frs_candidates[0]
+        if len(frs_candidates) > 1:
+            cand_tl_s = float(os.environ.get("EPL_PHASE2_CANDIDATE_LIMIT_S", "10"))
+            best_obj: float | None = None
+            best_idx = 0
+            for ci, frs_cand in enumerate(frs_candidates):
+                try:
+                    cand_matches: list[Match] = []
+                    for k, fx in enumerate(frs_cand):
+                        v = venue_for_fixture(fx.home, fx.away, teams, sec)
+                        c = dist_lookup(dist, teams.loc[fx.home, "Home_Stadium"], v) + dist_lookup(
+                            dist, teams.loc[fx.away, "Home_Stadium"], v
+                        )
+                        ht = int(teams.loc[fx.home, "Tier"]) if "Tier" in teams.columns and fx.home in teams.index else None
+                        at = int(teams.loc[fx.away, "Tier"]) if "Tier" in teams.columns and fx.away in teams.index else None
+                        mt = int(min(ht, at)) if ht is not None and at is not None else None
+                        ow = int(week_order_for_weeknum[int(week_for_round[fx.round_idx])])
+                        cand_matches.append(
+                            Match(
+                                k,
+                                fx.round_idx,
+                                fx.home,
+                                fx.away,
+                                v,
+                                c,
+                                mt,
+                                ow,
+                                bool(ht == 1 and at == 1),
+                                _postpone_weight_mult(fx.home, fx.away),
+                            )
+                        )
+                    cand_feasible = [
+                        [t for t in range(len(slot_meta)) if slot_ok_for_match(m, t, allow_postponed=True)]
+                        for m in cand_matches
+                    ]
+                    # Quick feasibility, then quick optimization using the feasible assignment as a hint.
+                    cand_assign1, _st_i, cand_st1, _, _ = solve_assignment(
+                        cand_matches,
+                        slot_meta,
+                        cand_feasible,
+                        time_limit_s=5.0,
+                        optimize=False,
+                        stop_after_first_solution=True,
+                        max_matches_per_slot=max_slot_eff,
+                    )
+                    if not cand_assign1:
+                        continue
+                    cand_assign2, _st_i2, cand_st2, cand_obj, _ = solve_assignment(
+                        cand_matches,
+                        slot_meta,
+                        cand_feasible,
+                        time_limit_s=cand_tl_s,
+                        optimize=True,
+                        stop_after_first_solution=False,
+                        hints=cand_assign1,
+                        max_matches_per_slot=max_slot_eff,
+                        w_slot_overlap=w_so,
+                        w_tier_mismatch=w_tm,
+                        w_top_tier_non_prime_day=w_tp,
+                        w_postpone_week_distance=w_pw,
+                        w_postpone_fixed=w_pf,
+                        w_t1vst1_not_prime_night=w_t1,
+                    )
+                    if not cand_assign2 or cand_obj is None:
+                        continue
+                    if best_obj is None or float(cand_obj) < float(best_obj):
+                        best_obj = float(cand_obj)
+                        best_idx = int(ci)
+                    _progress(
+                        "fixture_candidate_scored",
+                        candidate=int(ci),
+                        solver_status=str(cand_st2),
+                        objective=float(cand_obj),
+                        best_objective=float(best_obj) if best_obj is not None else None,
+                    )
+                except Exception:
+                    continue
+            frs = frs_candidates[best_idx]
+        drr_pick = {
+            "mode": "fixture_round_cpsat",
+            "time_limit_s": fixture_tl_s,
+            "top_k": int(fixture_top_k),
+            "objective": sols[0].objective,
+            "strict_domain_score_min_sum": list(_drr_strict_domain_score(frs)),
+        }
     else:
-        best: tuple[int, int] | None = None
-        best_frs = None
-        for s in range(max(1, drr_tries)):
-            frs_try = double_round_robin_randomized(
-                ordered_team_ids, seed=s, max_streak=2, streak_scope="half", shuffle_teams=False
-            )
-            sc = _drr_strict_domain_score(frs_try)
-            if best is None or sc > best:
-                best = sc
-                best_frs = frs_try
-        frs = best_frs
-        drr_pick = {"mode": "scored_tries", "tries": int(drr_tries), "best_score_min_sum": list(best or [0, 0])}
+        # Fallback to previous heuristic if fixture CP-SAT cannot find a solution quickly.
+        if drr_seed_eff is None:
+            drr_seed_eff = 0
+        frs = double_round_robin_randomized(
+            ordered_team_ids, seed=drr_seed_eff, max_streak=2, streak_scope="half", shuffle_teams=False
+        )
+        drr_pick = {
+            "mode": "fallback_random_drr",
+            "seed": int(drr_seed_eff),
+            "strict_domain_score_min_sum": list(_drr_strict_domain_score(frs)),
+        }
 
     if write_outputs:
         (ph_root / "04_drr_selection.json").write_text(json.dumps(drr_pick, indent=2), encoding="utf-8")
@@ -375,14 +561,12 @@ def run_optimization(
         ok_slots_post = [t for t in range(len(slot_meta)) if slot_ok_for_match(m, t, allow_postponed=True)]
         strict_slots.append(ok_slots_strict)
         post_slots.append(ok_slots_post)
-        if ok_slots_strict:
-            feasible.append(ok_slots_strict)
-            relaxed_to_postpone.append(False)
-            continue
-
-        # If strict-week slots are empty, postpone this match into later eligible weeks.
+        # Always allow postponed domains; postponement is chosen by CP-SAT via objective penalties.
         feasible.append(ok_slots_post)
-        relaxed_to_postpone.append(True)
+        relaxed_to_postpone.append(bool(len(ok_slots_strict) == 0))
+
+        if ok_slots_strict:
+            continue
 
         # Diagnose WHY strict-week was infeasible (reason counts over that week).
         w0 = int(week_for_round[m.round_idx])
@@ -558,59 +742,199 @@ def run_optimization(
         stop_first: bool,
         tl_s: float | None,
         optimize: bool,
+        hints: dict[int, int] | None = None,
     ) -> tuple[dict[int, int], str, float | None]:
-        assign: dict[int, int] = {}
-        st = "UNKNOWN"
-        obj_scaled: float | None = None
-        for _iter in range(len(matches) + 1):
-            _progress(
-                "solving",
-                phase=phase,
-                iter=int(_iter),
-                relaxed_matches=int(sum(1 for x in relaxed_to_postpone if x)),
-                stop_after_first=bool(stop_first),
-                optimize=bool(optimize),
-            )
-            assign, _status, st, obj_scaled = solve_assignment(
-                matches,
-                slot_meta,
-                feasible,
-                time_limit_s=tl_s,
-                optimize=optimize,
-                stop_after_first_solution=stop_first,
-                on_solution=(
-                    (lambda ev, ph=phase: _progress("solution", phase=ph, **ev))
-                    if progress_cb is not None
-                    else None
-                ),
-                max_matches_per_slot=2,
-                w_slot_overlap=1_000_000,
-                w_tier_mismatch=1_000,
-                w_top_tier_non_prime_day=5_000,
-                w_postpone_week_distance=50_000,
-            )
-            if assign:
-                _progress("solve_done", phase=phase, status=st, objective=obj_scaled)
-                return assign, st, obj_scaled
+        """Uses ``max_slot_eff`` and objective weights from the enclosing ``run_optimization`` scope."""
+        _progress(
+            "solving",
+            phase=phase,
+            stop_after_first=bool(stop_first),
+            optimize=bool(optimize),
+        )
+        assign, _status, st, obj_scaled, solve_stats = solve_assignment(
+            matches,
+            slot_meta,
+            feasible,
+            time_limit_s=tl_s,
+            optimize=optimize,
+            stop_after_first_solution=stop_first,
+            on_solution=((lambda ev, ph=phase: _progress("solution", phase=ph, **ev)) if progress_cb is not None else None),
+            hints=hints,
+            max_matches_per_slot=max_slot_eff,
+            w_slot_overlap=w_so,
+            w_tier_mismatch=w_tm,
+            w_top_tier_non_prime_day=w_tp,
+            w_postpone_week_distance=w_pw,
+            w_postpone_fixed=w_pf,
+            w_t1vst1_not_prime_night=w_t1,
+        )
+        _progress("solve_done", phase=phase, status=st, objective=obj_scaled)
+        if (not assign) and write_outputs:
+            # Always persist phase metadata for debugging UNKNOWN/INFEASIBLE runs.
+            try:
+                (ph_root / f"07_phase{phase}_solve_stats.json").write_text(
+                    json.dumps(
+                        {
+                            "phase": int(phase),
+                            "solver_status": st,
+                            "objective_internal_units": obj_scaled,
+                            "solve_stats": solve_stats,
+                        },
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
+        return assign, st, obj_scaled
 
-            candidates = [
-                (i, len(strict_slots[i]))
-                for i in range(len(matches))
-                if (not relaxed_to_postpone[i]) and len(strict_slots[i]) > 0
-            ]
-            if not candidates:
-                break
-            i_min = sorted(candidates, key=lambda x: (x[1], x[0]))[0][0]
-            feasible[i_min] = post_slots[i_min]
-            relaxed_to_postpone[i_min] = True
-            _progress("relaxed_match", phase=phase, match_idx=int(i_min), new_domain=int(len(post_slots[i_min])))
+    def greedy_phase1_assignment(*, tries: int = 200) -> dict[int, int]:
+        """
+        Fast constructive heuristic for phase 1.
 
-        return {}, st, obj_scaled
+        CP-SAT feasibility can be slow when many matches must be postponed; this greedy
+        builder often finds a full feasible schedule in seconds and avoids hours of
+        UNKNOWN status loops.
+        """
+        n_slots = len(slot_meta)
+        date_ord_by_slot = [slot_meta[t].get("Date_ord") for t in range(n_slots)]
+
+        # Pre-sort matches by domain size (hardest first).
+        order = sorted(range(len(matches)), key=lambda i: (len(feasible[i]), i))
+
+        def _try_once(rng: random.Random) -> dict[int, int] | None:
+            assign: dict[int, int] = {}
+            slot_load = [0] * n_slots
+            team_at_slot: dict[tuple[str, int], int] = {}
+            venue_at_slot: dict[tuple[str, int], int] = {}
+            team_days: dict[str, set[int]] = {t: set() for t in team_ids}
+            team_play_seq: dict[str, list[tuple[int, int]]] = {t: [] for t in team_ids}  # (date_ord, sym)
+
+            def _can_place(mi: int, t: int) -> bool:
+                if slot_load[t] >= max_slot_eff:
+                    return False
+                mm = matches[mi]
+                if (mm.venue, t) in venue_at_slot:
+                    return False
+                if (mm.home, t) in team_at_slot or (mm.away, t) in team_at_slot:
+                    return False
+                ordv = date_ord_by_slot[t]
+                if ordv is None:
+                    return False
+                try:
+                    d = int(ordv)
+                except Exception:
+                    return False
+                # Same day or within next 2 days forbidden (>=2 days rest between matches).
+                for team in (mm.home, mm.away):
+                    ds = team_days.get(team)
+                    if ds is None:
+                        continue
+                    if (d in ds) or ((d - 1) in ds) or ((d - 2) in ds) or ((d + 1) in ds) or ((d + 2) in ds):
+                        return False
+
+                # Home/away max-streak=2 over played matches (gaps do not reset).
+                def _ok_streak_after_insert(team: str, sym: int) -> bool:
+                    seq = team_play_seq.get(team)
+                    if seq is None:
+                        return True
+                    # Insert by date order (stable); check only local neighborhood.
+                    pos = bisect.bisect_left([x[0] for x in seq], d)
+                    prev1 = seq[pos - 1][1] if pos - 1 >= 0 else None
+                    prev2 = seq[pos - 2][1] if pos - 2 >= 0 else None
+                    next1 = seq[pos][1] if pos < len(seq) else None
+                    next2 = seq[pos + 1][1] if pos + 1 < len(seq) else None
+                    # If three consecutive played matches would be HOME (1) or AWAY (2), reject.
+                    if prev2 == prev1 == sym and sym in (1, 2):
+                        return False
+                    if prev1 == sym == next1 and sym in (1, 2):
+                        return False
+                    if sym == next1 == next2 and sym in (1, 2):
+                        return False
+                    return True
+
+                if not _ok_streak_after_insert(mm.home, 1):
+                    return False
+                if not _ok_streak_after_insert(mm.away, 2):
+                    return False
+                return True
+
+            def _place(mi: int, t: int) -> None:
+                mm = matches[mi]
+                ordv = int(date_ord_by_slot[t])
+                assign[mi] = t
+                slot_load[t] += 1
+                venue_at_slot[(mm.venue, t)] = mi
+                team_at_slot[(mm.home, t)] = mi
+                team_at_slot[(mm.away, t)] = mi
+                for team in (mm.home, mm.away):
+                    # Store played days only; rest-window checks happen in `_can_place`.
+                    team_days.setdefault(team, set()).add(ordv)
+                # Maintain played sequence for streak check.
+                for team, sym in ((mm.home, 1), (mm.away, 2)):
+                    seq = team_play_seq.setdefault(team, [])
+                    pos = bisect.bisect_left([x[0] for x in seq], ordv)
+                    seq.insert(pos, (ordv, sym))
+
+            for mi in order:
+                dom = feasible[mi]
+                if not dom:
+                    return None
+                # Randomize within a "best" prefix: prefer earlier weeks and better tiers.
+                scored: list[tuple[tuple[int, int, int], int]] = []
+                for t in dom:
+                    sm = slot_meta[t]
+                    try:
+                        wk = int(sm.get("Week_order", 10**9))
+                    except Exception:
+                        wk = 10**9
+                    try:
+                        tier = int(sm.get("Slot_tier", 9))
+                    except Exception:
+                        tier = 9
+                    ordv = sm.get("Date_ord")
+                    try:
+                        dt = int(ordv) if ordv is not None else 10**9
+                    except Exception:
+                        dt = 10**9
+                    scored.append(((wk, tier, dt), t))
+                scored.sort(key=lambda x: x[0])
+                # Consider top-K candidates first, shuffled to escape local minima.
+                k = min(30, len(scored))
+                cand_ts = [t for _sc, t in scored[:k]]
+                rng.shuffle(cand_ts)
+                placed = False
+                for t in cand_ts:
+                    if _can_place(mi, t):
+                        _place(mi, t)
+                        placed = True
+                        break
+                if not placed:
+                    # Fall back to full domain scan (still ordered by score).
+                    for _sc, t in scored[k:]:
+                        if _can_place(mi, t):
+                            _place(mi, t)
+                            placed = True
+                            break
+                if not placed:
+                    return None
+            return assign
+
+        base_seed = int(time.time() * 1000) % 1_000_000_007
+        for s in range(max(1, tries)):
+            rng = random.Random(base_seed + s)
+            a = _try_once(rng)
+            if a is not None and len(a) == len(matches):
+                return a
+        return {}
 
     # Phase 1: get a feasible schedule quickly and write it.
-    phase1_limit = float(os.environ.get("EPL_PHASE1_TIME_LIMIT_S", "30"))
     t_phase1 = time.perf_counter()
-    assign1, st1, obj1 = dynamic_solve(phase=1, stop_first=True, tl_s=phase1_limit, optimize=False)
+    assign1 = greedy_phase1_assignment(tries=120)
+    if assign1:
+        st1, obj1 = "FEASIBLE_GREEDY", None
+    else:
+        assign1, st1, obj1 = dynamic_solve(phase=1, stop_first=True, tl_s=phase1_limit, optimize=False)
     phase1_time_s = time.perf_counter() - t_phase1
     if not assign1:
         msg = f"CP-SAT failed in phase 1 (feasibility): {st1}"
@@ -650,7 +974,8 @@ def run_optimization(
 
     # Phase 2: optimize (unlimited by default).
     t_phase2 = time.perf_counter()
-    assign2, st2, obj2 = dynamic_solve(phase=2, stop_first=False, tl_s=time_limit_s, optimize=True)
+    # Use phase-1 assignment as a warm-start hint for optimization.
+    assign2, st2, obj2 = dynamic_solve(phase=2, stop_first=False, tl_s=time_limit_s, optimize=True, hints=assign1 or None)
     phase2_time_s = time.perf_counter() - t_phase2
     if not assign2:
         msg = f"CP-SAT failed in phase 2 (optimize): {st2}"
@@ -711,6 +1036,23 @@ def run_optimization(
         "drr_strict_domain_sum": int(drr_score_final[1]),
         "cont_postpone_objective_mult": cont_postpone_mult,
         "drr_selection": drr_pick,
+        "optimizer_options": {
+            "caf_buffer_days": caf_buffer_days,
+            "phase1_time_limit_s": phase1_limit,
+            "phase2_time_limit_s": time_limit_s,
+            "drr_tries": drr_tries_eff,
+            "drr_seed": drr_seed_eff,
+            "cont_postpone_mult": cont_postpone_mult,
+            "write_outputs": write_outputs,
+            "max_matches_per_slot": max_slot_eff,
+            "w_slot_overlap": w_so,
+            "w_tier_mismatch": w_tm,
+            "w_top_tier_non_prime_day": w_tp,
+            "w_postpone_week_distance": w_pw,
+            "w_postpone_fixed": w_pf,
+            "w_t1vst1_not_prime_night": w_t1,
+        },
+        "timings_s": timings,
     }
 
     if write_outputs:

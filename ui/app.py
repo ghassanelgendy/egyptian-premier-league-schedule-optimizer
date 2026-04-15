@@ -228,6 +228,105 @@ def main() -> None:
         help="Days before/after each continental blocker anchor. Higher = stricter (often infeasible at 3+).",
     )
 
+    with st.sidebar.expander("Solver & DRR", expanded=False):
+        phase1_tl = st.number_input(
+            "Phase 1 time limit (seconds)",
+            min_value=5.0,
+            max_value=1200.0,
+            value=30.0,
+            step=5.0,
+            help="Feasibility pass: stop after first solution within this wall time.",
+        )
+        phase2_tl = st.number_input(
+            "Phase 2 time limit (seconds, 0 = unlimited)",
+            min_value=0.0,
+            max_value=7200.0,
+            value=0.0,
+            step=30.0,
+            help="Optimization pass. 0 leaves CP-SAT unbounded (can run a long time).",
+        )
+        drr_ntries = st.slider(
+            "DRR seeds to score (auto mode)",
+            min_value=1,
+            max_value=48,
+            value=12,
+            help="Ignored when a fixed DRR seed is set below.",
+        )
+        drr_seed_ui = st.number_input(
+            "DRR seed (0 = auto, try many seeds)",
+            min_value=0,
+            max_value=2_147_483_647,
+            value=0,
+            step=1,
+            help="Non-zero fixes the double round-robin draw for reproducibility.",
+        )
+        cont_mult = st.slider(
+            "Continental postpone penalty ×",
+            min_value=1.0,
+            max_value=15.0,
+            value=4.0,
+            step=0.5,
+            help="Extra weight on week-slippage for matches involving CL/CC clubs.",
+        )
+        write_out = st.checkbox("Write outputs (CSV + phases/)", value=True)
+
+    with st.sidebar.expander("CP-SAT objective weights", expanded=False):
+        st.markdown(
+            """
+**Phase 2 only** — the solver minimizes one sum of penalties. **Larger weight ⇒ stronger pull** on that goal vs others.
+
+- **Travel** is always in the objective (not listed here): each match adds `round(Travel_km × 10)` for whichever slot you pick. Travel does not depend on *which* allowed slot you choose today, so weights mainly trade off **TV windows**, **week stickiness**, and **double use of a slot**.
+
+**Typical priority** (default sizes): T1 vs T1 prime night ≫ avoid double slot ≫ weekend for any T1 ≫ tier mismatch ≫ week slip.
+            """
+        )
+        max_mslot = st.selectbox(
+            "Max matches per slot index",
+            options=[1, 2],
+            index=1,
+            help="Hard cap on how many league matches may share the same calendar row (slot index). "
+            "2 allows two; overlap weight below penalizes actually using the second.",
+        )
+        w_slot_ov = st.number_input(
+            "w_slot_overlap",
+            min_value=0,
+            value=1_000_000,
+            step=100_000,
+            help="Added once per slot where **two** matches are scheduled on the same slot index. "
+            "Keep this **large** so the solver only doubles up a slot if it must for feasibility.",
+        )
+        w_tier_m = st.number_input(
+            "w_tier_mismatch",
+            min_value=0,
+            value=1_000,
+            step=100,
+            help="If Slot_tier is **worse** than the match’s minimum club tier: pay weight × (slot_tier − match_tier). "
+            "Higher = push big matches toward better kickoff windows.",
+        )
+        w_top_nd = st.number_input(
+            "w_top_tier_non_prime_day",
+            min_value=0,
+            value=5_000,
+            step=500,
+            help="For **match tier 1** only: extra penalty if the day is **not** Friday or Saturday (still soft).",
+        )
+        w_post_w = st.number_input(
+            "w_postpone_week_distance",
+            min_value=0,
+            value=50_000,
+            step=5_000,
+            help="If the match is not in its **nominal calendar week** for that round: pay weight × |week_order gap| "
+            "× continental multiplier for CL/CC games (see Continental slider).",
+        )
+        w_t1_pn = st.number_input(
+            "w_t1vst1_not_prime_night",
+            min_value=0,
+            value=50_000_000,
+            step=1_000_000,
+            help="For **both clubs tier 1**: penalty unless the slot is **prime night** (Fri/Sat + latest kickoff that date). "
+            "Default is huge so these fixtures win the best windows unless impossible.",
+        )
+
     run_btn = st.sidebar.button("▶ Run optimization", type="primary", use_container_width=True)
 
     if run_btn:
@@ -257,7 +356,18 @@ def main() -> None:
         with st.spinner("Running CP-SAT (live status below)…"):
             st.session_state["last_result"] = run_optimization(
                 caf_buffer_days=int(caf_buffer),
-                write_outputs=True,
+                time_limit_s=None if float(phase2_tl) <= 0 else float(phase2_tl),
+                phase1_time_limit_s=float(phase1_tl),
+                drr_tries=int(drr_ntries),
+                drr_seed=None if int(drr_seed_ui) == 0 else int(drr_seed_ui),
+                cont_postpone_mult=float(cont_mult),
+                write_outputs=bool(write_out),
+                max_matches_per_slot=int(max_mslot),
+                w_slot_overlap=int(w_slot_ov),
+                w_tier_mismatch=int(w_tier_m),
+                w_top_tier_non_prime_day=int(w_top_nd),
+                w_postpone_week_distance=int(w_post_w),
+                w_t1vst1_not_prime_night=int(w_t1_pn),
                 progress_cb=_ui_progress,
             )
 
@@ -393,6 +503,8 @@ def main() -> None:
                         "DRR selection": stats.get("drr_selection"),
                     }
                 )
+            with st.expander("Optimizer options (last run)"):
+                st.json(stats.get("optimizer_options") or {})
         else:
             st.warning(res.message)
             if res.log_lines:

@@ -1,0 +1,18 @@
+{
+  "phase": 1,
+  "solver_status": "UNKNOWN",
+  "objective_internal_units": null,
+  "solve_stats": {
+    "status": "UNKNOWN",
+    "cp_status": 0,
+    "optimize": false,
+    "stop_after_first_solution": true,
+    "time_limit_s": 2.0,
+    "objective_value": null,
+    "best_bound": null,
+    "num_x_vars": 213756,
+    "num_matches": 306,
+    "num_slots": 1041,
+    "response_stats": "CpSolverResponse summary:\nstatus: UNKNOWN\nobjective: 0\nbest_bound: 0\nintegers: 0\nbooleans: 0\nconflicts: 0\nbranches: 0\npropagations: 0\ninteger_propagations: 0\nrestarts: 0\nlp_iterations: 0\nwalltime: 1.92569\nusertime: 1.92569\ndeterministic_time: 0\ngap_integral: 0"
+  }
+}

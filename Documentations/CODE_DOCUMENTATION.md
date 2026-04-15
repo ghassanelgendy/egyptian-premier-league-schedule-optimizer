@@ -11,7 +11,7 @@ This document describes **every package, module, UI surface, and runtime artifac
 | [schedule_optimizer/](schedule_optimizer/) | Core optimization library (data load, DRR, CP-SAT, pipeline, CLI). |
 | [ui/](ui/) | Streamlit web application (dashboard, model explanation tab, data browser, schedule view, embedded docs). |
 | [Documentations/MODEL_EXPLANATION.md](Documentations/MODEL_EXPLANATION.md) | Plain-language description of model type, objectives, constraints, and pipeline (also shown in the **Model explanation** app tab). |
-| [data/](data/) and [data/Sources/](data/Sources/) | Authoritative Excel/CSV inputs (see PRD). |
+| [data/](data/) | Authoritative Excel inputs (see PRD). |
 | [output/](output/) | Schedule CSVs, `data_load_log.txt`, and [output/phases/](output/phases/) audit tables (see PRD §3.2). |
 | [Documentations/](Documentations/) | PRD, this file, presentation PDF, etc. |
 | [scripts/](scripts/) | Legacy/auxiliary scripts (scrapers, distance helpers); not used by the Streamlit UI. |
@@ -49,9 +49,9 @@ This document describes **every package, module, UI surface, and runtime artifac
 | Symbol | Description |
 |--------|-------------|
 | `LoadLog` | Accumulates string lines; `write(path)` persists the log. |
-| `load_everything(log)` | Opens **every** PRD-listed workbook/CSV: `Data_Model.xlsx` (all sheets), `expanded_calendar.xlsx` (all sheets), `calendar.xlsx` MAINCALENDAR, `teams_data`, `stadiums`, `security matrix`, distance matrix + columns file, FIFA workbooks, CAF CL/CC workbooks, merged blockers, `expanded_calendar.csv`. Warns if xlsx/csv row counts differ. Compares `Data_Model` `team_data` row count to `teams_data`. |
+| `load_everything(log)` | Opens the **two authoritative** PRD inputs only: `data/Data_Model.xlsx` and `data/expanded_calendar.xlsx` (required tables/sheets described in PRD §2). All teams, stadiums, distances, security/forced-venue rules, and calendar slot rows are derived from those two workbooks only. |
 | `slot_date_series(slots)` | Parses `Date` column to normalized pandas datetimes. |
-| `build_team_date_blackout(..., caf_buffer_days=1)` | Per-team **date** set: merged `cont_blockers` anchors joined by `Day_ID` → calendar `Date`, plus/minus `caf_buffer_days`, **plus** CAF CL/CC workbook dates applied **team-specifically** by `Cont_Flag` (CL teams get CL dates, CC teams get CC dates) with the same ±buffer. |
+| `build_team_date_blackout(..., caf_buffer_days=1)` | Per-team **date** set derived from the detailed blocker/FIFA expansion tables inside `data/expanded_calendar.xlsx` (see PRD §2.2.2), joined to `expanded_calendar_table` by `Day_ID` and expanded ±`caf_buffer_days` as configured. |
 | `eligible_calendar_weeks(slots, fifa_dates)` | Weeks where count of slots with `Is_FIFA!=1`, `Is_SuperCup!=1`, and date not in FIFA union ≥ 9; sorted chronologically by week’s minimum date. |
 | `dist_lookup(dist, a, b)` | Symmetric km lookup in pre-built dict from matrix sheet. |
 | `venue_for_fixture(home, away, teams, security)` | If security row has `forced_venue`, use it; else home’s `Home_Stadium`. |
@@ -89,7 +89,7 @@ This document describes **every package, module, UI surface, and runtime artifac
 | Symbol | Description |
 |--------|-------------|
 | `OptimizationResult` | Same as before; `stats` may include `drr_strict_domain_min`, `drr_strict_domain_sum`, `cont_postpone_objective_mult`, `drr_selection`. |
-| `run_optimization(...)` | Writes `output/phases/*` when `write_outputs=True`; scores multiple DRR seeds unless `EPL_DRR_SEED` set; two CP-SAT phases with `07`/`08` JSON metadata. |
+| `run_optimization(...)` | Orchestrates the full pipeline and writes `output/phases/*` when `write_outputs=True`. Generates the DRR fixture list in-memory (either via fixture-round CP-SAT or a scored-seed fallback), converts fixtures → `Match` + `feasible` domains, then runs two CP-SAT assignment phases with `07`/`08` JSON metadata. |
 
 ### 2.11 [`run.py`](schedule_optimizer/run.py)
 
@@ -115,7 +115,10 @@ The first line of `app.py` inserts `REPO_ROOT` on `sys.path` so `import schedule
 | **Page config** | Wide layout, ⚽ icon, title “EPL Schedule Optimizer”. |
 | **Custom CSS** | Dark gradient background, card-style metrics, sidebar styling. |
 | **Sidebar · CAF buffer slider** | Integer 0–5 days each side of each `cont_blockers` anchor (passed to `run_optimization`). |
-| **Sidebar · Run optimization** | Invokes `run_optimization(caf_buffer_days=..., write_outputs=True, progress_cb=...)`; stores `OptimizationResult` in `st.session_state["last_result"]`. |
+| **Sidebar · CAF buffer** | Slider passed as `caf_buffer_days`. |
+| **Sidebar · Solver & DRR** | Phase 1/2 time limits, DRR tries + optional seed, continental postpone multiplier, write-outputs toggle. |
+| **Sidebar · CP-SAT objective weights** | `max_matches_per_slot`, `w_slot_overlap`, `w_tier_mismatch`, `w_top_tier_non_prime_day`, `w_postpone_week_distance`, `w_t1vst1_not_prime_night` passed into `run_optimization`. |
+| **Sidebar · Run optimization** | Invokes `run_optimization(..., progress_cb=...)` with all sidebar values; stores `OptimizationResult` in `st.session_state["last_result"]`. |
 | **Tab · Dashboard** | Club picker, club season, H2H, simulation metrics; expanders for slot-tier distribution, feasible-slot stats, **DRR / continental weighting** from `last_result.stats`. |
 | **Tab · Full calendar** | Month selector + `calendar_board.render_month_calendar` / `render_day_detail` using `output/phases/03b_season_day_ledger.csv` + active schedule. |
 | **Tab · Model explanation** | Renders `Documentations/MODEL_EXPLANATION.md` via `st.markdown`. |
@@ -194,7 +197,7 @@ flowchart TD
   BL[build_team_date_blackout]
   EW[eligible_calendar_weeks]
   DL[build_day_ledger + slot_meta]
-  DRR[DRR scored tries]
+  FX[DRR fixture generation<br/>(fixture-round CP-SAT or scored-seed fallback)]
   FZ[feasible domains]
   P1[CP-SAT phase 1]
   P2[CP-SAT phase 2]
@@ -203,10 +206,10 @@ flowchart TD
   LD --> BL
   LD --> EW
   LD --> DL
-  BL --> DRR
-  EW --> DRR
+  BL --> FX
+  EW --> FX
   DL --> PH
-  DRR --> FZ
+  FX --> FZ
   DL --> FZ
   FZ --> P1
   P1 --> P2
@@ -214,6 +217,16 @@ flowchart TD
   P2 --> OUT
   P2 --> PH
 ```
+
+### 7.1 Methodology upgrade roadmap (why optimization may fail today)
+
+If you cannot obtain even a single optimized schedule, the highest-impact improvements are methodological:
+
+- **Fixture-round optimization before slot assignment**: choose the DRR by round using a dedicated CP-SAT model (pairings + home/away + fairness), instead of sampling random DRR seeds and then locking fixtures into bad weeks.
+- **Explicit postponements in CP-SAT**: replace the relax/retry loop in `pipeline.py` with an `is_postponed[m]` decision and a strong penalty term in `cp_sat_model.py`, so CP-SAT chooses which matches to relax in one solve.
+- **Greedy feasibility correctness**: align greedy rest-day checks with CP-SAT rest rules; the current greedy implementation can over-reject valid schedules by effectively blocking too many days.
+
+These upgrades are specified in detail in [`Documentations/PRD.md`](Documentations/PRD.md) §4.2.1–§4.2.2 and §4.8.
 
 ---
 
