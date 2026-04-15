@@ -1,202 +1,397 @@
 # Product Requirements Document (PRD)
 
-## Egyptian Premier League Schedule Optimizer — Optimization Phase
+## Egyptian Premier League Schedule Optimizer - CAF-Repair Design
 
-**Version:** 1.0  
-**Aligned with:** [presentation.pdf](presentation.pdf), Phase I documentation, and all committed data files under `data/` and `data/Sources/`.  
-**Solver:** Google OR-Tools CP-SAT (0–1 integer programming / constraint programming formulation).
+**Version:** 2.3  
+**Status:** Product and model requirements for the current CAF-aware baseline design.  
+**Authoritative inputs:** `data/Data_Model.xlsx` and `data/expanded_calendar.xlsx` only.
 
 ---
 
 ## 1. Purpose
 
-Build a **single, reproducible pipeline** that:
+Build a reproducible scheduling pipeline that creates a full Egyptian Premier League double round-robin timetable from the two committed Excel workbooks only.
 
-1. **Loads every** specified spreadsheet/CSV (no synthetic teams, stadiums, fixtures, or distances).
-2. Constructs a **double round-robin (DRR)** fixture list for the teams present in `teams_data.xlsx`.
-3. Assigns each league fixture to **exactly one** time slot from `expanded_calendar.xlsx`, respecting **hard constraints** derived from the data.
-4. **Minimizes** a linear **travel proxy** objective computed only from `Stadium_Distance_Matrix.xlsx`.
-5. Exports **`optimized_schedule.csv`** including **`Travel_km`** and **`Slot_tier`** per row.
+The required algorithm is now a structured baseline plus repair flow:
 
-If no assignment satisfies all hard constraints, the program **must exit with a non-zero status**, print a concise **infeasibility** explanation, and **must not** fabricate calendar rows, teams, or distances.
+1. **Pattern-first fixture generation:** generate a double round-robin framework with valid home/away patterns before any slot assignment.
+2. **CAF-aware baseline scheduling:** generate a complete feasible league schedule inside strict chronological round windows. FIFA days are never allowed. Known CAF blockers and CAF buffers are applied during baseline scheduling.
+3. **CAF audit and repair:** after the baseline table exists, identify any remaining matches that violate CAF-aware rules, move them to a separate postponement queue/file, and try to reschedule those postponed matches into free slots that satisfy all hard constraints plus CAF buffers.
 
----
-
-## 2. Inputs (Authoritative Files)
-
-All paths are relative to the repository root. The loader **must open each file at least once** and record row counts in a load log.
-
-| # | Path | Required sheets / usage |
-|---|------|-------------------------|
-| 1 | `data/Data_Model.xlsx` | Sheets: `team_data`, `Stadiums`, `dist_Matrix`, `Sec_Matrix` — **cross-check** against Sources; not used to override Sources if conflict (Sources win for optimization; mismatch raises warning). |
-| 2 | `data/expanded_calendar.xlsx` | Sheets: all (read for completeness). **Slot universe:** sheet `expanded_calendar` only. |
-| 3 | `data/Sources/calendar.xlsx` | Sheet `MAINCALENDAR` — season structure cross-check vs expanded calendar. |
-| 4 | `data/Sources/CAF CL.xlsx` | Sheet `CAF CL` — **loaded and logged**; continental windows for CL clubs are enforced via **`Is_CAF` on slots** (expanded calendar) plus **cont blockers** (H11), not by blanketing every CL sheet date (that combination was infeasible with the current blocker density). |
-| 5 | `data/Sources/CAF CC.xlsx` | Sheet `CAF CC` — same as row 4 for CC clubs. |
-| 6 | `data/Sources/cont_blockers_table.xlsx` | Sheets: `cont_blockers_updated`, `cont_blockers` — merged with CSV (union, dedupe on `date_id` + `team_id` + `competition_name` + `round`). |
-| 7 | `data/Sources/cont_blockers_csv.csv` | Same schema as blocker table; merged as above. |
-| 8 | `data/Sources/expanded_calendar.csv` | Loaded; compared to `expanded_calendar.xlsx` row count (warning on mismatch). |
-| 9 | `data/Sources/FIFA_Days_UPDATED.xlsx` | Sheets: `FIFA_DAYS`, `FIFA_Days_UPDATED` — **union** of calendar dates for global FIFA blackout (see §4.2.2). |
-| 10 | `data/Sources/FIFA Days.xlsx` | Sheet `International Break Schedule Ta` — **union** into FIFA dates. |
-| 11 | `data/Sources/security matrix.xlsx` | Sheet `Sec_Matrix` — venue rules for listed pairings. |
-| 12 | `data/Sources/stadiums.xlsx` | Sheet `Stadiums` — metadata; rows with null `Stadium_ID` dropped. |
-| 13 | `data/Sources/teams_data.xlsx` | Sheet `Teams` — authoritative team list and `Home_Stadium` / `Alt_Stadium` / `Cont_Flag`. |
-| 14 | `data/Sources/Stadium_Distance_Matrix.xlsx` | Sheet `Sheet1` — authoritative **Origin → column stadium** distances (km). |
-| 15 | `data/Sources/Stadium_Distances_Columns.xlsx` | Sheet `Sheet1` — loaded; **spot-check** consistency with matrix (sample symmetric pair); warnings only unless hard failure on NaN core cells. |
+The intent is to produce a publishable baseline fixture list with fair home/away sequencing and strict round chronology, while allowing the CAF repair phase to move only specific affected matches outside their original round window.
 
 ---
 
-## 3. Outputs
+## 2. Authoritative Inputs
 
-### 3.1 Primary artifact: `output/optimized_schedule.csv`
+The system must use only these two files:
 
-One row per **scheduled match** (306 rows for 18 teams).
+| File | Required use |
+|---|---|
+| `data/Data_Model.xlsx` | Teams, stadiums, distance matrix, and security/forced-venue rules. |
+| `data/expanded_calendar.xlsx` | Slot universe, FIFA days, CAF dates/blockers, Ramadan/calendar flags. |
 
-| Column | Type | Definition |
-|--------|------|------------|
-| `Round` | int | Abstract league round **1…34** (DRR second half). |
-| `Calendar_Week_Num` | int | `Week_Num` from `expanded_calendar` for the chosen slot (data field). |
-| `Day_ID` | str | From calendar row. |
-| `Date` | date | From calendar row. |
-| `Date_time` | datetime | From calendar `Date time`. |
-| `Home_Team_ID` | str | Home side of fixture. |
-| `Away_Team_ID` | str | Away side of fixture. |
-| `Venue_Stadium_ID` | str | Stadium hosting the match: forced neutral from security if applicable, else home club `Home_Stadium`. |
-| `Travel_km` | float | **Sum** of `distance(Home_Stadium(home), Venue)` + `distance(Home_Stadium(away), Venue)` from `Stadium_Distance_Matrix.xlsx` (diagonal = 0). If a club’s home stadium ID is missing from the matrix, **fail validation** before solve. |
-| `Slot_tier` | int | **1 = highest commercial desirability**, **3 = lowest**, derived **only** from `Day_name` and clock hour of `Date time` on the assigned slot (see §5.2). No external tier table unless later added to data. |
-| `Is_FIFA` | int | Echo from slot (0/1). |
-| `Is_CAF` | int | Echo from slot. |
-| `Is_SuperCup` | int | Echo from slot. |
+The system must not load `data/Sources/*`, past-season CSVs, generated CSV mirrors, previous `output/*` artifacts, scraped files, or any external data source as model input.
 
-### 3.2 Secondary artifacts
+The loader must fail fast if either workbook is missing, unreadable, or missing required sheets/columns. A run log must record both workbook paths, sheet names used, and row counts.
 
-- `output/data_load_log.txt` — list of files, sheets, row counts, merge notes, warnings (e.g. xlsx vs csv row diff).
-- `output/week_round_map.csv` — mapping `Round` → `Calendar_Week_Num` (the 34 calendar weeks selected from data for the 34 DRR rounds).
+### 2.1 `data/Data_Model.xlsx`
 
----
+Required sheets:
 
-## 4. Hard Constraints (Must All Hold)
+| Sheet | Required columns |
+|---|---|
+| `team_data` | `Team_ID`, `Team_Name`, `Gov_ID`, `Gov_Name`, `Home_Stadium_ID`, `Alt_Stadium_ID`, `Tier`, `Cont_Flag` |
+| `Stadiums` | `Stadium_ID`, `Stadium_Name`, `Gov_ID`, `City`, `Is_Floodlit` |
+| `dist_Matrix` | `Origin` plus one column per stadium ID |
+| `Sec_Matrix` | `home_team_ID`, `away_team_ID`, `banned_venue1_ID`, `banned_venue2_ID`, `forced_venue_ID` |
 
-### 4.1 League structure
+Normalization requirements:
 
-- **H1 — Team set:** Exactly the set of `Team_ID` values in `teams_data.xlsx` (`Teams`), after dropping null IDs. **n = 18`** is expected; if not 18, the model still builds DRR for the actual **n** (even **n** required; if odd, **fail** with message).
-- **H2 — DRR:** Each ordered pair of distinct teams meets **twice** (home and away reversed between halves). Total matches **n × (n − 1)**.
-- **H3 — One match per team per round:** For each abstract round **r ∈ {1,…,n_rounds}** with **n_rounds = 2 × (n − 1)** (= 34 for n = 18), each team appears in **exactly one** fixture in that round.
-- **H4 — One slot per fixture:** Each fixture is assigned **exactly one** slot from the expanded calendar slot universe.
-- **H5 — Calendar week for round:** For each round **r**, a **calendar** `Week_Num` value `W[r]` is chosen **only from the data** (see §4.6). Every fixture in round **r** must be placed in a slot whose `Week_Num` equals `W[r]`.
+- Team IDs and stadium IDs are stripped and uppercased.
+- Stadium aliases may be normalized only through deterministic in-code mappings.
+- `Cont_Flag` values identify CAF participants. Expected CAF values are `CL` and `CC`; blanks mean the team is not currently CAF-participating.
+- `forced_venue_ID` overrides the home stadium for the listed home/away fixture when provided.
 
-### 4.2 Time / competition blackouts (slot-level)
+### 2.2 `data/expanded_calendar.xlsx`
 
-Let each slot row have `Date` (date), `Is_FIFA`, `Is_CAF`, `Is_SuperCup` from `expanded_calendar`.
+Required sheets:
 
-- **H6 — FIFA (calendar flag):** No league match in any slot with **`Is_FIFA == 1`** (all teams).
-- **H7 — Super Cup pause:** No league match in any slot with **`Is_SuperCup == 1`** (all teams).
-- **H8 — FIFA (explicit date lists):** No league match on any calendar **date** present in the union of:
-  - `Date` column from both sheets of `FIFA_Days_UPDATED.xlsx`, and  
-  - `Date` from `FIFA Days.xlsx` (`International Break Schedule Ta`),  
-  after normalizing to **date** (strip time). Applies to **all teams** (in addition to H6; duplicates are allowed).
-- **H9 — CAF “slot reservation” flag:** No league match for teams with **`Cont_Flag == 'CL'`** in slots with **`Is_CAF == 1`**. No league match for teams with **`Cont_Flag == 'CC'`** in slots with **`Is_CAF == 1`**. Teams with null `Cont_Flag` are unrestricted by H9.
-- **H10 — CAF workbooks (CL/CC):** Files are read for completeness and logged. **Hard** continental date logic for CL/CC teams is enforced via **H9** (`Is_CAF` on slots) and **H11** (team-specific `cont_blockers`), because applying every `Date` in the CAF CL/CC workbooks as full-day bans for those clubs overlaps almost every gameweek with **H9** and makes the model infeasible on the supplied calendar.
-- **H11 — Continental blockers (buffered):** From merged **cont blockers** (`cont_blockers_table.xlsx` + `cont_blockers_csv.csv`): for each row, resolve anchor **calendar date** by joining `date_id` to `Day_ID` on `expanded_calendar` and taking that row’s `Date`. For that `team_id`, ban league matches on all slots whose `Date` lies in **[anchor_date − B, anchor_date + B]** inclusive, where **B** defaults to **1** day (configurable via environment variable **`EPL_CAF_BUFFER_DAYS`**, e.g. `3` for the presentation’s ±3). With **B = 3** and the current blocker density, the model is typically **infeasible**; **B = 1** is the default that still respects “buffer around listed CAF commitments” without over-covering the season.
+| Sheet | Required use |
+|---|---|
+| `expanded_calendar` | Primary slot universe. This sheet contains actual playable slot rows and must provide `Day_ID`, `Date`, `Date time`, `Week_Num`, `Day_name`, `Is_FIFA`, `Is_CAF`, `Is_Ramadan`, and CAF/FIFA label columns when present. |
+| `expanded _calendar_table` | Secondary expanded calendar table. It may be used for validation or fallback only if it can be normalized to the same slot schema. |
+| `FIFA_DAYS1` | Authoritative FIFA-date expansion. |
+| `cont_blockers_updated1` | Authoritative team-specific CAF blocker expansion. |
+| `unique_CAF_dates` | CAF date list used to cross-check or supplement team-specific CAF blockers. |
 
-### 4.3 Stadium / venue
+The exact sheet name `expanded _calendar_table` includes a space before `_calendar_table`; implementations must handle that actual workbook name.
 
-- **H12 — Venue for fixture:** If `(Home_Team_ID, Away_Team_ID)` (after ID normalization) appears in `Sec_Matrix` with a non-empty **forced** venue, the match **must** use that stadium ID (after normalization). Otherwise venue = **`Home_Stadium`** of the home team from `teams_data`.
-- **H13 — Stadium sharing / double booking:** For every slot **t** and every physical stadium **S**, **at most one** match assigned to **t** may use venue **S** (includes neutral forced venues).
+### 2.3 FIFA Day Definition
 
-### 4.4 Team / slot incidence
+FIFA days are the union of:
 
-- **H14 — One match per team per datetime:** For each slot **t** and each team **i**, at most **one** match involving **i** at **t** (follows from unique slot timing; enforced explicitly).
+- dates where slot rows have `Is_FIFA == 1`,
+- dates listed in `FIFA_DAYS1.Date`,
+- dates with non-empty FIFA labels such as `FIFA_DAY` or `FIFA_DAYS` in calendar sheets.
 
-### 4.5 Data validity (pre-solve)
+No league match may be scheduled on a FIFA day in any phase, including baseline scheduling, CAF repair, diagnostics, or fallback output.
 
-- **H15 — Distance matrix coverage:** For every `Home_Stadium` and `Venue` that can appear, both must exist as **row Origin** and **column** in `Stadium_Distance_Matrix.xlsx` after ID normalization; distance lookup must be finite.
+### 2.4 CAF Blocker Definition
 
-### 4.6 Calendar week selection for rounds (data-driven)
+CAF blockers are derived only from `expanded_calendar.xlsx`:
 
-- Let **usable(w)** = number of slots in `expanded_calendar` with `Week_Num == w` and **not** blocked by H6–H8 (FIFA/SuperCup/date union).
-- **Eligible weeks** = all `w` with **usable(w) ≥ 9** (nine parallel fixtures per round for 18 teams).
-- Sort eligible weeks by **min(Date)** over slots in that week (chronological).
-- **W[1],…,W[34]** = the **first 34** eligible weeks in that sorted order.  
-- If fewer than **34** eligible weeks exist → **infeasible** (fail before solve).
+- team-specific CAF rows in `cont_blockers_updated1`,
+- team/date rows in `unique_CAF_dates`,
+- CAF labels and `Is_CAF` flags in the slot universe when useful for diagnostics.
+
+Known CAF blockers are applied in the baseline scheduling phase. The CAF audit and repair phase remains responsible for detecting residual conflicts, late changes, or matches that must be moved outside their original round window.
 
 ---
 
-## 5. Objectives (Optimization)
+## 3. Required Outputs
 
-### 5.1 Primary objective (implemented)
+All outputs are generated artifacts and must never be read back as model inputs.
 
-**O1 — Minimize total travel proxy (km)**  
+| File | Required contents |
+|---|---|
+| `output/optimized_schedule_pre_caf.csv` | Full baseline league schedule created inside strict round windows while respecting FIFA and known CAF blockers. Must contain every league fixture exactly once and zero FIFA-day matches. |
+| `output/caf_postponement_queue.csv` | Matches removed from the baseline schedule because they violate CAF-aware rules or become invalid under the CAF-aware hard-constraint audit. |
+| `output/caf_rescheduled_matches.csv` | Queue matches successfully placed into free CAF-safe slots. Empty file is acceptable if no queued match can be repaired. |
+| `output/unresolved_caf_postponements.csv` | Queue matches that could not be placed in any free CAF-safe slot. |
+| `output/optimized_schedule.csv` | Final accepted schedule: baseline schedule minus queued violations plus successfully repaired matches. |
+| `output/week_round_map.csv` | Mapping from abstract round number to selected calendar week. |
+| `output/data_load_log.txt` | Workbook/sheet row counts, validation messages, and run outcome. |
 
-For fixture **m** with home **h**, away **a**, venue **V**:
+### 3.1 Final Schedule Columns
 
-\[
-c_m = \mathrm{dist}(\mathrm{HomeStadium}(h), V) + \mathrm{dist}(\mathrm{HomeStadium}(a), V)
-\]
+`output/optimized_schedule.csv` must include at minimum:
 
-Assigning fixture **m** to slot **t** incurs cost **c_m** (independent of **t** in current formulation). **Global objective:** minimize \(\sum_{m,t} x_{m,t} \cdot c_m\) where \(x_{m,t} \in \{0,1\}\).
+- `Round`
+- `Calendar_Week_Num`
+- `Day_ID`
+- `Date`
+- `Date_time`
+- `Home_Team_ID`
+- `Away_Team_ID`
+- `Venue_Stadium_ID`
+- `Travel_km`
+- `Slot_tier`
+- `Home_Tier`
+- `Away_Tier`
+- `Match_Tier`
+- `Is_FIFA`
+- `Is_CAF`
+- `Postponed`
+- `Postponement_Status`
+- `Postponement_Reason`
 
-*Tie-breaking:* CP-SAT minimizes total cost; if multiple optima exist, any optimum is acceptable.
+`Postponed` is `True` for matches that were removed during CAF audit and later repaired. It remains `True` even after successful rescheduling, because the match moved from its baseline slot.
 
-### 5.2 Secondary / reporting — Slot_tier (not in solver objective unless extended)
+### 3.2 Queue File Columns
 
-Computed **after** assignment from slot fields only:
+`output/caf_postponement_queue.csv` must include:
 
-| `Slot_tier` | Rule (deterministic) |
-|-------------|----------------------|
-| **1** | `Day_name` ∈ {`FRI`, `SAT`, `SUN`} **and** hour of `Date time` ≥ **20** |
-| **2** | `Day_name` ∈ {`FRI`, `SAT`, `SUN`} **and** hour < **20** |
-| **3** | All other slots |
-
-*(Hours from data’s local `Date time`; no invented tiers.)*
-
-### 5.3 Objectives described in presentation but **not** encoded in v1 solver (future work)
-
-Documented for traceability; **out of scope** for the first optimization release unless added as data-driven weights:
-
-- **O2 — Rest-day balance** between opponents (would need rest variables + multi-round linking).
-- **O3 — Away-break minimization** (H–A pattern quality across season).
-- **O4 — Simultaneous kick-offs** in final critical rounds (would fix equal `Date_time` within a subset of rounds).
-- **O5 — Commercial weighting beyond Slot_tier** (e.g. tier-weighted linear objective).
-
----
-
-## 6. ID Normalization (Deterministic, Logged)
-
-All IDs trimmed; uppercase for matching.
-
-| Raw (examples) | Normalized |
-|----------------|------------|
-| `BORGARAB`, `borg_arab` | `BORG_ARAB` if matrix uses `BORG_ARAB` |
-| `ISMALIA` | `ISMAILIA_ST` if matrix uses `ISMAILIA_ST` |
-| `HARAS_HODOOD` (teams sheet) | `HARAS` (distance matrix row/column) |
-| `GHAZL_MAHALLA` | `MAHALLA` |
-| `KHALED_BICHARA` | `EL_GOUNA` |
-| `Sec_Matrix` column name with leading space | Strip to `forced_venue` |
-
-Forced / banned stadium cells must map to a **column** in the distance matrix after normalization; otherwise **fail** with explicit ID.
-
----
-
-## 7. Non-Goals (v1)
-
-- TV broadcaster pairwise requests not in security matrix.
-- Weather or dynamic rescheduling.
-- Egypt Cup / Super Cup **fixture generation** (only hard **pause** via `Is_SuperCup`).
-- Player-level international call-ups beyond FIFA date union + `Is_FIFA`.
+- fixture identifiers: `Round`, `Home_Team_ID`, `Away_Team_ID`,
+- original/baseline slot fields: `Date`, `Date_time`, `Day_ID`, `Calendar_Week_Num`,
+- `Venue_Stadium_ID`,
+- `Violation_Reason`: human-readable description of why the match was postponed,
+- `Affected_Team_ID`: the team whose CAF conflict caused the postponement,
+- `Conflicting_CAF_Match`: identifier or description of the specific CAF fixture that caused the conflict (e.g. opponent name and competition),
+- `Conflicting_CAF_Date`: the exact date of the CAF match that triggered the buffer violation,
+- `Conflict_Direction`: `PRE` if the league match was too close before the CAF match, `POST` if too close after, `SAME_DAY` if on the CAF blocker date itself,
+- `Repair_Feasible_Slot_Count`: number of free CAF-safe slots available for this match at audit time,
+- `Repair_Status`: one of `REPAIRED`, `UNRESOLVED`, or `PENDING`.
 
 ---
 
-## 8. Acceptance Criteria
+## 4. Scheduling Method
 
-1. Fresh clone + `pip install -r requirements.txt` + `python -m schedule_optimizer` produces `output/optimized_schedule.csv` **without** hand-edited inputs beyond the Excel/CSV already in `data/`.
-2. Load log proves **every** input file in §2 was read.
-3. Output has **exactly** `n × (n − 1)` rows and satisfies H1–H14 when verified by a post-solve checker (included in run).
-4. If CP-SAT status is `INFEASIBLE`, process exits **≠ 0** and prints which precondition failed (e.g. fewer than 34 eligible weeks).
+### 4.1 Fixture Generation
+
+The league format is a double round-robin:
+
+- 18 teams.
+- 34 rounds.
+- Each unordered pair plays twice.
+- Each ordered pair, home vs away, appears exactly once.
+- In the abstract fixture framework, each team is assigned to exactly one match per round. This is the nominal ordering only.
+
+**The DRR fixture draw is seeded and pattern-constrained.** In real-life Egyptian Premier League operations the fixture pairs and home/away assignments are determined through a constrained fixture compilation process, not an unconstrained random shuffle. The model must replicate this by using a seeded draw for pairings while generating valid home/away patterns before slot assignment.
+
+The fixture framework must satisfy these home/away sequencing rules before the baseline solver runs:
+
+- each team has exactly 17 home and 17 away matches,
+- no team has more than two consecutive home matches or two consecutive away matches in abstract round order,
+- every rolling five-match sequence should contain either two or three home matches,
+- no team should start or finish the season with two consecutive home or two consecutive away matches when feasible,
+- second-leg fixtures reverse the home/away venue from the first-leg fixture.
+
+**A team is not required to have a league match played in every calendar round.** If a match is postponed to the CAF repair queue, the team's calendar slot for that round remains empty until the match is rescheduled. The abstract round number on a repaired match records its original round position; the calendar date it is eventually played may fall inside a different week or round window.
+
+The governing scheduling constraint is always the rest-day rule, not strict round-by-round attendance. A team that misses a calendar round due to a CAF conflict must still satisfy all rest-day rules relative to its previous and next scheduled league matches.
+
+### 4.2 Dynamic Round Windows
+
+Baseline round order is a hard structure. The system must build round windows dynamically from the playable slot universe instead of mapping Round N directly to calendar Week N.
+
+Round-window generation rules:
+
+- remove all FIFA dates before constructing round windows,
+- build chronological date windows from the playable slot universe rather than raw calendar weeks,
+- skip FIFA-only periods and CAF-heavy periods where CAF teams have no CAF-safe slot,
+- allow safe periods to host midweek/weekend cadence when rest rules and slot capacity allow it,
+- select chronological playable windows for Rounds 1 through 34,
+- preserve monotonic order: the baseline window for Round R must end before the baseline window for Round R+1 starts,
+- write the selected windows to `output/phases/03_round_windows.csv`.
+
+A whole FIFA week receives no round. The next round is assigned to the next playable league window after the break.
+
+### 4.3 Baseline Slot Assignment - FIFA and CAF Aware
+
+The baseline assignment creates `output/optimized_schedule_pre_caf.csv`.
+
+Known CAF rules are applied in this phase:
+
+- exclude team-specific CAF blocker dates for the affected team,
+- exclude slots within the required CAF buffer for CAF-participating teams,
+- keep all baseline matches inside their original round window.
+
+If a fixture has no CAF-safe slot inside its strict round window, the baseline may place that fixture inside its original round window without the CAF filter so the full round structure remains feasible. The CAF audit must then queue that specific fixture for repair. This is a controlled exception, not a silent relaxation.
+
+FIFA rules must always be applied:
+
+- no slot on a FIFA day may be used,
+- no fallback may insert a league match on a FIFA day,
+- any schedule containing a FIFA-day match is invalid.
+
+### 4.4 Baseline Hard Constraints
+
+The baseline schedule must satisfy these hard constraints:
+
+| ID | Constraint |
+|---|---|
+| H1 | Every league fixture is scheduled exactly once. |
+| H2 | No league match is scheduled on a FIFA day. |
+| H4 | A team cannot play more than one league match in the same slot or on the same calendar date. |
+| H5 | A venue cannot host more than one league match in the same slot. |
+| H6 | A slot must not exceed the configured league capacity. For the CAF repair phase, "free slot" means zero accepted league matches already assigned to that slot. |
+| H7 | Each team must have at least three full calendar days of rest between any two consecutively played league matches. Equivalently, two consecutive played league match dates for the same team must be at least four calendar days apart. This gap is measured across actual played dates only; a team that skips a calendar round due to a CAF postponement is still bound by this rule between its previous and next played league match. |
+| H7-CAF | For a CAF-participating team (`Cont_Flag` of `CL` or `CC`), a league match must be separated from any CAF match by at least three full calendar days in **either direction** — before the CAF match and after the CAF match. Equivalently, the league match date and the CAF match date must be at least four calendar days apart. The preferred buffer is five full rest days (six calendar days apart) where slots allow. |
+| H8 | In played chronological order, a team cannot have more than two consecutive home matches or more than two consecutive away matches. |
+| H9 | A fixture must use the forced venue from `Sec_Matrix` when provided; otherwise it uses the home team's `Home_Stadium_ID`. |
+| H10 | For non-postponed baseline matches, round order is hard: Round `R+1` must not start before Round `R` has finished. |
+| H11 | A baseline match may only be assigned to slots in its selected dynamic round window. |
+
+**Round attendance is not a hard constraint.** A team is not required to have a match played in every calendar round. If a match is moved to the CAF postponement queue, that team's calendar slot for that round is empty. The abstract round number is retained as metadata on the postponed fixture and used to measure week-movement penalty during repair.
+
+If a full baseline schedule cannot be produced while ignoring CAF blockers, the run is infeasible and must report the reason. The system must not invent teams, slots, dates, venues, distances, or fixtures.
+
+### 4.5 Baseline Soft Objectives
+
+The baseline optimization should minimize a scalar objective after hard feasibility:
+
+1. Home/away streak pressure and imbalance.
+2. Travel distance.
+3. Tier mismatch between match quality and slot quality.
+4. Top-tier matches away from strong weekend/night slots.
+5. Overuse of high-demand slots, if capacity greater than one is allowed.
+6. Preferred placement inside stronger slots within the match's assigned round window.
+
+Hard feasibility always outranks soft preferences.
 
 ---
 
-## 9. References
+## 5. CAF Audit
 
-- Internal: `Documentations/presentation.pdf` (objectives/constraints narrative).  
-- OR-Tools CP-SAT: https://developers.google.com/optimization/cp/cp_solver  
+After the baseline schedule is complete, the system must run a CAF-aware audit.
+
+A baseline match must be moved to `output/caf_postponement_queue.csv` if any of the following is true:
+
+1. The match is on a team-specific CAF blocker date for either participant.
+2. Either participant has `Cont_Flag` of `CL` or `CC` and the league match is too close before that team's CAF match.
+3. The match would break the final hard constraints after CAF blockers are treated as protected team activity.
+
+### 5.1 CAF Buffer Rule
+
+For a team participating in CAF (`Cont_Flag` in `CL`, `CC`), the buffer applies **in both directions** around each CAF match:
+
+- No league match may be scheduled on the same date as that team's CAF match.
+- No league match may be scheduled within three full calendar days **before** the CAF match. The league match date and the CAF match date must be at least four calendar days apart. The preferred gap is five full rest days (six days apart) where slots allow.
+- No league match may be scheduled within three full calendar days **after** the CAF match. The same four-day minimum (six-day preferred) applies going forward.
+
+**Pre-CAF example:** if a CAF match is on Saturday, the latest acceptable prior league match is Tuesday. Wednesday, Thursday, Friday, and Saturday are not acceptable (four-day minimum gap; Tuesday → Saturday = 4 days apart, 3 full rest days).
+
+**Post-CAF example:** if a CAF match is on Saturday, the earliest acceptable next league match is Wednesday of the following week (Saturday → Wednesday = 4 days apart, 3 full rest days). Friday or later of the following week is preferred (6 days apart, 5 full rest days).
+
+The rationale is that CAF travel and match intensity require more recovery than a domestic league match where possible. The hard CAF buffer is aligned with the domestic minimum of three full rest days (four days apart), with five full rest days (six days apart) as the target.
+
+### 5.2 Queue Semantics
+
+Queued matches are removed from the accepted schedule before repair begins. The remaining schedule must still satisfy all baseline hard constraints and must contain no FIFA-day matches.
+
+The queue is not a failure by itself. It is the set of matches requiring CAF-safe reinsertion.
+
+---
+
+## 6. CAF Repair
+
+The repair phase tries to place each queued match into a free slot.
+
+### 6.1 Free Slot Definition
+
+A free slot is a row from the slot universe where:
+
+- no accepted league match is already assigned to that exact slot row,
+- the date is not a FIFA day,
+- the slot date is inside the accepted season calendar,
+- the slot has a valid `Date`, `Date time`, `Day_ID`, and `Week_Num`.
+
+CAF repair must not use a slot that is merely under capacity if another match already occupies it. For repaired matches, "free" means no accepted league match in that slot.
+
+### 6.2 Repair Feasibility Rules
+
+A queued match may be inserted into a free slot only if all of these hold:
+
+| Rule | Requirement |
+|---|---|
+| R1 | The slot is not on a FIFA day. |
+| R2 | Neither team has another accepted league match on the same date. |
+| R3 | Both teams have at least three full calendar days of relaxation from every other accepted league match. Date gaps must be at least four calendar days. |
+| R4 | The venue has no accepted league match in the same slot. |
+| R5 | Inserting the match does not create more than two consecutive home or away matches for either team in chronological played order. |
+| R6 | For CAF-participating teams, the inserted date is not a CAF blocker date and is at least four calendar days away from any relevant CAF match in either direction — before an upcoming CAF match and after a preceding CAF match. Six calendar days apart is preferred where available. |
+| R7 | The match uses the same venue rule as the baseline schedule: forced venue first, otherwise home stadium. |
+
+CAF repair is the only phase allowed to place a match outside its original baseline round window. The repaired match must keep its original `Round` value as metadata and set `Postponed=True`.
+
+### 6.3 Repair Objective
+
+The repair objective should:
+
+1. maximize the number of queued matches successfully repaired,
+2. minimize movement away from the original round/week,
+3. preserve home/away streak quality,
+4. prefer better slot tiers for better matches,
+5. avoid unnecessary travel or venue disruption.
+
+If no CAF-safe free slot exists for a queued match, the match remains in `output/unresolved_caf_postponements.csv`.
+
+---
+
+## 7. Slot and Match Tiers
+
+### 7.1 Slot Tier
+
+Slot tier is derived from day and kickoff time:
+
+- weekend/night slots are best,
+- weekday or early slots are lower priority,
+- the exact tiering function must be deterministic and documented in code.
+
+### 7.2 Match Tier
+
+`Match_Tier` is derived from the two teams' `Tier` values:
+
+| Teams | Match_Tier |
+|---|---|
+| 1 vs 1 | 1 |
+| 1 vs 2 | 1 |
+| 1 vs 3 | 2 |
+| 2 vs 2 | 2 |
+| 2 vs 3 | 3 |
+| 3 vs 3 | 3 |
+
+Tier 1 is the highest-priority match tier.
+
+---
+
+## 8. Diagnostics and Audit Artifacts
+
+The pipeline should write machine-readable diagnostics under `output/phases/` when enabled:
+
+| File | Description |
+|---|---|
+| `01_load_summary.json` | Workbook names, sheet names, row counts, team count, slot count. |
+| `02_fifa_summary.csv` | FIFA dates derived from all in-workbook FIFA sources. |
+| `03_caf_blocker_summary.csv` | CAF blocker dates by team from in-workbook CAF sheets. |
+| `03_round_windows.csv` | Dynamic chronological baseline round windows selected from playable non-FIFA slots. |
+| `04_fixture_framework.csv` | Generated DRR fixture list before slot assignment. |
+| `04_home_away_patterns.csv` | Per-team home/away pattern, max streaks, and rolling five-match balance. |
+| `05_baseline_feasible_slot_counts.csv` | Feasible slot count per match while CAF is ignored. |
+| `06_baseline_solver_status.json` | Baseline feasibility/optimization status. |
+| `07_caf_audit.csv` | Per-match CAF audit outcome and violation reasons. |
+| `08_repair_feasible_slot_counts.csv` | Free CAF-safe slot counts for queued matches. |
+| `09_repair_solver_status.json` | CAF repair status and unresolved count. |
+| `10_final_validation_report.csv` | Final hard-rule and warning report. |
+| `10_team_sequence_validation.csv` | Per-team chronological sequence, gaps, streaks, rolling-five checks, and round inversions. |
+
+---
+
+## 9. Acceptance Criteria
+
+1. The requirements and implementation use `data/Data_Model.xlsx` and `data/expanded_calendar.xlsx` only as model inputs.
+2. The baseline schedule contains every double round-robin fixture exactly once.
+3. No baseline, repaired, final, or unresolved output contains a scheduled league match on a FIFA day.
+4. Known CAF blockers and CAF buffers restrict baseline scheduling.
+5. Residual CAF violations are identified after the baseline table exists.
+6. Every CAF-violating match is written to `output/caf_postponement_queue.csv`.
+7. Repaired matches are placed only in free slots and satisfy the three-full-day (four calendar days apart) league-to-league rest rule.
+8. Repaired matches involving CAF teams are at least four calendar days away from any relevant CAF match in either direction (before and after).
+9. `output/optimized_schedule.csv` contains the final accepted schedule and preserves `Postponed`/reason fields for repaired matches.
+10. If a queued match cannot be repaired, it is written to `output/unresolved_caf_postponements.csv` instead of being silently dropped.
+11. A team's absence from one or more calendar rounds due to CAF postponement is not treated as a schedule error. Round attendance is validated only at the fixture-completeness level (all 34 rounds worth of fixtures must eventually be played or remain in the unresolved queue), not at the per-round per-team level.
+12. Fixture generation produces valid home/away patterns before slot assignment.
+13. Non-postponed baseline rounds are chronological; a later round must not start before the previous round has finished.
+14. The final validation artifacts must flag any team with three consecutive home/away matches, local rest violations, CAF buffer violations, FIFA-day matches, or non-postponed round inversions.
+
+---
+
+## 10. Non-Goals
+
+- Using external files or scraped sources outside the two authoritative workbooks.
+- Scheduling league matches on FIFA days under any circumstance.
+- Generating or modifying CAF fixtures.
+- Generating or modifying FIFA dates.
+- Inventing missing teams, dates, stadiums, security rules, or distances.
+- Treating previous output files as input data.
