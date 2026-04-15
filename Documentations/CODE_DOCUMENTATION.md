@@ -82,7 +82,7 @@ This document describes **every package, module, UI surface, and runtime artifac
 | Symbol | Description |
 |--------|-------------|
 | `Match` | Includes `postpone_weight_mult` (default `1.0`, higher for CL/CC matches from pipeline). |
-| `solve_assignment(...)` | CP-SAT: assignment + team/venue caps + rest + H/A automaton; optional **multi-term** linear objective when `optimize=True` (travel, tier mismatch, top-tier weekend, T1vT1 prime night, postponement with per-match mult, slot overload). Phase 1 calls with `optimize=False`. Returns `(assign_dict, cp_status, status_name, objective_value \| None)`. |
+| `solve_assignment(...)` | CP-SAT: assignment + team/venue caps + rest + H/A automaton; optional **multi-term** linear objective when `optimize=True` (travel, tier mismatch against **Match_Tier**, top-tier weekend for **Match_Tier==1**, T1vT1 prime night, postponement with per-match mult, slot overload). Phase 1 calls with `optimize=False`. Returns `(assign_dict, cp_status, status_name, objective_value \| None)`. |
 
 ### 2.10 [`pipeline.py`](schedule_optimizer/pipeline.py)
 

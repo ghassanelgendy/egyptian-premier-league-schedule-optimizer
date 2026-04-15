@@ -1,4 +1,0 @@
-Home_Team_ID,Away_Team_ID,Round_idx_0_based,Round_1_based,Original_Week_Num,Strict_feasible_slots,Postponed_feasible_slots,Postponed,Infeasible_reason_top,Infeasible_reason_counts_json,Candidate_Date_time_before_postpone,Candidate_Weekday_before_postpone,Candidate_Slot_tier_before_postpone,Assigned_Date_time_after_postpone,Assigned_Weekday_after_postpone,Assigned_Week_Num_after_postpone
-BNK,AHL,26,27,35,0,566,True,team_blackout:away,"{""Is_FIFA_flag"": 11, ""team_blackout:away"": 12}",2027-04-02 20:00:00,FRI,1,,,
-PYR,MOD,26,27,35,0,566,True,team_blackout:home,"{""Is_FIFA_flag"": 11, ""team_blackout:home"": 12}",2027-04-02 20:00:00,FRI,1,,,
-MAS,ZAM,26,27,35,0,572,True,team_blackout:home+away,"{""Is_FIFA_flag"": 11, ""team_blackout:home+away"": 12}",2027-04-02 20:00:00,FRI,1,,,
