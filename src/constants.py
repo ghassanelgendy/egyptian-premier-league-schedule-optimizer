@@ -11,7 +11,7 @@ MATCHES_PER_ROUND = 9    # NUM_TEAMS // 2
 # Rest-day rules (measured in *full* rest days; "days apart" = rest_days + 1)
 # ---------------------------------------------------------------------------
 MIN_REST_DAYS_LOCAL = 3        # league-to-league: dates at least 4 apart
-MIN_REST_DAYS_CAF = 4          # league-to-CAF:    dates at least 5 apart
+MIN_REST_DAYS_CAF = 3          # league-to-CAF:    dates at least 4 apart
 PREFERRED_REST_DAYS_CAF = 5    # preferred:        dates at least 6 apart
 
 # ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ MAX_CONSECUTIVE_AWAY = 2
 # Week load balancing (hard bounds + soft target)
 # ---------------------------------------------------------------------------
 HARD_MIN_MATCHES_PER_WEEK = 6   # hard lower bound (skipped for tiny weeks)
-HARD_MAX_MATCHES_PER_WEEK = 12  # hard upper bound
+HARD_MAX_MATCHES_PER_WEEK = 18  # supports midweek + weekend rounds in safe weeks
 SOFT_MIN_MATCHES_PER_WEEK = 6
 SOFT_MAX_MATCHES_PER_WEEK = 12
 

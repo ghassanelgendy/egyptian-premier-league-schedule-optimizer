@@ -56,10 +56,12 @@ def main(seed: int = DEFAULT_SEED) -> None:
     from src.output_writer import (
         write_pre_caf_schedule,
         write_final_schedule,
+        write_postponement_queue,
         write_rescheduled_matches,
         write_unresolved,
         write_week_round_map,
     )
+    from src.validation import write_validation_reports
     write_pre_caf_schedule(baseline)
 
     # Phase 4: CAF audit
@@ -84,9 +86,11 @@ def main(seed: int = DEFAULT_SEED) -> None:
     print("Phase 6: Writing final outputs...")
     print("=" * 60)
     write_final_schedule(accepted, repaired, violations)
+    write_postponement_queue(violations, repaired, unresolved_list)
     write_rescheduled_matches(repaired)
     write_unresolved(unresolved_list)
     write_week_round_map(accepted, repaired)
+    write_validation_reports(accepted, repaired, unresolved_list, data)
 
     elapsed = time.time() - t_start
     print()

@@ -19,7 +19,6 @@ from src.constants import (
     HARD_MAX_MATCHES_PER_WEEK,
     MAX_CONSECUTIVE_AWAY,
     MAX_CONSECUTIVE_HOME,
-    MAX_MATCHES_PER_SLOT,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
     PHASES_DIR,
@@ -183,6 +182,8 @@ def _find_valid_slots(
         d = slot_dates[si]
         if d is None:
             continue
+        if d < match.date:
+            continue
 
         # R1: not FIFA — already filtered in usable_slots
 
@@ -220,8 +221,8 @@ def _find_valid_slots(
 
         # R7: venue is already correct (set at fixture construction)
 
-        # R_SLOT: slot concurrency — at most MAX_MATCHES_PER_SLOT per slot
-        if state.slot_usage.get(si, 0) >= MAX_MATCHES_PER_SLOT:
+        # R_SLOT: repair slots must be completely free, not merely under capacity.
+        if state.slot_usage.get(si, 0) > 0:
             continue
 
         # R_WEEK: week load — at most HARD_MAX per week

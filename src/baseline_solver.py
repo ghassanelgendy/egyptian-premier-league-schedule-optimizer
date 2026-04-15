@@ -76,6 +76,16 @@ def solve_baseline(
     slot_tiers: List[int] = list(compute_slot_tiers(slots))
     slot_day_ids: List[str] = list(slots["Day_ID"].fillna(""))
     slot_datetimes = list(slots["Date time"] if "Date time" in slots.columns else [None] * n_slots)
+    slot_order = {
+        item: idx
+        for idx, item in enumerate(sorted(
+            set((slot_dates[si], str(slot_datetimes[si])) for si in range(n_slots))
+        ))
+    }
+    slot_time_index = [
+        slot_order[(slot_dates[si], str(slot_datetimes[si]))]
+        for si in range(n_slots)
+    ]
 
     # Unique dates and weeks
     all_dates = sorted(set(slot_dates))
@@ -114,6 +124,10 @@ def solve_baseline(
         matches_by_team[m.home_team].append(m.match_idx)
         matches_by_team[m.away_team].append(m.match_idx)
 
+    matches_by_round: Dict[int, List[int]] = defaultdict(list)
+    for m in matches:
+        matches_by_round[m.round_num].append(m.match_idx)
+
     # Match lookup
     match_lookup = {m.match_idx: m for m in matches}
 
@@ -147,6 +161,16 @@ def solve_baseline(
             x[m.match_idx][si] = model.NewBoolVar(f"x_{m.match_idx}_{si}")
 
     print(f"[baseline] Variables created: {sum(len(v) for v in x.values())}")
+
+    # Concrete chronological index for each assigned match.
+    match_time: Dict[int, cp_model.IntVar] = {}
+    max_slot_time = max(slot_time_index) if slot_time_index else 0
+    for m in matches:
+        t_var = model.NewIntVar(0, max_slot_time, f"match_time_{m.match_idx}")
+        model.Add(
+            t_var == sum(slot_time_index[si] * var for si, var in x[m.match_idx].items())
+        )
+        match_time[m.match_idx] = t_var
 
     # --- H1: each match assigned exactly once ---
     for m in matches:
@@ -207,92 +231,27 @@ def solve_baseline(
             if len(vars_in_window) > 1:
                 model.Add(sum(vars_in_window) <= 1)
 
-    # --- H8: max 2 consecutive home or away ---
-    # For each team, for each set of 3 matches that are ALL home (or ALL away),
-    # they cannot be assigned to 3 consecutive chronological positions.
-    # We use a time-ordered approach: for each team, for every triple of dates
-    # D1 < D2 < D3 where all 3 could be same-direction, forbid it.
-    # Encoded as: for each team, for each 3 home (or away) matches m1,m2,m3,
-    # for all slot combos where date(s1)<date(s2)<date(s3) and no other match
-    # of that team fits between them -- this is too expensive combinatorially.
-    #
-    # Practical encoding: per-team positional integer variables.
-    # pos[team][k] = date index of team's k-th match in chronological order.
-    # is_home[team][k] = 1 if team's k-th match is a home match.
-    # For each k: is_home[k] + is_home[k+1] + is_home[k+2] <= 2
-    #             (1-is_home[k]) + (1-is_home[k+1]) + (1-is_home[k+2]) <= 2
-    #
-    # Since we don't know the assignment yet, we model this with date-ordered
-    # binary indicators tied to the x variables.
+    # H8 is enforced before this model by fixture generation. Because baseline
+    # round windows are chronological and non-overlapping, the played baseline
+    # sequence follows the generated round sequence. The old date-candidate
+    # approximation was too strong and could make otherwise valid compressed
+    # round windows infeasible.
 
-    for team_id in matches_by_team:
-        team_match_idxs = matches_by_team[team_id]
-        n_matches = len(team_match_idxs)
+    # --- H10: strict round order ---
+    # Every match in Round R must finish before Round R+1 starts.
+    round_min: Dict[int, cp_model.IntVar] = {}
+    round_max: Dict[int, cp_model.IntVar] = {}
+    for r in range(1, NUM_ROUNDS + 1):
+        vars_in_round = [match_time[mi] for mi in matches_by_round[r]]
+        r_min = model.NewIntVar(0, max_slot_time, f"round_{r}_min")
+        r_max = model.NewIntVar(0, max_slot_time, f"round_{r}_max")
+        model.AddMinEquality(r_min, vars_in_round)
+        model.AddMaxEquality(r_max, vars_in_round)
+        round_min[r] = r_min
+        round_max[r] = r_max
 
-        # For each date, collect which of this team's matches could be there
-        team_vars_by_date: Dict[date, List[Tuple[int, cp_model.IntVar]]] = defaultdict(list)
-        for mi in team_match_idxs:
-            for si, var in x[mi].items():
-                team_vars_by_date[slot_dates[si]].append((mi, var))
-
-        # Sort dates chronologically
-        team_active_dates = sorted(team_vars_by_date.keys())
-
-        # For every 3 consecutive active dates where the team could play,
-        # check that not all 3 assigned matches are home (or all away)
-        for i in range(len(team_active_dates) - 2):
-            d1, d2, d3 = team_active_dates[i], team_active_dates[i + 1], team_active_dates[i + 2]
-
-            # Skip if dates are too far apart (a team can't play on all 3 anyway
-            # due to rest constraints, unless they are 4+ days apart each)
-            if (d3 - d1).days > (n_matches + 1) * (rest_gap + 1):
-                continue
-
-            # Collect home-only vars for these 3 dates
-            home_vars = []
-            away_vars = []
-            for d in (d1, d2, d3):
-                for mi, var in team_vars_by_date[d]:
-                    m = match_lookup[mi]
-                    if m.home_team == team_id:
-                        home_vars.append(var)
-                    else:
-                        away_vars.append(var)
-
-            # If all assigned are home on these 3 consecutive team-play-dates -> violation
-            # We need: at most 2 of 3 consecutive played matches are home
-            # But since multiple matches could map to same date (not possible due to H4),
-            # and we only care about the played sequence, the simpler sliding-window
-            # over dates is an approximation that works because H4 ensures at most 1
-            # match per date per team.
-
-            # For 3 consecutive dates where team plays: sum of home indicators <= 2
-            home_on_d = {}
-            away_on_d = {}
-            for d in (d1, d2, d3):
-                h_vars = [var for mi, var in team_vars_by_date[d]
-                          if match_lookup[mi].home_team == team_id]
-                a_vars = [var for mi, var in team_vars_by_date[d]
-                          if match_lookup[mi].away_team == team_id]
-                if h_vars:
-                    home_on_d[d] = h_vars
-                if a_vars:
-                    away_on_d[d] = a_vars
-
-            if len(home_on_d) == 3:
-                # For each combo of one home var from each of the 3 dates
-                all_home = []
-                for d in (d1, d2, d3):
-                    all_home.extend(home_on_d.get(d, []))
-                if len(all_home) >= 3:
-                    model.Add(sum(all_home) <= 2)
-
-            if len(away_on_d) == 3:
-                all_away = []
-                for d in (d1, d2, d3):
-                    all_away.extend(away_on_d.get(d, []))
-                if len(all_away) >= 3:
-                    model.Add(sum(all_away) <= 2)
+    for r in range(1, NUM_ROUNDS):
+        model.Add(round_max[r] + 1 <= round_min[r + 1])
 
     print("[baseline] Hard constraints added.")
 
@@ -334,9 +293,9 @@ def solve_baseline(
         # Hard upper bound: never exceed 12
         model.Add(load <= HARD_MAX_MATCHES_PER_WEEK)
 
-        # Hard lower bound: at least 6, but only if the week has enough slots
-        if week_capacity >= HARD_MIN_MATCHES_PER_WEEK:
-            model.Add(load >= HARD_MIN_MATCHES_PER_WEEK)
+        # Dynamic round windows may straddle calendar-week boundaries. A week
+        # fragment can legitimately carry fewer than six matches, so the lower
+        # bound is handled as a soft balance target only.
 
         # Soft penalty for deviation from ideal (9 matches)
         under = model.NewIntVar(0, SOFT_MIN_MATCHES_PER_WEEK, f"under_w{w}")
