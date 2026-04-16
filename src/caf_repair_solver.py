@@ -428,12 +428,27 @@ def _write_repair_status(
     repaired: List[ScheduledMatch],
     unresolved: List[ScheduledMatch],
     elapsed: float,
+    skipped: bool = False,
 ) -> None:
     os.makedirs(PHASES_DIR, exist_ok=True)
     path = os.path.join(PHASES_DIR, "09_repair_solver_status.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
+            "skipped": skipped,
             "repaired_count": len(repaired),
             "unresolved_count": len(unresolved),
             "elapsed_s": round(elapsed, 2),
+        }, f, indent=2)
+
+
+def write_repair_skipped_status(reason: str) -> None:
+    os.makedirs(PHASES_DIR, exist_ok=True)
+    path = os.path.join(PHASES_DIR, "09_repair_solver_status.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({
+            "skipped": True,
+            "reason": reason,
+            "repaired_count": 0,
+            "unresolved_count": 0,
+            "elapsed_s": 0.0,
         }, f, indent=2)

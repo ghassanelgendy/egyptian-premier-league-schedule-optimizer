@@ -30,10 +30,11 @@ The scheduling approach is a structured baseline-plus-repair flow:
 3. Build dynamic chronological round windows from playable non-FIFA calendar slots.
 4. Solve a CAF-aware baseline CP-SAT model inside strict round windows.
 5. Audit remaining CAF conflicts.
-6. Remove CAF-conflicting matches into a postponement queue.
-7. Repair queued matches into later free CAF-safe slots when possible.
-8. Write final schedule, diagnostics, and validation reports.
-9. Present all outputs in the Streamlit UI.
+6. If CAF violations exist, remove CAF-conflicting matches into a postponement queue.
+7. If CAF violations exist, repair queued matches into later free CAF-safe slots when possible.
+8. If no CAF violations exist, skip repair and write a skipped repair status.
+9. Write final schedule, diagnostics, and validation reports.
+10. Present all outputs in the Streamlit UI.
 
 ---
 
@@ -334,6 +335,7 @@ Repair strategy:
 - Process most-constrained matches first.
 - Rank candidate slots by displacement from the original date.
 - Use a multi-pass greedy placement so later state changes are considered.
+- Skip the repair phase entirely when the audit returns zero violations.
 
 Repair outputs:
 
@@ -542,6 +544,7 @@ Round filter:
 The UI must:
 
 - show phase status for load, fixture generation, domain build, baseline solve, CAF audit, CAF repair, and output writing,
+- show CAF repair only when audit returns violations; otherwise show a skipped message,
 - mirror stdout in a live text area,
 - apply sidebar model variables before running,
 - write all primary and validation outputs after a successful run,

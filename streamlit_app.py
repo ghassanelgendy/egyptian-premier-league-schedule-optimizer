@@ -15,7 +15,7 @@ import sys
 import time
 import calendar
 from datetime import date as pydate
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
@@ -667,10 +667,10 @@ def _run_phase(
 ) -> Any:
     status.update(label=name, state="running")
     start = time.time()
-    with redirect_stdout(log_buffer):
+    with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
         result = fn()
     elapsed = time.time() - start
-    log_box.text(log_buffer.getvalue())
+    log_box.code(log_buffer.getvalue(), language="text")
     status.update(label=f"{name} (done in {elapsed:.1f}s)", state="complete")
     return result
 
@@ -1706,11 +1706,6 @@ def main() -> None:
     with tab_run:
         st.subheader("Progress")
         log_buffer = io.StringIO()
-        log_box = st.empty()
-
-        # Always show current logs from session_state if present.
-        if "stdout_log" in st.session_state and st.session_state["stdout_log"]:
-            log_box.text(st.session_state["stdout_log"])
 
         col_a, col_b = st.columns([1, 1])
         with col_a:
@@ -1721,12 +1716,17 @@ def main() -> None:
             status_domain = st.status("Phase 3a: Build domains (waiting)", state="complete")
             status_baseline = st.status("Phase 3b: Solve baseline (waiting)", state="complete")
             status_audit = st.status("Phase 4: CAF audit (waiting)", state="complete")
-            status_repair = st.status("Phase 5: CAF repair (waiting)", state="complete")
             status_write = st.status("Phase 6: Write outputs (waiting)", state="complete")
 
         with col_b:
             st.markdown("**Live stdout**")
-            st.caption("This mirrors the CLI prints so you can see each phase evolve.")
+            st.caption(
+                "Mirrors stdout and stderr from the pipeline (same as the CLI). "
+                "Phases 1–3a are mostly quiet until the baseline solver emits progress."
+            )
+            log_box = st.empty()
+            if "stdout_log" in st.session_state and st.session_state["stdout_log"]:
+                log_box.code(st.session_state["stdout_log"], language="text")
 
         if run_clicked:
             _apply_runtime_model_config(model_config)
@@ -1736,7 +1736,7 @@ def main() -> None:
             from src.slot_domain import build_domains
             from src.baseline_solver import solve_baseline
             from src.caf_audit import caf_audit
-            from src.caf_repair_solver import caf_repair
+            from src.caf_repair_solver import caf_repair, write_repair_skipped_status
             from src.output_writer import (
                 write_final_schedule,
                 write_postponement_queue,
@@ -1803,14 +1803,21 @@ def main() -> None:
                 )
                 st.session_state["stdout_log"] = log_buffer.getvalue()
 
-                repaired, unresolved = _run_phase(
-                    "Phase 5: CAF repair",
-                    lambda: caf_repair(accepted, violations, data),
-                    status_repair,
-                    log_box,
-                    log_buffer,
-                )
-                st.session_state["stdout_log"] = log_buffer.getvalue()
+                if violations:
+                    status_repair = st.status("Phase 5: CAF repair (waiting)", state="complete")
+                    repaired, unresolved = _run_phase(
+                        "Phase 5: CAF repair",
+                        lambda: caf_repair(accepted, violations, data),
+                        status_repair,
+                        log_box,
+                        log_buffer,
+                    )
+                    st.session_state["stdout_log"] = log_buffer.getvalue()
+                else:
+                    repaired = []
+                    unresolved = []
+                    write_repair_skipped_status("No CAF violations found by audit.")
+                    st.info("Phase 5 skipped: CAF audit found no violations to repair.")
 
                 def _write_all() -> None:
                     write_final_schedule(accepted, repaired, violations)
