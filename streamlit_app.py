@@ -53,6 +53,17 @@ from src.constants import (
 
 
 APP_TITLE = "Egyptian Premier League Schedule Optimizer"
+ICON_PATH = Path("Nile_League.png")
+
+PALETTE = {
+    "primary": "#68239e",
+    "surface": "#f8f9f7",
+    "muted": "#8f67ad",
+    "ink": "#232126",
+    "border": "#d2cad9",
+    "accent": "#75409f",
+    "soft": "#ab97ba",
+}
 
 
 MODEL_CONTROL_GROUPS = [
@@ -336,6 +347,178 @@ def _apply_runtime_model_config(config: Dict[str, int]) -> None:
         for key, value in config.items():
             if hasattr(module, key):
                 setattr(module, key, value)
+
+
+def _page_icon() -> Optional[str]:
+    return str(ICON_PATH) if ICON_PATH.exists() else None
+
+
+def _render_theme() -> None:
+    st.markdown(
+        f"""
+<style>
+:root {{
+  --nile-primary: {PALETTE["primary"]};
+  --nile-surface: {PALETTE["ink"]};
+  --nile-surface-raised: rgba(210, 202, 217, 0.08);
+  --nile-surface-strong: rgba(171, 151, 186, 0.16);
+  --nile-text: {PALETTE["surface"]};
+  --nile-muted: {PALETTE["muted"]};
+  --nile-ink: {PALETTE["ink"]};
+  --nile-border: {PALETTE["border"]};
+  --nile-accent: {PALETTE["accent"]};
+  --nile-soft: {PALETTE["soft"]};
+}}
+
+.stApp {{
+  background: var(--nile-surface);
+  color: var(--nile-text);
+}}
+
+[data-testid="stSidebar"] {{
+  background: linear-gradient(180deg, #2f2934 0%, var(--nile-ink) 72%);
+  border-right: 1px solid rgba(210, 202, 217, 0.24);
+}}
+
+[data-testid="stSidebar"] * {{
+  color: var(--nile-text);
+}}
+
+h1, h2, h3, h4, h5, h6 {{
+  color: var(--nile-text);
+  letter-spacing: 0;
+}}
+
+p, li, label, span, div {{
+  letter-spacing: 0;
+}}
+
+[data-testid="stCaptionContainer"], .stMarkdown small {{
+  color: var(--nile-soft);
+}}
+
+div[data-testid="stMetric"] {{
+  background: var(--nile-surface-raised);
+  border: 1px solid rgba(210, 202, 217, 0.22);
+  border-radius: 8px;
+  padding: 12px;
+}}
+
+div[data-testid="stMetric"] label,
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {{
+  color: var(--nile-text);
+}}
+
+.stButton > button,
+.stDownloadButton > button {{
+  background: var(--nile-primary);
+  border: 1px solid var(--nile-primary);
+  border-radius: 8px;
+  color: var(--nile-text);
+  font-weight: 700;
+}}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {{
+  background: var(--nile-accent);
+  border-color: var(--nile-accent);
+  color: var(--nile-text);
+}}
+
+.stButton > button:focus,
+.stDownloadButton > button:focus,
+button:focus-visible,
+input:focus,
+textarea:focus {{
+  border-color: var(--nile-primary) !important;
+  box-shadow: 0 0 0 0.12rem rgba(104, 35, 158, 0.22) !important;
+}}
+
+[data-baseweb="tab-list"] {{
+  gap: 6px;
+  border-bottom: 1px solid rgba(210, 202, 217, 0.20);
+}}
+
+[data-baseweb="tab"] {{
+  background: transparent !important;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--nile-soft);
+  padding-bottom: 10px;
+}}
+
+[aria-selected="true"][data-baseweb="tab"] {{
+  background: transparent !important;
+  border-bottom-color: var(--nile-soft);
+  color: var(--nile-text);
+}}
+
+[data-baseweb="tab-highlight"] {{
+  background-color: var(--nile-soft);
+  height: 2px;
+}}
+
+div[data-testid="stDataFrame"] {{
+  border: 1px solid rgba(210, 202, 217, 0.24);
+  border-radius: 8px;
+  overflow: hidden;
+}}
+
+[data-testid="stExpander"],
+[data-testid="stStatus"],
+[data-testid="stAlert"] {{
+  background: var(--nile-surface-raised);
+  border-color: rgba(210, 202, 217, 0.24);
+  color: var(--nile-text);
+}}
+
+[data-testid="stNotification"],
+[data-testid="stToast"] {{
+  background: #2f2934;
+  color: var(--nile-text);
+  border: 1px solid rgba(210, 202, 217, 0.24);
+}}
+
+code {{
+  background: rgba(210, 202, 217, 0.14);
+  color: var(--nile-text);
+  border-radius: 6px;
+}}
+
+hr {{
+  border-color: rgba(210, 202, 217, 0.20);
+}}
+
+input, textarea, [data-baseweb="select"] > div, [data-baseweb="input"] > div {{
+  background-color: #2f2934 !important;
+  color: var(--nile-text) !important;
+  border-color: rgba(210, 202, 217, 0.28) !important;
+}}
+
+[data-baseweb="popover"], [data-baseweb="menu"] {{
+  background-color: #2f2934 !important;
+  color: var(--nile-text) !important;
+}}
+
+.nile-title {{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}}
+
+.nile-title-mark {{
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: {PALETTE["surface"]};
+  border: 1px solid rgba(210, 202, 217, 0.24);
+}}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
 
 
 @st.cache_resource(show_spinner=False)
@@ -655,7 +838,7 @@ def _render_month_grid(
   width: 100%;
 }
 .calendar-weekday {
-  color: #475569;
+  color: #ab97ba;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -663,27 +846,27 @@ def _render_month_grid(
 }
 .calendar-day {
   min-height: 150px;
-  border: 1px solid #d8dee8;
+  border: 1px solid rgba(210, 202, 217, 0.24);
   border-radius: 8px;
-  background: #ffffff;
+  background: #2f2934;
   padding: 10px;
   overflow: hidden;
 }
 .calendar-day.outside {
-  background: #f3f4f6;
-  color: #94a3b8;
+  background: rgba(210, 202, 217, 0.07);
+  color: #8f67ad;
 }
 .calendar-day.matchday {
-  border-color: #0f766e;
-  background: #f6fffb;
+  border-color: #8f67ad;
+  background: rgba(104, 35, 158, 0.24);
 }
 .calendar-day.blocked {
-  border-color: #dc2626;
-  background: #fff7f7;
+  border-color: #75409f;
+  background: rgba(117, 64, 159, 0.18);
 }
 .calendar-day.fifa {
-  border-color: #2563eb;
-  background: #f8fbff;
+  border-color: #8f67ad;
+  background: rgba(210, 202, 217, 0.12);
 }
 .calendar-day-header {
   display: flex;
@@ -694,7 +877,7 @@ def _render_month_grid(
 }
 .calendar-day-number {
   font-weight: 800;
-  color: #0f172a;
+  color: #f8f9f7;
 }
 .calendar-badges {
   display: flex;
@@ -704,19 +887,19 @@ def _render_month_grid(
 }
 .calendar-badge {
   border-radius: 6px;
-  background: #e2e8f0;
-  color: #334155;
+  background: rgba(210, 202, 217, 0.18);
+  color: #f8f9f7;
   font-size: 0.68rem;
   font-weight: 700;
   line-height: 1;
   padding: 4px 5px;
 }
-.calendar-badge.caf { background: #fee2e2; color: #991b1b; }
-.calendar-badge.fifa { background: #dbeafe; color: #1e40af; }
+.calendar-badge.caf { background: #68239e; color: #f8f9f7; }
+.calendar-badge.fifa { background: #8f67ad; color: #f8f9f7; }
 .calendar-match {
-  border-left: 3px solid #0f766e;
-  background: #ecfdf5;
-  color: #0f172a;
+  border-left: 3px solid #68239e;
+  background: rgba(248, 249, 247, 0.10);
+  color: #f8f9f7;
   border-radius: 6px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -726,13 +909,13 @@ def _render_month_grid(
 }
 .calendar-match span {
   display: block;
-  color: #475569;
+  color: #d2cad9;
   font-size: 0.72rem;
   font-weight: 600;
   margin-top: 2px;
 }
 .calendar-empty {
-  color: #64748b;
+  color: #ab97ba;
   font-size: 0.78rem;
   line-height: 1.25;
 }
@@ -893,7 +1076,7 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
         sorted_stats = sorted_stats.head(int(top_n.split()[-1]))
 
     chart_data = sorted_stats.set_index("Team")["Total_km"]
-    st.bar_chart(chart_data, use_container_width=True, height=420)
+    st.bar_chart(chart_data, use_container_width=True, height=420, color=PALETTE["primary"])
 
     st.dataframe(
         stats[
@@ -975,8 +1158,8 @@ def _render_explore() -> None:
             )
 
     st.divider()
-    round_tab, team_tab, h2h_tab, travel_tab, cal_tab = st.tabs(
-        ["Round filter", "Team chooser", "Team vs Team", "Travel stats", "Calendar"]
+    team_tab, h2h_tab, travel_tab, cal_tab, round_tab = st.tabs(
+        ["Team chooser", "Team vs Team", "Travel stats", "Calendar", "Round filter"]
     )
 
     with round_tab:
@@ -1322,7 +1505,7 @@ def _render_explore() -> None:
             dist_df = pd.DataFrame(
                 [{"Weekday": k, "Matches": v} for k, v in weekday_dist.items()]
             ).sort_values("Matches", ascending=False)
-            st.bar_chart(dist_df.set_index("Weekday")["Matches"])
+            st.bar_chart(dist_df.set_index("Weekday")["Matches"], color=PALETTE["primary"])
 
         # Optional detailed day-status table (good for "why empty" debugging)
         with st.expander("Daily status table"):
@@ -1347,14 +1530,29 @@ def _render_explore() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title=APP_TITLE, layout="wide")
-    st.title(APP_TITLE)
+    page_config: Dict[str, Any] = {"page_title": APP_TITLE, "layout": "wide"}
+    icon = _page_icon()
+    if icon:
+        page_config["page_icon"] = icon
+    st.set_page_config(**page_config)
+    _render_theme()
+
+    if ICON_PATH.exists():
+        title_mark, title_copy = st.columns([0.08, 0.92], vertical_alignment="center")
+        with title_mark:
+            st.image(ICON_PATH.as_posix(), width=58)
+        with title_copy:
+            st.title(APP_TITLE)
+    else:
+        st.title(APP_TITLE)
     st.caption(
         "Runs the full pipeline (load → fixtures → baseline → CAF audit → repair) "
         "and renders all PRD-required outputs and phase artifacts."
     )
 
     with st.sidebar:
+        if ICON_PATH.exists():
+            st.image(ICON_PATH.as_posix(), width=96)
         st.header("Run configuration")
         seed = st.number_input("DRR seed", min_value=0, max_value=2_000_000_000, value=DEFAULT_SEED, step=1)
         st.text_input("Data model path", value=DATA_MODEL_PATH, disabled=True)
@@ -1367,8 +1565,8 @@ def main() -> None:
         st.divider()
         st.markdown("**Tip**: If you only want to browse outputs, don’t run — just use the tabs.")
 
-    tab_run, tab_explore, tab_artifacts, tab_browse = st.tabs(
-        ["Run & progress", "Explore", "Artifacts", "Browse files"]
+    tab_explore, tab_run, tab_artifacts, tab_browse = st.tabs(
+        ["Explore", "Run & progress", "Artifacts", "Browse files"]
     )
 
     with tab_run:
