@@ -18,6 +18,7 @@ from src.constants import (
     HARD_MIN_MATCHES_PER_WEEK,
     MAX_CONSECUTIVE_AWAY,
     MAX_CONSECUTIVE_HOME,
+    MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
     MIN_REST_DAYS_LOCAL,
     NUM_ROUNDS,
@@ -196,6 +197,16 @@ def solve_baseline(
                     vars_in_slot.append(x[mi][si])
             if len(vars_in_slot) > 1:
                 model.Add(sum(vars_in_slot) <= 1)
+
+    # --- H_DAILY_LOAD: at most MAX_MATCHES_PER_DAY league matches per date ---
+    for d, s_indices in slots_by_date.items():
+        all_vars_on_date = []
+        for m in matches:
+            for si in s_indices:
+                if si in x[m.match_idx]:
+                    all_vars_on_date.append(x[m.match_idx][si])
+        if len(all_vars_on_date) > MAX_MATCHES_PER_DAY:
+            model.Add(sum(all_vars_on_date) <= MAX_MATCHES_PER_DAY)
 
     # --- H_CONCURRENCY: at most MAX_MATCHES_PER_SLOT matches per time-slot ---
     for si in range(n_slots):

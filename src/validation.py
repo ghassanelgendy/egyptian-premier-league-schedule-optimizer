@@ -11,6 +11,7 @@ from typing import Dict, List, Set, Tuple
 from src.baseline_solver import ScheduledMatch
 from src.constants import (
     MATCHES_PER_ROUND,
+    MAX_MATCHES_PER_DAY,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
     NUM_ROUNDS,
@@ -41,6 +42,7 @@ def write_validation_reports(
 
     _validate_completeness(all_matches, unresolved, issues)
     _validate_fifa(all_matches, data, issues)
+    _validate_daily_load(all_matches, issues)
     _validate_venue_slots(all_matches, issues)
     _validate_global_round_order(accepted, issues)
     _validate_caf_buffers(all_matches, data, issues)
@@ -257,6 +259,30 @@ def _validate_venue_slots(
                 "",
                 group[0].date,
                 f"{venue} has {len(group)} matches in slot index {slot_idx}",
+            )
+
+
+def _validate_daily_load(
+    matches: List[ScheduledMatch],
+    issues: List[Dict[str, object]],
+) -> None:
+    by_date: Dict[date, List[ScheduledMatch]] = defaultdict(list)
+    for sm in matches:
+        by_date[sm.date].append(sm)
+
+    for match_date, group in by_date.items():
+        if len(group) > MAX_MATCHES_PER_DAY:
+            _add_issue(
+                issues,
+                "ERROR",
+                "DAILY_MATCH_CAP",
+                "",
+                "",
+                match_date,
+                (
+                    f"{len(group)} matches are scheduled on {match_date}; "
+                    f"maximum allowed is {MAX_MATCHES_PER_DAY}"
+                ),
             )
 
 

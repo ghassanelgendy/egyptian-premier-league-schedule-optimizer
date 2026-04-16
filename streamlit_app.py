@@ -6,6 +6,7 @@ reusing the existing CLI-phase functions from `main.py` / `src/*`.
 
 from __future__ import annotations
 
+import base64
 import io
 import html
 import json
@@ -32,6 +33,7 @@ from src.constants import (
     MATCHES_PER_ROUND,
     MAX_CONSECUTIVE_AWAY,
     MAX_CONSECUTIVE_HOME,
+    MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
@@ -54,6 +56,28 @@ from src.constants import (
 
 APP_TITLE = "Egyptian Premier League Schedule Optimizer"
 ICON_PATH = Path("Nile_League.png")
+ICONS_DIR = Path("icons")
+
+TEAM_ICON_FILES = {
+    "AHL": "egypt_al-ahly_512x512.football-logos.cc.png",
+    "ZAM": "egypt_zamalek_512x512.football-logos.cc.png",
+    "PYR": "egypt_pyramids_512x512.football-logos.cc.png",
+    "MAS": "egypt_al-masry_512x512.football-logos.cc.png",
+    "MOD": "egypt_modern-sport_512x512.football-logos.cc.png",
+    "SMO": "egypt_smouha_700x700.football-logos.cc.png",
+    "ZED": "egypt_zed-fc_512x512.football-logos.cc.png",
+    "CER": "egypt_ceramica-cleopatra_700x700.football-logos.cc.png",
+    "ENP": "egypt_enppi_512x512.football-logos.cc.png",
+    "ITH": "egypt_al-ittihad-alexandria_512x512.football-logos.cc.png",
+    "TLG": "egypt_talaea-el-gaish_512x512.football-logos.cc.png",
+    "BNK": "egypt_national-bank_512x512.football-logos.cc.png",
+    "PHA": "egypt_pharco_512x512.football-logos.cc.png",
+    "GOU": "egypt_el-gouna_512x512.football-logos.cc.png",
+    "ISM": "egypt_ismaily_512x512.football-logos.cc.png",
+    "MAH": "egypt_ghazl-el-mahalla_512x512.football-logos.cc.png",
+    "PET": "egypt_petrojet_512x512.football-logos.cc.png",
+    "HAR": "egypt_haras-el-hodoud_700x700.football-logos.cc.png",
+}
 
 PALETTE = {
     "primary": "#68239e",
@@ -171,6 +195,15 @@ MODEL_CONTROL_GROUPS = [
                 60,
                 1,
                 "Soft upper target for week load.",
+            ),
+            (
+                "MAX_MATCHES_PER_DAY",
+                "Max matches per day",
+                MAX_MATCHES_PER_DAY,
+                1,
+                12,
+                1,
+                "Hard cap on league matches assigned to one calendar date.",
             ),
             (
                 "MAX_MATCHES_PER_SLOT",
@@ -353,6 +386,46 @@ def _page_icon() -> Optional[str]:
     return str(ICON_PATH) if ICON_PATH.exists() else None
 
 
+def _team_icon_path(team_id: object) -> Optional[Path]:
+    fname = TEAM_ICON_FILES.get(str(team_id).strip().upper())
+    if not fname:
+        return None
+    path = ICONS_DIR / fname
+    return path if path.exists() else None
+
+
+@st.cache_data(show_spinner=False)
+def _team_icon_data_uri(team_id: str) -> str:
+    path = _team_icon_path(team_id)
+    if path is None:
+        return ""
+    data = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{data}"
+
+
+def _team_badge_html(team_id: object, *, size: int = 26) -> str:
+    raw_tid = str(team_id).strip().upper() or "TBD"
+    tid = html.escape(raw_tid)
+    src = _team_icon_data_uri(raw_tid)
+    if not src:
+        return f"<span class=\"team-fallback-mark\">{tid[:3]}</span><span>{tid}</span>"
+    return (
+        f"<img class=\"team-inline-logo\" src=\"{src}\" alt=\"{tid}\" "
+        f"style=\"width:{size}px;height:{size}px;\" />"
+        f"<span>{tid}</span>"
+    )
+
+
+def _render_team_logo(team_id: object, caption: str = "") -> None:
+    path = _team_icon_path(team_id)
+    if path is None:
+        st.caption(caption or str(team_id))
+        return
+    st.image(path.as_posix(), width=96)
+    if caption:
+        st.caption(caption)
+
+
 def _render_theme() -> None:
     st.markdown(
         f"""
@@ -483,6 +556,28 @@ code {{
   background: rgba(210, 202, 217, 0.14);
   color: var(--nile-text);
   border-radius: 6px;
+}}
+
+.team-inline-logo {{
+  display: inline-block;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 7px;
+}}
+
+.team-fallback-mark {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(210, 202, 217, 0.18);
+  color: var(--nile-text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  margin-right: 7px;
+  vertical-align: middle;
 }}
 
 hr {{
@@ -762,8 +857,8 @@ def _build_caf_context(data: Any) -> Tuple[set, Dict[pydate, List[str]]]:
 
 
 def _match_label(row: pd.Series) -> str:
-    home = html.escape(str(row.get("Home_Team_ID", "") or "TBD"))
-    away = html.escape(str(row.get("Away_Team_ID", "") or "TBD"))
+    home = str(row.get("Home_Team_ID", "") or "TBD")
+    away = str(row.get("Away_Team_ID", "") or "TBD")
     round_num = row.get("Round", "")
     time_label = ""
     raw_time = row.get("Date_time", "")
@@ -773,7 +868,14 @@ def _match_label(row: pd.Series) -> str:
 
     prefix = f"R{html.escape(str(round_num))} " if str(round_num).strip() else ""
     time_html = f"<span>{html.escape(time_label)}</span>" if time_label else ""
-    return f"<div class=\"calendar-match\">{prefix}{home} vs {away}{time_html}</div>"
+    teams_html = (
+        "<div class=\"calendar-match-line\">"
+        f"{_team_badge_html(home, size=20)}"
+        "<span class=\"calendar-vs\">vs</span>"
+        f"{_team_badge_html(away, size=20)}"
+        "</div>"
+    )
+    return f"<div class=\"calendar-match\">{prefix}{teams_html}{time_html}</div>"
 
 
 def _empty_day_reason(
@@ -906,6 +1008,19 @@ def _render_month_grid(
   line-height: 1.25;
   margin-top: 6px;
   padding: 6px 7px;
+}
+.calendar-match-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.calendar-vs {
+  color: #d2cad9;
+  font-weight: 700;
+}
+.calendar-match .team-inline-logo {
+  margin-right: 2px;
 }
 .calendar-match span {
   display: block;
@@ -1078,10 +1193,14 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
     chart_data = sorted_stats.set_index("Team")["Total_km"]
     st.bar_chart(chart_data, use_container_width=True, height=420, color=PALETTE["primary"])
 
+    display_stats = stats.copy()
+    display_stats["Icon"] = display_stats["Team_ID"].apply(lambda tid: _team_icon_data_uri(str(tid)))
+
     st.dataframe(
-        stats[
+        display_stats[
             [
                 "Team_ID",
+                "Icon",
                 "Team",
                 "Total_km",
                 "Away_trips",
@@ -1092,6 +1211,9 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
         use_container_width=True,
         hide_index=True,
         height=520,
+        column_config={
+            "Icon": st.column_config.ImageColumn("Club", width="small"),
+        },
     )
 
     csv_bytes = stats.to_csv(index=False).encode("utf-8")
@@ -1204,6 +1326,7 @@ def _render_explore() -> None:
             default_label = options[0] if options else None
             chosen_label = st.selectbox("Pick a team", options=options, index=0 if default_label else None)
             chosen_team = label_to_id.get(chosen_label, "")
+            chosen_caption = chosen_label or str(chosen_team)
         else:
             # Fallback to IDs seen in schedule only
             ids = sorted(
@@ -1211,6 +1334,11 @@ def _render_explore() -> None:
                 | set(df.get("Away_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
             )
             chosen_team = st.selectbox("Pick a team (ID)", options=ids, index=0 if ids else None)
+            chosen_caption = str(chosen_team or "")
+
+        logo_col, filter_col = st.columns([0.18, 0.82], vertical_alignment="center")
+        with logo_col:
+            _render_team_logo(chosen_team, chosen_caption)
 
         c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
@@ -1280,6 +1408,12 @@ def _render_explore() -> None:
                 team_a = st.selectbox("Team A (ID)", options=ids, index=0 if ids else None, key="h2h_team_a_fallback")
             with col2:
                 team_b = st.selectbox("Team B (ID)", options=ids, index=1 if len(ids) > 1 else 0, key="h2h_team_b_fallback")
+
+        badge_a, badge_b = st.columns(2)
+        with badge_a:
+            _render_team_logo(team_a, f"Team A: {team_a}")
+        with badge_b:
+            _render_team_logo(team_b, f"Team B: {team_b}")
 
         if not team_a or not team_b:
             st.info("Pick two teams to view head-to-head matches.")

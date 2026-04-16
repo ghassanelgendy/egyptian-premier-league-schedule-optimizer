@@ -29,8 +29,9 @@ SOFT_MIN_MATCHES_PER_WEEK = 6
 SOFT_MAX_MATCHES_PER_WEEK = 12
 
 # ---------------------------------------------------------------------------
-# Slot concurrency (EPL staggered-kickoff style)
+# Day and slot concurrency
 # ---------------------------------------------------------------------------
+MAX_MATCHES_PER_DAY = 3   # at most 3 league matches on one calendar date
 MAX_MATCHES_PER_SLOT = 2  # at most 2 matches at the same kickoff time
 
 # ---------------------------------------------------------------------------
