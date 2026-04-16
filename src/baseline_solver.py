@@ -118,6 +118,7 @@ def solve_baseline(
             "Home_Stadium_ID": row["Home_Stadium_ID"],
             "Tier": int(row["Tier"]),
         }
+    tier1_teams = {tid for tid, meta in teams_dict.items() if int(meta.get("Tier", 0)) == 1}
 
     # Matches by team
     matches_by_team: Dict[str, List[int]] = defaultdict(list)
@@ -176,6 +177,18 @@ def solve_baseline(
     # --- H1: each match assigned exactly once ---
     for m in matches:
         model.Add(sum(x[m.match_idx].values()) == 1)
+
+    # --- H_TIER1_DERBY: tier-1 vs tier-1 matches must use tier-1 slots ---
+    # This makes "1 vs 1 in tier-1 slot" non-negotiable (e.g., AHL vs ZAM).
+    for m in matches:
+        if m.home_team in tier1_teams and m.away_team in tier1_teams:
+            tier1_slot_vars = [var for si, var in x[m.match_idx].items() if slot_tiers[si] == 1]
+            if not tier1_slot_vars:
+                raise RuntimeError(
+                    f"No tier-1 slots available in domain for tier-1 derby: "
+                    f"{m.home_team} vs {m.away_team} (match_idx={m.match_idx})."
+                )
+            model.Add(sum(tier1_slot_vars) == 1)
 
     # --- H4: team plays at most once per date ---
     for team_id, m_idxs in matches_by_team.items():
