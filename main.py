@@ -72,13 +72,23 @@ def main(seed: int = DEFAULT_SEED) -> None:
     from src.caf_audit import caf_audit
     accepted, violations = caf_audit(baseline, data)
 
-    # Phase 5: CAF repair
-    print()
-    print("=" * 60)
-    print("Phase 5: CAF repair...")
-    print("=" * 60)
-    from src.caf_repair_solver import caf_repair
-    repaired, unresolved_list = caf_repair(accepted, violations, data)
+    if violations:
+        # Phase 5: CAF repair
+        print()
+        print("=" * 60)
+        print("Phase 5: CAF repair...")
+        print("=" * 60)
+        from src.caf_repair_solver import caf_repair
+        repaired, unresolved_list = caf_repair(accepted, violations, data)
+    else:
+        print()
+        print("=" * 60)
+        print("Phase 5: CAF repair skipped - no CAF violations.")
+        print("=" * 60)
+        from src.caf_repair_solver import write_repair_skipped_status
+        repaired = []
+        unresolved_list = []
+        write_repair_skipped_status("No CAF violations found by audit.")
 
     # Phase 6: Write outputs
     print()

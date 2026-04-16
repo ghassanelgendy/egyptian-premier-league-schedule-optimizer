@@ -19,6 +19,7 @@ from src.constants import (
     HARD_MAX_MATCHES_PER_WEEK,
     MAX_CONSECUTIVE_AWAY,
     MAX_CONSECUTIVE_HOME,
+    MAX_MATCHES_PER_DAY,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
     PHASES_DIR,
@@ -39,6 +40,7 @@ class _OccupiedState:
     team_sequence: Dict[str, List[Tuple[date, str]]]  # (date, 'H'/'A')
     venue_slots: Dict[str, Set[int]]
     week_load: Dict[int, int]
+    date_load: Dict[date, int]
     slot_usage: Dict[int, int]    # matches assigned per slot index
     assigned_dates: Set[date]     # dates with at least one match
 
@@ -48,6 +50,7 @@ def _build_state(accepted: List[ScheduledMatch]) -> _OccupiedState:
     team_sequence: Dict[str, List[Tuple[date, str]]] = defaultdict(list)
     venue_slots: Dict[str, Set[int]] = defaultdict(set)
     week_load: Dict[int, int] = defaultdict(int)
+    date_load: Dict[date, int] = defaultdict(int)
     slot_usage: Dict[int, int] = defaultdict(int)
 
     for sm in accepted:
@@ -57,6 +60,7 @@ def _build_state(accepted: List[ScheduledMatch]) -> _OccupiedState:
         team_sequence[sm.away_team].append((sm.date, "A"))
         venue_slots[sm.venue].add(sm.slot_idx)
         week_load[sm.week_num] += 1
+        date_load[sm.date] += 1
         slot_usage[sm.slot_idx] += 1
 
     for tid in team_dates:
@@ -73,6 +77,7 @@ def _build_state(accepted: List[ScheduledMatch]) -> _OccupiedState:
         team_sequence=dict(team_sequence),
         venue_slots=dict(venue_slots),
         week_load=dict(week_load),
+        date_load=dict(date_load),
         slot_usage=dict(slot_usage),
         assigned_dates=assigned_dates,
     )
@@ -184,6 +189,8 @@ def _find_valid_slots(
             continue
         if d < match.date:
             continue
+        if state.date_load.get(d, 0) >= MAX_MATCHES_PER_DAY:
+            continue
 
         # R1: not FIFA — already filtered in usable_slots
 
@@ -253,6 +260,7 @@ def _update_state(
 
     state.venue_slots.setdefault(match.venue, set()).add(slot_idx)
     state.week_load[slot_week] = state.week_load.get(slot_week, 0) + 1
+    state.date_load[slot_date] = state.date_load.get(slot_date, 0) + 1
     state.slot_usage[slot_idx] = state.slot_usage.get(slot_idx, 0) + 1
 
 
@@ -420,12 +428,27 @@ def _write_repair_status(
     repaired: List[ScheduledMatch],
     unresolved: List[ScheduledMatch],
     elapsed: float,
+    skipped: bool = False,
 ) -> None:
     os.makedirs(PHASES_DIR, exist_ok=True)
     path = os.path.join(PHASES_DIR, "09_repair_solver_status.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
+            "skipped": skipped,
             "repaired_count": len(repaired),
             "unresolved_count": len(unresolved),
             "elapsed_s": round(elapsed, 2),
+        }, f, indent=2)
+
+
+def write_repair_skipped_status(reason: str) -> None:
+    os.makedirs(PHASES_DIR, exist_ok=True)
+    path = os.path.join(PHASES_DIR, "09_repair_solver_status.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({
+            "skipped": True,
+            "reason": reason,
+            "repaired_count": 0,
+            "unresolved_count": 0,
+            "elapsed_s": 0.0,
         }, f, indent=2)

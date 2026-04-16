@@ -18,6 +18,7 @@ from src.constants import (
     HARD_MIN_MATCHES_PER_WEEK,
     MAX_CONSECUTIVE_AWAY,
     MAX_CONSECUTIVE_HOME,
+    MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
     MIN_REST_DAYS_LOCAL,
     NUM_ROUNDS,
@@ -117,6 +118,7 @@ def solve_baseline(
             "Home_Stadium_ID": row["Home_Stadium_ID"],
             "Tier": int(row["Tier"]),
         }
+    tier1_teams = {tid for tid, meta in teams_dict.items() if int(meta.get("Tier", 0)) == 1}
 
     # Matches by team
     matches_by_team: Dict[str, List[int]] = defaultdict(list)
@@ -176,6 +178,18 @@ def solve_baseline(
     for m in matches:
         model.Add(sum(x[m.match_idx].values()) == 1)
 
+    # --- H_TIER1_DERBY: tier-1 vs tier-1 matches must use tier-1 slots ---
+    # This makes "1 vs 1 in tier-1 slot" non-negotiable (e.g., AHL vs ZAM).
+    for m in matches:
+        if m.home_team in tier1_teams and m.away_team in tier1_teams:
+            tier1_slot_vars = [var for si, var in x[m.match_idx].items() if slot_tiers[si] == 1]
+            if not tier1_slot_vars:
+                raise RuntimeError(
+                    f"No tier-1 slots available in domain for tier-1 derby: "
+                    f"{m.home_team} vs {m.away_team} (match_idx={m.match_idx})."
+                )
+            model.Add(sum(tier1_slot_vars) == 1)
+
     # --- H4: team plays at most once per date ---
     for team_id, m_idxs in matches_by_team.items():
         for d, s_indices in slots_by_date.items():
@@ -196,6 +210,16 @@ def solve_baseline(
                     vars_in_slot.append(x[mi][si])
             if len(vars_in_slot) > 1:
                 model.Add(sum(vars_in_slot) <= 1)
+
+    # --- H_DAILY_LOAD: at most MAX_MATCHES_PER_DAY league matches per date ---
+    for d, s_indices in slots_by_date.items():
+        all_vars_on_date = []
+        for m in matches:
+            for si in s_indices:
+                if si in x[m.match_idx]:
+                    all_vars_on_date.append(x[m.match_idx][si])
+        if len(all_vars_on_date) > MAX_MATCHES_PER_DAY:
+            model.Add(sum(all_vars_on_date) <= MAX_MATCHES_PER_DAY)
 
     # --- H_CONCURRENCY: at most MAX_MATCHES_PER_SLOT matches per time-slot ---
     for si in range(n_slots):

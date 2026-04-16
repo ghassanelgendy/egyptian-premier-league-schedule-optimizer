@@ -6,6 +6,7 @@ reusing the existing CLI-phase functions from `main.py` / `src/*`.
 
 from __future__ import annotations
 
+import base64
 import io
 import html
 import json
@@ -14,7 +15,7 @@ import sys
 import time
 import calendar
 from datetime import date as pydate
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
@@ -32,6 +33,7 @@ from src.constants import (
     MATCHES_PER_ROUND,
     MAX_CONSECUTIVE_AWAY,
     MAX_CONSECUTIVE_HOME,
+    MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
@@ -53,6 +55,39 @@ from src.constants import (
 
 
 APP_TITLE = "Egyptian Premier League Schedule Optimizer"
+ICON_PATH = Path("Nile_League.png")
+ICONS_DIR = Path("icons")
+
+TEAM_ICON_FILES = {
+    "AHL": "egypt_al-ahly_512x512.football-logos.cc.png",
+    "ZAM": "egypt_zamalek_512x512.football-logos.cc.png",
+    "PYR": "egypt_pyramids_512x512.football-logos.cc.png",
+    "MAS": "egypt_al-masry_512x512.football-logos.cc.png",
+    "MOD": "egypt_modern-sport_512x512.football-logos.cc.png",
+    "SMO": "egypt_smouha_700x700.football-logos.cc.png",
+    "ZED": "egypt_zed-fc_512x512.football-logos.cc.png",
+    "CER": "egypt_ceramica-cleopatra_700x700.football-logos.cc.png",
+    "ENP": "egypt_enppi_512x512.football-logos.cc.png",
+    "ITH": "egypt_al-ittihad-alexandria_512x512.football-logos.cc.png",
+    "TLG": "egypt_talaea-el-gaish_512x512.football-logos.cc.png",
+    "BNK": "egypt_national-bank_512x512.football-logos.cc.png",
+    "PHA": "egypt_pharco_512x512.football-logos.cc.png",
+    "GOU": "egypt_el-gouna_512x512.football-logos.cc.png",
+    "ISM": "egypt_ismaily_512x512.football-logos.cc.png",
+    "MAH": "egypt_ghazl-el-mahalla_512x512.football-logos.cc.png",
+    "PET": "egypt_petrojet_512x512.football-logos.cc.png",
+    "HAR": "egypt_haras-el-hodoud_700x700.football-logos.cc.png",
+}
+
+PALETTE = {
+    "primary": "#68239e",
+    "surface": "#f8f9f7",
+    "muted": "#8f67ad",
+    "ink": "#232126",
+    "border": "#d2cad9",
+    "accent": "#75409f",
+    "soft": "#ab97ba",
+}
 
 
 MODEL_CONTROL_GROUPS = [
@@ -160,6 +195,15 @@ MODEL_CONTROL_GROUPS = [
                 60,
                 1,
                 "Soft upper target for week load.",
+            ),
+            (
+                "MAX_MATCHES_PER_DAY",
+                "Max matches per day",
+                MAX_MATCHES_PER_DAY,
+                1,
+                12,
+                1,
+                "Hard cap on league matches assigned to one calendar date.",
             ),
             (
                 "MAX_MATCHES_PER_SLOT",
@@ -338,6 +382,240 @@ def _apply_runtime_model_config(config: Dict[str, int]) -> None:
                 setattr(module, key, value)
 
 
+def _page_icon() -> Optional[str]:
+    return str(ICON_PATH) if ICON_PATH.exists() else None
+
+
+def _team_icon_path(team_id: object) -> Optional[Path]:
+    fname = TEAM_ICON_FILES.get(str(team_id).strip().upper())
+    if not fname:
+        return None
+    path = ICONS_DIR / fname
+    return path if path.exists() else None
+
+
+@st.cache_data(show_spinner=False)
+def _team_icon_data_uri(team_id: str) -> str:
+    path = _team_icon_path(team_id)
+    if path is None:
+        return ""
+    data = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{data}"
+
+
+def _team_badge_html(team_id: object, *, size: int = 26) -> str:
+    raw_tid = str(team_id).strip().upper() or "TBD"
+    tid = html.escape(raw_tid)
+    src = _team_icon_data_uri(raw_tid)
+    if not src:
+        return f"<span class=\"team-fallback-mark\">{tid[:3]}</span><span>{tid}</span>"
+    return (
+        f"<img class=\"team-inline-logo\" src=\"{src}\" alt=\"{tid}\" "
+        f"style=\"width:{size}px;height:{size}px;\" />"
+        f"<span>{tid}</span>"
+    )
+
+
+def _render_team_logo(team_id: object, caption: str = "") -> None:
+    path = _team_icon_path(team_id)
+    if path is None:
+        st.caption(caption or str(team_id))
+        return
+    st.image(path.as_posix(), width=96)
+    if caption:
+        st.caption(caption)
+
+
+def _render_theme() -> None:
+    st.markdown(
+        f"""
+<style>
+:root {{
+  --nile-primary: {PALETTE["primary"]};
+  --nile-surface: {PALETTE["ink"]};
+  --nile-surface-raised: rgba(210, 202, 217, 0.08);
+  --nile-surface-strong: rgba(171, 151, 186, 0.16);
+  --nile-text: {PALETTE["surface"]};
+  --nile-muted: {PALETTE["muted"]};
+  --nile-ink: {PALETTE["ink"]};
+  --nile-border: {PALETTE["border"]};
+  --nile-accent: {PALETTE["accent"]};
+  --nile-soft: {PALETTE["soft"]};
+}}
+
+.stApp {{
+  background: var(--nile-surface);
+  color: var(--nile-text);
+}}
+
+[data-testid="stSidebar"] {{
+  background: linear-gradient(180deg, #2f2934 0%, var(--nile-ink) 72%);
+  border-right: 1px solid rgba(210, 202, 217, 0.24);
+}}
+
+[data-testid="stSidebar"] * {{
+  color: var(--nile-text);
+}}
+
+h1, h2, h3, h4, h5, h6 {{
+  color: var(--nile-text);
+  letter-spacing: 0;
+}}
+
+p, li, label, span, div {{
+  letter-spacing: 0;
+}}
+
+[data-testid="stCaptionContainer"], .stMarkdown small {{
+  color: var(--nile-soft);
+}}
+
+div[data-testid="stMetric"] {{
+  background: var(--nile-surface-raised);
+  border: 1px solid rgba(210, 202, 217, 0.22);
+  border-radius: 8px;
+  padding: 12px;
+}}
+
+div[data-testid="stMetric"] label,
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {{
+  color: var(--nile-text);
+}}
+
+.stButton > button,
+.stDownloadButton > button {{
+  background: var(--nile-primary);
+  border: 1px solid var(--nile-primary);
+  border-radius: 8px;
+  color: var(--nile-text);
+  font-weight: 700;
+}}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {{
+  background: var(--nile-accent);
+  border-color: var(--nile-accent);
+  color: var(--nile-text);
+}}
+
+.stButton > button:focus,
+.stDownloadButton > button:focus,
+button:focus-visible,
+input:focus,
+textarea:focus {{
+  border-color: var(--nile-primary) !important;
+  box-shadow: 0 0 0 0.12rem rgba(104, 35, 158, 0.22) !important;
+}}
+
+[data-baseweb="tab-list"] {{
+  gap: 6px;
+  border-bottom: 1px solid rgba(210, 202, 217, 0.20);
+}}
+
+[data-baseweb="tab"] {{
+  background: transparent !important;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--nile-soft);
+  padding-bottom: 10px;
+}}
+
+[aria-selected="true"][data-baseweb="tab"] {{
+  background: transparent !important;
+  border-bottom-color: var(--nile-soft);
+  color: var(--nile-text);
+}}
+
+[data-baseweb="tab-highlight"] {{
+  background-color: var(--nile-soft);
+  height: 2px;
+}}
+
+div[data-testid="stDataFrame"] {{
+  border: 1px solid rgba(210, 202, 217, 0.24);
+  border-radius: 8px;
+  overflow: hidden;
+}}
+
+[data-testid="stExpander"],
+[data-testid="stStatus"],
+[data-testid="stAlert"] {{
+  background: var(--nile-surface-raised);
+  border-color: rgba(210, 202, 217, 0.24);
+  color: var(--nile-text);
+}}
+
+[data-testid="stNotification"],
+[data-testid="stToast"] {{
+  background: #2f2934;
+  color: var(--nile-text);
+  border: 1px solid rgba(210, 202, 217, 0.24);
+}}
+
+code {{
+  background: rgba(210, 202, 217, 0.14);
+  color: var(--nile-text);
+  border-radius: 6px;
+}}
+
+.team-inline-logo {{
+  display: inline-block;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 7px;
+}}
+
+.team-fallback-mark {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(210, 202, 217, 0.18);
+  color: var(--nile-text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  margin-right: 7px;
+  vertical-align: middle;
+}}
+
+hr {{
+  border-color: rgba(210, 202, 217, 0.20);
+}}
+
+input, textarea, [data-baseweb="select"] > div, [data-baseweb="input"] > div {{
+  background-color: #2f2934 !important;
+  color: var(--nile-text) !important;
+  border-color: rgba(210, 202, 217, 0.28) !important;
+}}
+
+[data-baseweb="popover"], [data-baseweb="menu"] {{
+  background-color: #2f2934 !important;
+  color: var(--nile-text) !important;
+}}
+
+.nile-title {{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}}
+
+.nile-title-mark {{
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: {PALETTE["surface"]};
+  border: 1px solid rgba(210, 202, 217, 0.24);
+}}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 @st.cache_resource(show_spinner=False)
 def _load_inputs_cached():
     """Load authoritative inputs once per app session.
@@ -389,10 +667,10 @@ def _run_phase(
 ) -> Any:
     status.update(label=name, state="running")
     start = time.time()
-    with redirect_stdout(log_buffer):
+    with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
         result = fn()
     elapsed = time.time() - start
-    log_box.text(log_buffer.getvalue())
+    log_box.code(log_buffer.getvalue(), language="text")
     status.update(label=f"{name} (done in {elapsed:.1f}s)", state="complete")
     return result
 
@@ -579,8 +857,8 @@ def _build_caf_context(data: Any) -> Tuple[set, Dict[pydate, List[str]]]:
 
 
 def _match_label(row: pd.Series) -> str:
-    home = html.escape(str(row.get("Home_Team_ID", "") or "TBD"))
-    away = html.escape(str(row.get("Away_Team_ID", "") or "TBD"))
+    home = str(row.get("Home_Team_ID", "") or "TBD")
+    away = str(row.get("Away_Team_ID", "") or "TBD")
     round_num = row.get("Round", "")
     time_label = ""
     raw_time = row.get("Date_time", "")
@@ -590,7 +868,14 @@ def _match_label(row: pd.Series) -> str:
 
     prefix = f"R{html.escape(str(round_num))} " if str(round_num).strip() else ""
     time_html = f"<span>{html.escape(time_label)}</span>" if time_label else ""
-    return f"<div class=\"calendar-match\">{prefix}{home} vs {away}{time_html}</div>"
+    teams_html = (
+        "<div class=\"calendar-match-line\">"
+        f"{_team_badge_html(home, size=20)}"
+        "<span class=\"calendar-vs\">vs</span>"
+        f"{_team_badge_html(away, size=20)}"
+        "</div>"
+    )
+    return f"<div class=\"calendar-match\">{prefix}{teams_html}{time_html}</div>"
 
 
 def _empty_day_reason(
@@ -655,7 +940,7 @@ def _render_month_grid(
   width: 100%;
 }
 .calendar-weekday {
-  color: #475569;
+  color: #ab97ba;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -663,27 +948,27 @@ def _render_month_grid(
 }
 .calendar-day {
   min-height: 150px;
-  border: 1px solid #d8dee8;
+  border: 1px solid rgba(210, 202, 217, 0.24);
   border-radius: 8px;
-  background: #ffffff;
+  background: #2f2934;
   padding: 10px;
   overflow: hidden;
 }
 .calendar-day.outside {
-  background: #f3f4f6;
-  color: #94a3b8;
+  background: rgba(210, 202, 217, 0.07);
+  color: #8f67ad;
 }
 .calendar-day.matchday {
-  border-color: #0f766e;
-  background: #f6fffb;
+  border-color: #8f67ad;
+  background: rgba(104, 35, 158, 0.24);
 }
 .calendar-day.blocked {
-  border-color: #dc2626;
-  background: #fff7f7;
+  border-color: #75409f;
+  background: rgba(117, 64, 159, 0.18);
 }
 .calendar-day.fifa {
-  border-color: #2563eb;
-  background: #f8fbff;
+  border-color: #8f67ad;
+  background: rgba(210, 202, 217, 0.12);
 }
 .calendar-day-header {
   display: flex;
@@ -694,7 +979,7 @@ def _render_month_grid(
 }
 .calendar-day-number {
   font-weight: 800;
-  color: #0f172a;
+  color: #f8f9f7;
 }
 .calendar-badges {
   display: flex;
@@ -704,19 +989,19 @@ def _render_month_grid(
 }
 .calendar-badge {
   border-radius: 6px;
-  background: #e2e8f0;
-  color: #334155;
+  background: rgba(210, 202, 217, 0.18);
+  color: #f8f9f7;
   font-size: 0.68rem;
   font-weight: 700;
   line-height: 1;
   padding: 4px 5px;
 }
-.calendar-badge.caf { background: #fee2e2; color: #991b1b; }
-.calendar-badge.fifa { background: #dbeafe; color: #1e40af; }
+.calendar-badge.caf { background: #68239e; color: #f8f9f7; }
+.calendar-badge.fifa { background: #8f67ad; color: #f8f9f7; }
 .calendar-match {
-  border-left: 3px solid #0f766e;
-  background: #ecfdf5;
-  color: #0f172a;
+  border-left: 3px solid #68239e;
+  background: rgba(248, 249, 247, 0.10);
+  color: #f8f9f7;
   border-radius: 6px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -724,15 +1009,28 @@ def _render_month_grid(
   margin-top: 6px;
   padding: 6px 7px;
 }
+.calendar-match-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.calendar-vs {
+  color: #d2cad9;
+  font-weight: 700;
+}
+.calendar-match .team-inline-logo {
+  margin-right: 2px;
+}
 .calendar-match span {
   display: block;
-  color: #475569;
+  color: #d2cad9;
   font-size: 0.72rem;
   font-weight: 600;
   margin-top: 2px;
 }
 .calendar-empty {
-  color: #64748b;
+  color: #ab97ba;
   font-size: 0.78rem;
   line-height: 1.25;
 }
@@ -893,12 +1191,16 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
         sorted_stats = sorted_stats.head(int(top_n.split()[-1]))
 
     chart_data = sorted_stats.set_index("Team")["Total_km"]
-    st.bar_chart(chart_data, use_container_width=True, height=420)
+    st.bar_chart(chart_data, use_container_width=True, height=420, color=PALETTE["primary"])
+
+    display_stats = stats.copy()
+    display_stats["Icon"] = display_stats["Team_ID"].apply(lambda tid: _team_icon_data_uri(str(tid)))
 
     st.dataframe(
-        stats[
+        display_stats[
             [
                 "Team_ID",
+                "Icon",
                 "Team",
                 "Total_km",
                 "Away_trips",
@@ -909,6 +1211,9 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
         use_container_width=True,
         hide_index=True,
         height=520,
+        column_config={
+            "Icon": st.column_config.ImageColumn("Club", width="small"),
+        },
     )
 
     csv_bytes = stats.to_csv(index=False).encode("utf-8")
@@ -975,8 +1280,8 @@ def _render_explore() -> None:
             )
 
     st.divider()
-    round_tab, team_tab, h2h_tab, travel_tab, cal_tab = st.tabs(
-        ["Round filter", "Team chooser", "Team vs Team", "Travel stats", "Calendar"]
+    team_tab, h2h_tab, travel_tab, cal_tab, round_tab = st.tabs(
+        ["Team chooser", "Team vs Team", "Travel stats", "Calendar", "Round filter"]
     )
 
     with round_tab:
@@ -1021,6 +1326,7 @@ def _render_explore() -> None:
             default_label = options[0] if options else None
             chosen_label = st.selectbox("Pick a team", options=options, index=0 if default_label else None)
             chosen_team = label_to_id.get(chosen_label, "")
+            chosen_caption = chosen_label or str(chosen_team)
         else:
             # Fallback to IDs seen in schedule only
             ids = sorted(
@@ -1028,6 +1334,11 @@ def _render_explore() -> None:
                 | set(df.get("Away_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
             )
             chosen_team = st.selectbox("Pick a team (ID)", options=ids, index=0 if ids else None)
+            chosen_caption = str(chosen_team or "")
+
+        logo_col, filter_col = st.columns([0.18, 0.82], vertical_alignment="center")
+        with logo_col:
+            _render_team_logo(chosen_team, chosen_caption)
 
         c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
@@ -1097,6 +1408,12 @@ def _render_explore() -> None:
                 team_a = st.selectbox("Team A (ID)", options=ids, index=0 if ids else None, key="h2h_team_a_fallback")
             with col2:
                 team_b = st.selectbox("Team B (ID)", options=ids, index=1 if len(ids) > 1 else 0, key="h2h_team_b_fallback")
+
+        badge_a, badge_b = st.columns(2)
+        with badge_a:
+            _render_team_logo(team_a, f"Team A: {team_a}")
+        with badge_b:
+            _render_team_logo(team_b, f"Team B: {team_b}")
 
         if not team_a or not team_b:
             st.info("Pick two teams to view head-to-head matches.")
@@ -1322,7 +1639,7 @@ def _render_explore() -> None:
             dist_df = pd.DataFrame(
                 [{"Weekday": k, "Matches": v} for k, v in weekday_dist.items()]
             ).sort_values("Matches", ascending=False)
-            st.bar_chart(dist_df.set_index("Weekday")["Matches"])
+            st.bar_chart(dist_df.set_index("Weekday")["Matches"], color=PALETTE["primary"])
 
         # Optional detailed day-status table (good for "why empty" debugging)
         with st.expander("Daily status table"):
@@ -1347,14 +1664,29 @@ def _render_explore() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title=APP_TITLE, layout="wide")
-    st.title(APP_TITLE)
+    page_config: Dict[str, Any] = {"page_title": APP_TITLE, "layout": "wide"}
+    icon = _page_icon()
+    if icon:
+        page_config["page_icon"] = icon
+    st.set_page_config(**page_config)
+    _render_theme()
+
+    if ICON_PATH.exists():
+        title_mark, title_copy = st.columns([0.08, 0.92], vertical_alignment="center")
+        with title_mark:
+            st.image(ICON_PATH.as_posix(), width=58)
+        with title_copy:
+            st.title(APP_TITLE)
+    else:
+        st.title(APP_TITLE)
     st.caption(
         "Runs the full pipeline (load → fixtures → baseline → CAF audit → repair) "
         "and renders all PRD-required outputs and phase artifacts."
     )
 
     with st.sidebar:
+        if ICON_PATH.exists():
+            st.image(ICON_PATH.as_posix(), width=96)
         st.header("Run configuration")
         seed = st.number_input("DRR seed", min_value=0, max_value=2_000_000_000, value=DEFAULT_SEED, step=1)
         st.text_input("Data model path", value=DATA_MODEL_PATH, disabled=True)
@@ -1367,18 +1699,13 @@ def main() -> None:
         st.divider()
         st.markdown("**Tip**: If you only want to browse outputs, don’t run — just use the tabs.")
 
-    tab_run, tab_explore, tab_artifacts, tab_browse = st.tabs(
-        ["Run & progress", "Explore", "Artifacts", "Browse files"]
+    tab_explore, tab_run, tab_artifacts, tab_browse = st.tabs(
+        ["Explore", "Run & progress", "Artifacts", "Browse files"]
     )
 
     with tab_run:
         st.subheader("Progress")
         log_buffer = io.StringIO()
-        log_box = st.empty()
-
-        # Always show current logs from session_state if present.
-        if "stdout_log" in st.session_state and st.session_state["stdout_log"]:
-            log_box.text(st.session_state["stdout_log"])
 
         col_a, col_b = st.columns([1, 1])
         with col_a:
@@ -1389,12 +1716,17 @@ def main() -> None:
             status_domain = st.status("Phase 3a: Build domains (waiting)", state="complete")
             status_baseline = st.status("Phase 3b: Solve baseline (waiting)", state="complete")
             status_audit = st.status("Phase 4: CAF audit (waiting)", state="complete")
-            status_repair = st.status("Phase 5: CAF repair (waiting)", state="complete")
             status_write = st.status("Phase 6: Write outputs (waiting)", state="complete")
 
         with col_b:
             st.markdown("**Live stdout**")
-            st.caption("This mirrors the CLI prints so you can see each phase evolve.")
+            st.caption(
+                "Mirrors stdout and stderr from the pipeline (same as the CLI). "
+                "Phases 1–3a are mostly quiet until the baseline solver emits progress."
+            )
+            log_box = st.empty()
+            if "stdout_log" in st.session_state and st.session_state["stdout_log"]:
+                log_box.code(st.session_state["stdout_log"], language="text")
 
         if run_clicked:
             _apply_runtime_model_config(model_config)
@@ -1404,7 +1736,7 @@ def main() -> None:
             from src.slot_domain import build_domains
             from src.baseline_solver import solve_baseline
             from src.caf_audit import caf_audit
-            from src.caf_repair_solver import caf_repair
+            from src.caf_repair_solver import caf_repair, write_repair_skipped_status
             from src.output_writer import (
                 write_final_schedule,
                 write_postponement_queue,
@@ -1471,14 +1803,21 @@ def main() -> None:
                 )
                 st.session_state["stdout_log"] = log_buffer.getvalue()
 
-                repaired, unresolved = _run_phase(
-                    "Phase 5: CAF repair",
-                    lambda: caf_repair(accepted, violations, data),
-                    status_repair,
-                    log_box,
-                    log_buffer,
-                )
-                st.session_state["stdout_log"] = log_buffer.getvalue()
+                if violations:
+                    status_repair = st.status("Phase 5: CAF repair (waiting)", state="complete")
+                    repaired, unresolved = _run_phase(
+                        "Phase 5: CAF repair",
+                        lambda: caf_repair(accepted, violations, data),
+                        status_repair,
+                        log_box,
+                        log_buffer,
+                    )
+                    st.session_state["stdout_log"] = log_buffer.getvalue()
+                else:
+                    repaired = []
+                    unresolved = []
+                    write_repair_skipped_status("No CAF violations found by audit.")
+                    st.info("Phase 5 skipped: CAF audit found no violations to repair.")
 
                 def _write_all() -> None:
                     write_final_schedule(accepted, repaired, violations)
