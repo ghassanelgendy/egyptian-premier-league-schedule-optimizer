@@ -160,6 +160,7 @@ The Streamlit sidebar must expose all current model variables that can be change
 | `SOFT_MAX_MATCHES_PER_WEEK` | 12 | Soft upper target for weekly load balance. |
 | `MAX_MATCHES_PER_DAY` | 3 | Hard cap on league matches scheduled on one calendar date. |
 | `MAX_MATCHES_PER_SLOT` | 2 | Hard cap on league matches assigned to the same kickoff slot in baseline. Repair uses only empty slots. |
+| `MIN_STADIUM_SERVICE_GAP_DAYS` | 0 | If positive, non-forced uses of the same stadium must be at least this many full calendar days apart. Zero preserves the legacy fixed-venue behavior. |
 
 ### 4.4 Objective Weights
 
@@ -249,6 +250,7 @@ The baseline solver assigns generated fixtures to concrete calendar slots using 
 | H9 | Non-postponed baseline rounds must be strictly chronological: Round `R+1` cannot start before Round `R` has finished. |
 | H10 | Forced venue rules from `Sec_Matrix` must be respected by fixture generation. |
 | H11 | CAF teams must avoid known CAF dates and the hard CAF buffer when feasible inside the round window. |
+| H12 | If `MIN_STADIUM_SERVICE_GAP_DAYS > 0`, non-forced matches may use the home club's distinct `Alt_Stadium_ID` as relief, and non-forced uses of the same stadium must respect the configured maintenance gap. Forced venues remain exempt from that gap. |
 
 If CAF-safe slots do not exist inside a strict round window for a match, the domain builder may relax the CAF filter for that match so the baseline remains complete. Such matches must then be caught by CAF audit and moved to the postponement queue.
 
@@ -260,7 +262,8 @@ The baseline objective minimizes:
 - weekly underload below `SOFT_MIN_MATCHES_PER_WEEK`,
 - weekly overload above `SOFT_MAX_MATCHES_PER_WEEK`,
 - travel distance weighted by `W_TRAVEL`,
-- match-tier versus slot-tier mismatch weighted by `W_TIER_MISMATCH`.
+- match-tier versus slot-tier mismatch weighted by `W_TIER_MISMATCH`,
+- and, when stadium maintenance is enabled, a very strong preference to keep non-forced matches at the primary home stadium unless the maintenance rule requires relief through the alternate stadium.
 
 Hard feasibility always outranks soft preferences.
 
@@ -327,6 +330,7 @@ Repair is stricter than baseline slot capacity. A repair slot must be empty even
 | R7 | Inserting the match does not create a home/away streak violation. |
 | R8 | CAF teams satisfy the hard CAF buffer in both directions. |
 | R9 | Calendar week load is below `HARD_MAX_MATCHES_PER_WEEK`. |
+| R10 | If `MIN_STADIUM_SERVICE_GAP_DAYS > 0`, non-forced repair candidates must respect the same stadium maintenance window. Repair may switch a non-forced match to the alternate stadium; forced venues remain exempt. |
 
 Repair strategy:
 
@@ -363,6 +367,7 @@ Final validation must check:
 - no FIFA-date matches,
 - daily match cap (`MAX_MATCHES_PER_DAY`),
 - venue-slot conflicts,
+- non-forced stadium maintenance gaps when enabled,
 - non-postponed global round order,
 - CAF buffers,
 - per-team rest gaps,

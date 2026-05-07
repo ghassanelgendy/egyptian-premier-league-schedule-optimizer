@@ -14,6 +14,7 @@ from src.constants import (
     MAX_MATCHES_PER_DAY,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
+    MIN_STADIUM_SERVICE_GAP_DAYS,
     NUM_ROUNDS,
     NUM_TEAMS,
     PHASES_DIR,
@@ -44,6 +45,7 @@ def write_validation_reports(
     _validate_fifa(all_matches, data, issues)
     _validate_daily_load(all_matches, issues)
     _validate_venue_slots(all_matches, issues)
+    _validate_stadium_service_gap(all_matches, issues)
     _validate_global_round_order(accepted, issues)
     _validate_caf_buffers(all_matches, data, issues)
 
@@ -284,6 +286,42 @@ def _validate_daily_load(
                     f"maximum allowed is {MAX_MATCHES_PER_DAY}"
                 ),
             )
+
+
+def _validate_stadium_service_gap(
+    matches: List[ScheduledMatch],
+    issues: List[Dict[str, object]],
+) -> None:
+    if MIN_STADIUM_SERVICE_GAP_DAYS <= 0:
+        return
+
+    non_forced = [sm for sm in matches if not sm.is_forced_venue]
+    by_venue: Dict[str, List[ScheduledMatch]] = defaultdict(list)
+    for sm in non_forced:
+        by_venue[sm.venue].append(sm)
+
+    required_gap = MIN_STADIUM_SERVICE_GAP_DAYS + 1
+    for venue, group in by_venue.items():
+        group.sort(key=lambda sm: (sm.date, str(sm.date_time), sm.match_idx))
+        for idx in range(1, len(group)):
+            prev = group[idx - 1]
+            curr = group[idx]
+            gap = (curr.date - prev.date).days
+            if gap < required_gap:
+                _add_issue(
+                    issues,
+                    "ERROR",
+                    "STADIUM_SERVICE_GAP",
+                    "",
+                    curr.round_num,
+                    curr.date,
+                    (
+                        f"{venue} hosts non-forced matches only {gap} days apart "
+                        f"({prev.home_team} vs {prev.away_team} on {prev.date}, "
+                        f"{curr.home_team} vs {curr.away_team} on {curr.date}); "
+                        f"need at least {required_gap} calendar days apart"
+                    ),
+                )
 
 
 def _validate_global_round_order(

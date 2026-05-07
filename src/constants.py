@@ -33,6 +33,7 @@ SOFT_MAX_MATCHES_PER_WEEK = 12
 # ---------------------------------------------------------------------------
 MAX_MATCHES_PER_DAY = 3   # at most 3 league matches on one calendar date
 MAX_MATCHES_PER_SLOT = 2  # at most 2 matches at the same kickoff time
+MIN_STADIUM_SERVICE_GAP_DAYS = 0  # 0 keeps legacy fixed-venue behavior
 
 # ---------------------------------------------------------------------------
 # Soft-objective weights  (higher = more important)
