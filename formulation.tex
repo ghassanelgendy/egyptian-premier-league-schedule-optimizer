@@ -1,0 +1,656 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{enumitem}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{mdframed}
+\usepackage{hyperref}
+\usepackage{titlesec}
+
+% ── Colour definitions ──────────────────────────────────────────────────────
+\definecolor{darkblue}{RGB}{31,56,100}
+\definecolor{midblue}{RGB}{46,90,156}
+\definecolor{accentred}{RGB}{192,0,0}
+\definecolor{lightblue}{RGB}{214,228,247}
+\definecolor{verylightblue}{RGB}{238,244,251}
+\definecolor{noteyellow}{RGB}{255,250,230}
+\definecolor{noteborder}{RGB}{200,160,0}
+
+% ── Annotation environments ─────────────────────────────────────────────────
+\newmdenv[
+  backgroundcolor=verylightblue,
+  linecolor=midblue,
+  linewidth=2pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=8pt, skipbelow=8pt
+]{addedbox}
+
+\newmdenv[
+  backgroundcolor=red!5,
+  linecolor=accentred,
+  linewidth=2pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=8pt, skipbelow=8pt
+]{correctionbox}
+
+\newcommand{\added}[1]{%
+  \begin{addedbox}
+    \textbf{\textcolor{midblue}{ADDED\,:}}\ #1
+  \end{addedbox}}
+
+\newcommand{\corrected}[1]{%
+  \begin{correctionbox}
+    \textbf{\textcolor{accentred}{CORRECTION\,:}}\ #1
+  \end{correctionbox}}
+
+% ── Section title styling ───────────────────────────────────────────────────
+\titleformat{\section}
+  {\large\bfseries\color{darkblue}}
+  {\thesection}{1em}{}[\color{midblue}\titlerule]
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{midblue}}
+  {\thesubsection}{1em}{}
+
+% ── Misc helpers ────────────────────────────────────────────────────────────
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\title{%
+  \textbf{\textcolor{darkblue}{Optimal Match Scheduling}}\\[4pt]
+  \textbf{\textcolor{midblue}{for a Multi-Tier Football League}}\\[8pt]
+  \large\textit{Mathematical Optimization Model --- Corrected \& Extended Formulation}\\[4pt]
+  \normalsize Egyptian Premier League Schedule Optimizer
+}
+\author{}
+\date{}
+
+% ────────────────────────────────────────────────────────────────────────────
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ────────────────────────────────────────────────────────────────────────────
+\section*{Preamble \& Corrections to Original Formulation}
+\addcontentsline{toc}{section}{Preamble \& Corrections}
+
+The original draft was structurally sound but contained one scope error and
+several omissions. All issues are flagged with coloured side-bars.
+Material not in the original is marked
+\textbf{\textcolor{midblue}{ADDED}};
+corrected statements are marked
+\textbf{\textcolor{accentred}{CORRECTION}}.
+
+\medskip
+\noindent\textbf{Issues found:}
+\begin{enumerate}[leftmargin=*, label=\arabic*.]
+  \item \textbf{H2 scope error.} The constraint was attached to
+        $\text{tier\_match}(m)=1$, which includes Tier-1 vs Tier-2 matches.
+        In the code the prime-time slot requirement fires only when
+        \emph{both} teams are individually in~$T_1$.
+  \item \textbf{Missing: feasible domain definition.} The set of valid
+        (match, slot) pairs was never formally stated.
+  \item \textbf{Missing: $\text{load}_w$ definition.} Used in the
+        objective without being declared as a variable.
+  \item \textbf{Missing: CAF buffer constraint (H12).}
+        A hard 4-day exclusion zone around CAF match dates for participating
+        teams is a core hard rule.
+  \item \textbf{Missing: home/away streak constraint (H13).}
+        The maximum-2 consecutive streak rule is enforced by construction in
+        the fixture pre-solve.
+  \item \textbf{Minor: H8 domain.} The sum in the
+        $\text{match\_time}$ definition should be over
+        $\text{feasible\_domain}(m)$, not all~$S$.
+  \item \textbf{Missing: CAF repair model (Section~8).}
+        The post-baseline audit and greedy repair phase had no formulation.
+\end{enumerate}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Sets}
+
+\begin{align*}
+M          &: \text{set of all matches}, \quad |M| = 306 \\
+S          &: \text{set of all usable (non-FIFA) calendar slots},
+             \quad |S| \approx 824 \\
+T          &: \text{set of all teams}, \quad |T| = 18 \\
+V          &: \text{set of all stadiums}, \quad |V| = 22 \\
+R          &: \text{set of round numbers } \{1, 2, \dots, 34\} \\
+C \subseteq T  &: \text{set of CAF-participating teams
+             (Cont\_Flag} \in \{\text{CL, CC}\}) \\
+\end{align*}
+
+\added{%
+  The following sets are added to make constraint index domains unambiguous.
+  \begin{align*}
+    T_1 \subseteq T &: \text{set of Tier-1 teams (league tier} = 1) \\
+    W               &: \text{set of all calendar week numbers in the season} \\
+    D               &: \text{set of all calendar dates in the season}
+  \end{align*}
+}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Parameters}
+
+\subsection{Match Parameters}
+
+\begin{align*}
+\text{team}(m)       &: \text{set containing the home and away team for match }
+                         m \in M \\
+\text{venue}(m)      &: \text{assigned stadium for match } m
+                         \text{ (may be forced by security rule)} \\
+\text{tier\_match}(m)&: \text{quality tier } \in \{1,2,3\}
+                         \text{ of match } m \\
+\text{round}(m)      &: \text{abstract round number of match } m \in R \\
+\text{travel\_km}(m) &: \text{travel distance in km for match } m
+\end{align*}
+
+\added{%
+  The following parameters are added for precision.
+  \begin{align*}
+    \text{home}(m)    &: \text{home team of match } m \\
+    \text{away}(m)    &: \text{away team of match } m \\
+    \text{is\_derby}(m) &:
+      \begin{cases} 1 & \text{if } \text{home}(m) \in T_1
+                         \text{ and } \text{away}(m) \in T_1 \\
+                    0 & \text{otherwise} \end{cases}
+  \end{align*}
+  $\text{is\_derby}(m)$ is required to state constraint H2 correctly.
+}
+
+\subsection{Slot Parameters}
+
+\begin{align*}
+\text{date}(s)       &: \text{calendar date of slot } s \in S \\
+\text{week}(s)       &: \text{calendar week number of slot } s \in S \\
+\text{tier\_slot}(s) &: \text{quality tier } \in \{1,2,3\}
+                         \text{ of slot } s \\
+\text{time\_index}(s)&: \text{non-negative integer encoding the chronological
+                         position of slot } s
+\end{align*}
+
+\subsection{Round Parameters}
+
+\begin{align*}
+\text{nominal\_week}(r) &: \text{ideal calendar week for round }
+  r \in R \text{, computed by linear interpolation across the season}
+\end{align*}
+
+\subsection{CAF Parameters}
+
+\added{%
+  \begin{align*}
+    \text{caf\_dates}(t) &: \text{sorted list of CAF match dates for team }
+                             t \in C \\
+    \text{CAF\_BUFFER}   &= \text{MIN\_REST\_DAYS\_CAF} + 1 = 4
+      \quad\text{(minimum calendar days apart from any CAF date)}
+  \end{align*}
+}
+
+\subsection{Capacity Constants}
+
+\begin{align*}
+\text{MAX\_DAY}       &= 3  & &\text{max league matches on one calendar date}\\
+\text{MAX\_SLOT}      &= 2  & &\text{max simultaneous matches (same kickoff)}\\
+\text{HARD\_MAX\_WEEK}&= 18 & &\text{hard upper bound on matches per week}\\
+\text{SOFT\_MIN\_WEEK}&= 6  & &\text{soft lower target for matches per week}\\
+\text{SOFT\_MAX\_WEEK}&= 12 & &\text{soft upper target for matches per week}\\
+\text{REST\_LOCAL}    &= 4  & &\text{min calendar days between league matches}\\
+\text{MAX\_STREAK}    &= 2  & &\text{max consecutive home (or away) matches}
+\end{align*}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Feasible Domain}
+
+\added{%
+  This section was entirely absent from the original. The feasible domain
+  determines which (match, slot) pairs are candidates for variable creation.
+  Defining it explicitly is essential for a complete formulation.
+}
+
+\medskip
+Let $\text{feasible\_domain}(m) \subseteq S$ be the set of slots that match
+$m$ is \emph{a priori} permitted to use. A slot $s$ belongs to
+$\text{feasible\_domain}(m)$ if and only if all of the following hold:
+
+\begin{align}
+&(\text{FD-1}) \quad \text{date}(s) \notin \text{FIFA\_DATES} \tag{FD-1}\\
+&(\text{FD-2}) \quad \text{date}(s) \text{ has valid date, week, and
+  kickoff metadata} \tag{FD-2}\\
+&(\text{FD-3}) \quad \forall\, t \in \text{team}(m) \cap C,\;
+  \forall\, d \in \text{caf\_dates}(t) : \notag\\
+&\phantom{(\text{FD-3}) \quad}
+  \bigl|\text{date}(s) - d\bigr| \geq \text{CAF\_BUFFER} \tag{FD-3}
+\end{align}
+
+\noindent
+If FD-3 would reduce $\text{feasible\_domain}(m)$ to $\varnothing$, the
+domain is relaxed to all non-FIFA slots and the CAF audit phase
+(Section~\ref{sec:repair}) will detect and repair the violation.
+
+Constraints H3--H11 (rest gaps, venue conflicts, load caps) are enforced
+\emph{inside} the CP-SAT model and are \emph{not} applied at
+domain-construction time.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Decision Variables}
+
+\subsection{Primary Assignment}
+
+\begin{equation}
+  x_{m,s} \in \{0, 1\},
+  \qquad \forall\, m \in M,\; s \in \text{feasible\_domain}(m)
+\end{equation}
+
+$x_{m,s} = 1$ if and only if match $m$ is assigned to calendar slot $s$.
+
+\subsection{Auxiliary Time Variables}
+
+\begin{align*}
+  \text{match\_time}_m  &\in \mathbb{Z}^+, \quad \forall\, m \in M \\
+  \text{round\_min}_r   &\in \mathbb{Z}^+, \quad \forall\, r \in R \\
+  \text{round\_max}_r   &\in \mathbb{Z}^+, \quad \forall\, r \in R
+\end{align*}
+
+\subsection{Weekly Load Variables}
+
+\added{%
+  $\text{load}_w$ was referenced in the original objective section without
+  being formally declared.
+  \begin{align*}
+    \text{load}_w      &\in \mathbb{Z}^+,
+      \quad \forall\, w \in W
+      \quad \text{(total matches assigned to week } w\text{)} \\
+    \text{under\_load}_w &\in \mathbb{Z}^+,
+      \quad \forall\, w \in W
+      \quad \text{(matches below soft minimum)} \\
+    \text{over\_load}_w  &\in \mathbb{Z}^+,
+      \quad \forall\, w \in W
+      \quad \text{(matches above soft maximum)}
+  \end{align*}
+}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Hard Constraints}
+
+\subsection{H1 --- Assignment Uniqueness}
+\begin{equation}\tag{H1}
+  \sum_{s \,\in\, \text{feasible\_domain}(m)} x_{m,s} = 1,
+  \qquad \forall\, m \in M
+\end{equation}
+Every match is assigned to exactly one slot.
+
+% ── H2 ──────────────────────────────────────────────────────────────────────
+\subsection{H2 --- Tier-1 Derby Slot Requirement}
+
+\corrected{%
+  The original condition was $\text{tier\_match}(m) = 1$. This is too broad:
+  $\text{tier\_match}(m) = 1$ also applies to Tier-1 vs Tier-2 matches,
+  but the code enforces the prime-time requirement only when
+  \emph{both} teams are individually in $T_1$.
+  The correct scope is $\text{is\_derby}(m) = 1$.
+}
+
+\begin{equation}\tag{H2}
+  \sum_{\substack{s \,\in\, \text{feasible\_domain}(m) \\
+                  \text{tier\_slot}(s) = 1}}
+  x_{m,s} = 1,
+  \qquad \forall\, m \in M : \text{is\_derby}(m) = 1
+\end{equation}
+A match between two Tier-1 teams must be assigned to a Tier-1 (prime-time)
+slot.
+
+\subsection{H3 --- Team Date Uniqueness}
+\begin{equation}\tag{H3}
+  \sum_{\substack{m \,\in\, M \\ t \,\in\, \text{team}(m)}}
+  \sum_{\substack{s \,\in\, \text{feasible\_domain}(m) \\
+                  \text{date}(s) = d}}
+  x_{m,s} \leq 1,
+  \qquad \forall\, t \in T,\; \forall\, d \in D
+\end{equation}
+Each team plays at most one league match per calendar date.
+
+\subsection{H4 --- Venue Slot Uniqueness}
+\begin{equation}\tag{H4}
+  \sum_{\substack{m \,\in\, M \\ \text{venue}(m) = v}}
+  x_{m,s} \leq 1,
+  \qquad \forall\, v \in V,\; \forall\, s \in S
+\end{equation}
+Each venue hosts at most one match per kickoff slot.
+
+\subsection{H5 --- Daily Match Cap}
+\begin{equation}\tag{H5}
+  \sum_{m \in M}
+  \sum_{\substack{s \,\in\, \text{feasible\_domain}(m) \\
+                  \text{date}(s) = d}}
+  x_{m,s} \leq \text{MAX\_DAY},
+  \qquad \forall\, d \in D
+\end{equation}
+At most $\text{MAX\_DAY} = 3$ league matches may be scheduled on any
+one calendar date.
+
+\subsection{H6 --- Slot Concurrency Cap}
+\begin{equation}\tag{H6}
+  \sum_{m \in M} x_{m,s} \leq \text{MAX\_SLOT},
+  \qquad \forall\, s \in S
+\end{equation}
+At most $\text{MAX\_SLOT} = 2$ matches may share the same exact kickoff slot.
+
+\subsection{H7 --- Team Rest (Sliding 4-Day Window)}
+\begin{equation}\tag{H7}
+  \sum_{\substack{m \,\in\, M \\ t \,\in\, \text{team}(m)}}
+  \sum_{\substack{s \,\in\, \text{feasible\_domain}(m) \\
+                  \text{date}(s) \,\in\, [d,\, d + \text{REST\_LOCAL} - 1]}}
+  x_{m,s} \leq 1,
+  \qquad \forall\, t \in T,\; \forall\, d \in D
+\end{equation}
+Each team may play at most one league match in any sliding 4-day window
+$[d,\, d+3]$, which guarantees a minimum of 3 full rest days between
+consecutive matches.
+
+\subsection{H8 --- Match Time Definition}
+
+\corrected{%
+  The original sum was written over all $s \in S$. Variables exist only for
+  $s \in \text{feasible\_domain}(m)$, so the sum must be restricted
+  accordingly.
+}
+
+\begin{equation}\tag{H8}
+  \text{match\_time}_m
+  = \sum_{s \,\in\, \text{feasible\_domain}(m)}
+    \text{time\_index}(s)\cdot x_{m,s},
+  \qquad \forall\, m \in M
+\end{equation}
+Because exactly one $x_{m,s}$ equals 1, $\text{match\_time}_m$ equals the
+chronological index of the chosen slot.
+
+\subsection{H9 --- Round Min/Max Definition}
+\begin{align}\tag{H9a}
+  \text{round\_min}_r &= \min_{\substack{m \,\in\, M \\
+                             \text{round}(m) = r}} \text{match\_time}_m,
+  \qquad \forall\, r \in R \\[4pt]\tag{H9b}
+  \text{round\_max}_r &= \max_{\substack{m \,\in\, M \\
+                             \text{round}(m) = r}} \text{match\_time}_m,
+  \qquad \forall\, r \in R
+\end{align}
+These are encoded in CP-SAT via \texttt{AddMinEquality} and
+\texttt{AddMaxEquality}.
+
+\subsection{H10 --- Strict Round Ordering}
+\begin{equation}\tag{H10}
+  \text{round\_max}_r + 1 \leq \text{round\_min}_{r+1},
+  \qquad \forall\, r \in \{1, 2, \dots, 33\}
+\end{equation}
+All matches of round $r$ must finish strictly before the first match of
+round $r+1$. Ordering is on $\text{time\_index}$ integers, not raw dates.
+
+\subsection{H11 --- Weekly Hard Cap}
+\begin{equation}\tag{H11}
+  \sum_{m \in M}
+  \sum_{\substack{s \,\in\, \text{feasible\_domain}(m) \\
+                  \text{week}(s) = w}}
+  x_{m,s} \leq \text{HARD\_MAX\_WEEK},
+  \qquad \forall\, w \in W
+\end{equation}
+No more than $\text{HARD\_MAX\_WEEK} = 18$ league matches may be
+scheduled in any calendar week.
+
+% ── H12 (ADDED) ─────────────────────────────────────────────────────────────
+\subsection{H12 --- CAF Buffer (Bidirectional)}
+
+\added{%
+  This constraint was entirely absent from the original. It is a hard rule
+  enforced first as a domain pre-filter (FD-3) and verified definitively
+  in the post-baseline audit.
+}
+
+\begin{equation}\tag{H12}
+  \sum_{\substack{s \,\in\, \text{feasible\_domain}(m) \\
+                  |\,\text{date}(s) - d\,| < \text{CAF\_BUFFER}}}
+  x_{m,s} = 0,
+  \qquad
+  \forall\, m \in M,\;
+  t \in \text{team}(m) \cap C,\;
+  d \in \text{caf\_dates}(t)
+\end{equation}
+A match involving a CAF-participating team may not be scheduled within
+$\text{CAF\_BUFFER} = 4$ calendar days of that team's CAF match date.
+The buffer is \emph{bidirectional}: it applies both before and after the
+CAF date.
+
+% ── H13 (ADDED) ─────────────────────────────────────────────────────────────
+\subsection{H13 --- Home/Away Streak Limit}
+
+\added{%
+  This constraint was absent from the original. It is enforced by construction
+  in a dedicated fixture-orientation CP-SAT pre-solve (not as a variable
+  constraint in the main model). It is stated here for completeness.
+}
+
+No team may have more than $\text{MAX\_STREAK} = 2$ consecutive home matches
+or 2 consecutive away matches across the 34-round sequence:
+\begin{equation}\tag{H13}
+  \forall\, t \in T,\; \forall\, r \in \{1,\dots,32\}: \quad
+  \sum_{k=0}^{2} \mathbf{1}\!\bigl[\text{side}(t, r+k) = \sigma\bigr] \leq 2,
+  \qquad \sigma \in \{\text{H}, \text{A}\}
+\end{equation}
+where $\text{side}(t, r)$ denotes whether team $t$ is home (H) or away (A) in
+round $r$. This is satisfied by the fixture pre-solve before the main model
+runs, so the main model receives a fixed, streak-compliant fixture list.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Objective Function}
+
+Minimize the weighted penalty:
+\begin{equation}
+  \mathcal{Z} = \mathcal{Z}_1 + \mathcal{Z}_2 + \mathcal{Z}_3
+              + \mathcal{Z}_4 + \mathcal{Z}_5
+\end{equation}
+
+\medskip
+\noindent\textbf{Term 1 --- Round placement deviation:}
+\begin{equation}
+  \mathcal{Z}_1 = W_{\text{ROUND\_ORDER}}
+    \sum_{m \in M}
+    \sum_{s \,\in\, \text{feasible\_domain}(m)}
+    \bigl|\text{week}(s) - \text{nominal\_week}(\text{round}(m))\bigr|
+    \cdot x_{m,s}
+\end{equation}
+
+\medskip
+\noindent\textbf{Term 2 --- Weekly underload penalty:}
+\begin{equation}
+  \mathcal{Z}_2 = W_{\text{WEEK\_UNDERLOAD}}
+    \sum_{w \in W} \text{under\_load}_w
+\end{equation}
+
+\medskip
+\noindent\textbf{Term 3 --- Weekly overload penalty:}
+\begin{equation}
+  \mathcal{Z}_3 = W_{\text{WEEK\_OVERLOAD}}
+    \sum_{w \in W} \text{over\_load}_w
+\end{equation}
+
+\medskip
+\noindent\textbf{Term 4 --- Travel distance:}
+\begin{equation}
+  \mathcal{Z}_4 = W_{\text{TRAVEL}}
+    \sum_{m \in M}
+    \sum_{s \,\in\, \text{feasible\_domain}(m)}
+    \text{travel\_km}(m) \cdot x_{m,s}
+\end{equation}
+
+\medskip
+\noindent\textbf{Term 5 --- Tier mismatch:}
+\begin{equation}
+  \mathcal{Z}_5 = W_{\text{TIER\_MISMATCH}}
+    \sum_{m \in M}
+    \sum_{s \,\in\, \text{feasible\_domain}(m)}
+    \bigl|\text{tier\_match}(m) - \text{tier\_slot}(s)\bigr|
+    \cdot x_{m,s}
+\end{equation}
+
+% ── Load deviation definitions ───────────────────────────────────────────────
+\subsection{Weekly Load Auxiliary Definitions}
+
+\added{%
+  $\text{load}_w$ was used in the original without formal definition.
+}
+
+\begin{equation}
+  \text{load}_w
+  = \sum_{m \in M}
+    \sum_{\substack{s \,\in\, \text{feasible\_domain}(m) \\
+                    \text{week}(s) = w}}
+    x_{m,s},
+  \qquad \forall\, w \in W
+\end{equation}
+
+The deviation variables are linearisations of the $\max(0,\cdot)$ operator:
+\begin{alignat}{3}
+  \text{under\_load}_w &\geq \text{SOFT\_MIN\_WEEK} - \text{load}_w, &\quad&
+  \text{under\_load}_w \geq 0, &\quad& \forall\, w \in W \\[4pt]
+  \text{over\_load}_w  &\geq \text{load}_w - \text{SOFT\_MAX\_WEEK}, &\quad&
+  \text{over\_load}_w  \geq 0, &\quad& \forall\, w \in W
+\end{alignat}
+Since the objective minimises $\text{under\_load}_w$ and $\text{over\_load}_w$,
+the solver sets:
+\[
+  \text{under\_load}_w = \max\bigl(0,\; \text{SOFT\_MIN\_WEEK} - \text{load}_w\bigr),
+  \qquad
+  \text{over\_load}_w  = \max\bigl(0,\; \text{load}_w - \text{SOFT\_MAX\_WEEK}\bigr).
+\]
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Objective Weights}
+
+\begin{center}
+\begin{tabular}{@{} l C{1.8cm} L{8.2cm} @{}}
+  \toprule
+  \textbf{Weight} & \textbf{Value} & \textbf{Meaning} \\
+  \midrule
+  $W_{\text{ROUND\_ORDER}}$    & 100 &
+    Penalty per week deviation from the nominal round week. High value keeps
+    rounds in their expected calendar positions. \\[4pt]
+  $W_{\text{WEEK\_UNDERLOAD}}$ & 50 &
+    Penalty per match below \textsc{soft\_min\_week} in any calendar week. \\[4pt]
+  $W_{\text{WEEK\_OVERLOAD}}$  & 50 &
+    Penalty per match above \textsc{soft\_max\_week} in any calendar week. \\[4pt]
+  $W_{\text{TRAVEL}}$          & 1 &
+    Penalty per kilometre of away-team travel. Low relative weight; acts
+    mainly as a tie-breaker. \\[4pt]
+  $W_{\text{TIER\_MISMATCH}}$  & 20 &
+    Penalty per tier level difference between match quality and slot quality.
+    Encourages prime matches into prime slots. \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Post-Baseline CAF Audit \& Repair Model}
+\label{sec:repair}
+
+\added{%
+  This section was entirely absent from the original. The system uses a
+  two-phase approach: the baseline model above deliberately ignores CAF
+  constraints to maximise schedule quality; a separate audit and greedy
+  repair pass then resolves any violations.
+}
+
+\subsection{Audit Criterion}
+
+After the baseline is solved, a scheduled match $m$ assigned to slot $s$ is
+flagged as a \emph{CAF violation} if any team $t \in \text{team}(m) \cap C$
+satisfies any of:
+
+\begin{align*}
+  &\text{(SAME\_DAY)}\quad \text{date}(s) \in \text{caf\_dates}(t) \\[4pt]
+  &\text{(PRE)}\quad
+    \exists\, d \in \text{caf\_dates}(t) :
+    0 < d - \text{date}(s) < \text{CAF\_BUFFER} \\[4pt]
+  &\text{(POST)}\quad
+    \exists\, d \in \text{caf\_dates}(t) :
+    0 < \text{date}(s) - d < \text{CAF\_BUFFER}
+\end{align*}
+
+Violating matches are removed from the accepted baseline and queued for repair.
+Accepted matches become \textbf{fixed} in the repair phase.
+
+\subsection{Repair Feasibility Conditions}
+
+A slot $s$ is a valid repair slot for queued match $q$ if and only if all of
+the following hold:
+
+\begin{align*}
+  &(\text{R1})\quad \text{date}(s) \geq \text{date}(s_{\text{original}})
+    \tag{no backward reschedule} \\[2pt]
+  &(\text{R2})\quad \text{date\_load}[\text{date}(s)] < \text{MAX\_DAY} \\[2pt]
+  &(\text{R3})\quad \text{date}(s) \notin \text{existing dates of }
+    \text{home}(q) \cup \text{existing dates of } \text{away}(q) \\[2pt]
+  &(\text{R4})\quad |\text{date}(s) - d'| \geq \text{REST\_LOCAL}
+    \quad \forall\, d' \in \text{existing match dates of each team in team}(q) \\[2pt]
+  &(\text{R5})\quad \text{slot\_usage}[s] = 0 \\[2pt]
+  &(\text{R6})\quad \text{inserting } s \text{ does not create a streak}
+    > \text{MAX\_STREAK}
+    \text{ for either team} \\[2pt]
+  &(\text{R7})\quad |\text{date}(s) - d| \geq \text{CAF\_BUFFER}
+    \quad \forall\, t \in \text{team}(q) \cap C,\;
+    d \in \text{caf\_dates}(t) \\[2pt]
+  &(\text{R8})\quad \text{week\_load}[\text{week}(s)] < \text{HARD\_MAX\_WEEK}
+\end{align*}
+
+\subsection{Repair Objective}
+
+Repair is solved greedily (most-constrained match first, nearest-date
+preference). Among all slots satisfying R1--R8, the chosen slot is:
+\[
+  s^* = \arg\min_{s \;\text{satisfying R1--R8}}
+        \bigl|\text{date}(s) - \text{date}(s_{\text{original}})\bigr|
+\]
+Up to three greedy passes are executed. Matches that cannot be placed in any
+valid slot are written to the unresolved output and reported explicitly.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Model Summary}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{} C{1.5cm} L{4.5cm} L{6.5cm} @{}}
+  \toprule
+  \textbf{ID} & \textbf{Short Form} & \textbf{Notes} \\
+  \midrule
+  H1  & $\sum x_{m,s} = 1$ & Assignment completeness \\
+  H2  & Derby $\Rightarrow$ tier-1 slot & \textcolor{accentred}{\textbf{Corrected}} scope: is\_derby flag \\
+  H3  & Team $\times$ date $\leq 1$ & No double-booking per team per day \\
+  H4  & Venue $\times$ slot $\leq 1$ & No stadium double-booking \\
+  H5  & Matches/day $\leq 3$ & Daily match cap \\
+  H6  & Matches/slot $\leq 2$ & Slot concurrency cap \\
+  H7  & 4-day window $\leq 1$ & 3 full rest days minimum \\
+  H8  & match\_time definition & \textcolor{accentred}{\textbf{Corrected}} domain restriction \\
+  H9  & round\_min / round\_max & Round-level time bounds \\
+  H10 & $\text{round\_max}_r + 1 \leq \text{round\_min}_{r+1}$ & Strict round ordering \\
+  H11 & Weekly load $\leq 18$ & Hard weekly cap \\
+  H12 & CAF buffer exclusion & \textcolor{midblue}{\textbf{Added}} --- bidirectional, 4-day \\
+  H13 & Streak $\leq 2$ & \textcolor{midblue}{\textbf{Added}} --- enforced in fixture pre-solve \\
+  \midrule
+  \multicolumn{3}{@{}l}{\textit{Objective terms}} \\
+  \midrule
+  $\mathcal{Z}_1$ & Round placement & $W = 100$ \\
+  $\mathcal{Z}_2$ & Weekly underload & $W = 50$ \\
+  $\mathcal{Z}_3$ & Weekly overload  & $W = 50$ \\
+  $\mathcal{Z}_4$ & Travel distance  & $W = 1$  \\
+  $\mathcal{Z}_5$ & Tier mismatch    & $W = 20$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
