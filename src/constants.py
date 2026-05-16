@@ -46,6 +46,9 @@ W_TRAVEL = 1              # per-km travel penalty
 W_TIER_MISMATCH = 20      # match-tier vs slot-tier gap
 W_CAF_PREFERRED = 10      # bonus for achieving 6-day CAF gap instead of 5
 
+W_STADIUM_MAINTENANCE_OVERLAP = 5_000_000  # penalty for back-to-back stadium use
+ALT_STADIUM_RELIEF_PENALTY = 1_000_000     # base penalty for using alternate stadium
+
 # ---------------------------------------------------------------------------
 # Solver limits
 # ---------------------------------------------------------------------------

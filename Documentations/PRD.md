@@ -111,7 +111,7 @@ The main slot universe must include or be normalizable to:
 FIFA dates are the union of:
 
 - slot rows where `Is_FIFA == 1`,
-- dates listed in `FIFA_DAYS1`,
+- dates listed in a sheet containing `FIFA_DAYS` in its name (e.g., `FIFA_DAYS1`),
 - dates with non-empty FIFA label fields such as `FIFA_DAY` or `FIFA_DAYS`.
 
 No league match may be scheduled on a FIFA date in any phase.
@@ -149,29 +149,32 @@ The Streamlit sidebar must expose all current model variables that can be change
 | `PREFERRED_REST_DAYS_CAF` | 5 | Preferred CAF buffer where code paths consume it. |
 | `MAX_CONSECUTIVE_HOME` | 2 | Max consecutive home matches in played/team sequence. |
 | `MAX_CONSECUTIVE_AWAY` | 2 | Max consecutive away matches in played/team sequence. |
+| `MIN_DAYS_BETWEEN_ROUNDS` | 1 | Gap between rounds. 1 forbids same-day overlap; 2 adds one idle day between rounds. |
 
 ### 4.3 Capacity Rules
 
 | Variable | Default | Meaning |
 |---|---:|---|
-| `HARD_MIN_MATCHES_PER_WEEK` | 6 | Hard lower week target retained for model configuration; current baseline treats small week fragments softly. |
+| `HARD_MIN_MATCHES_PER_WEEK` | 6 | Hard lower week target retained for model configuration. |
 | `HARD_MAX_MATCHES_PER_WEEK` | 18 | Hard cap on league matches in a calendar week. |
 | `SOFT_MIN_MATCHES_PER_WEEK` | 6 | Soft lower target for weekly load balance. |
 | `SOFT_MAX_MATCHES_PER_WEEK` | 12 | Soft upper target for weekly load balance. |
 | `MAX_MATCHES_PER_DAY` | 3 | Hard cap on league matches scheduled on one calendar date. |
-| `MAX_MATCHES_PER_SLOT` | 2 | Hard cap on league matches assigned to the same kickoff slot in baseline. Repair uses only empty slots. |
-| `MIN_STADIUM_SERVICE_GAP_DAYS` | 0 | If positive, non-forced uses of the same stadium must be at least this many full calendar days apart. Zero preserves the legacy fixed-venue behavior. |
+| `MAX_MATCHES_PER_SLOT` | 2 | Hard cap on league matches assigned to the same kickoff slot. |
+| `MIN_STADIUM_SERVICE_GAP_DAYS` | 0 | Service gap between non-forced uses of the same stadium. |
 
 ### 4.4 Objective Weights
 
 | Variable | Default | Meaning |
 |---|---:|---|
+| `W_STADIUM_MAINTENANCE_OVERLAP` | 5,000,000 | Penalty for back-to-back stadium use within service gap. |
+| `ALT_STADIUM_RELIEF_PENALTY` | 1,000,000 | Base penalty for using alternate stadium (multiplied by team tier). |
 | `W_ROUND_ORDER` | 100 | Penalty for deviation from nominal round/week placement. |
 | `W_WEEK_UNDERLOAD` | 50 | Penalty below soft weekly load target. |
 | `W_WEEK_OVERLOAD` | 50 | Penalty above soft weekly load target. |
 | `W_TRAVEL` | 1 | Per-kilometer travel penalty. |
 | `W_TIER_MISMATCH` | 20 | Penalty for mismatch between match tier and slot tier. |
-| `W_CAF_PREFERRED` | 10 | Preferred CAF rest weight where code paths consume it. |
+| `W_CAF_PREFERRED` | 10 | Preferred CAF rest weight. |
 
 ### 4.5 Solver Limits
 
@@ -247,23 +250,31 @@ The baseline solver assigns generated fixtures to concrete calendar slots using 
 | H6 | A kickoff slot cannot exceed `MAX_MATCHES_PER_SLOT`. |
 | H7 | A calendar date cannot exceed `MAX_MATCHES_PER_DAY` league matches. Default cap is 3. |
 | H8 | A team must have at least `MIN_REST_DAYS_LOCAL` full rest days between league matches. |
-| H9 | Non-postponed baseline rounds must be strictly chronological: Round `R+1` cannot start before Round `R` has finished. |
+| H9 | Non-postponed baseline rounds must respect the minimum gap: Round `R+1` must start at least `MIN_DAYS_BETWEEN_ROUNDS` calendar days after Round `R` ends. |
 | H10 | Forced venue rules from `Sec_Matrix` must be respected by fixture generation. |
 | H11 | CAF teams must avoid known CAF dates and the hard CAF buffer when feasible inside the round window. |
-| H12 | If `MIN_STADIUM_SERVICE_GAP_DAYS > 0`, non-forced matches may use the home club's distinct `Alt_Stadium_ID` as relief, and non-forced uses of the same stadium must respect the configured maintenance gap. Forced venues remain exempt from that gap. |
 
 If CAF-safe slots do not exist inside a strict round window for a match, the domain builder may relax the CAF filter for that match so the baseline remains complete. Such matches must then be caught by CAF audit and moved to the postponement queue.
 
 ### 7.2 Baseline Soft Objectives
 
-The baseline objective minimizes:
+The baseline objective minimizes the following (higher weights = higher priority):
 
-- deviation from nominal round/week order,
-- weekly underload below `SOFT_MIN_MATCHES_PER_WEEK`,
-- weekly overload above `SOFT_MAX_MATCHES_PER_WEEK`,
-- travel distance weighted by `W_TRAVEL`,
-- match-tier versus slot-tier mismatch weighted by `W_TIER_MISMATCH`,
-- and, when stadium maintenance is enabled, a very strong preference to keep non-forced matches at the primary home stadium unless the maintenance rule requires relief through the alternate stadium.
+| Objective | Logic | Weight (Penalty) |
+|---|---|---|
+| **STADIUM_DISPLACEMENT** | Penalty for moving a team to its `Alt_Stadium_ID`. Scales by team tier (Tier 1: 10M, Tier 2: 5M, Tier 3: 2M, Tier 4: 1M). | 1,000,000 * Tier_Weight |
+| **STADIUM_MAINTENANCE** | Avoid scheduling matches at the same venue within `MIN_STADIUM_SERVICE_GAP_DAYS`. | 5,000,000 per overlap |
+| **ROUND_ORDER** | Penalty per match shifted from its nominal week. | 100 per week-diff |
+| **WEEK_LOAD** | Penalty per match above/below soft week caps. | 50 per match |
+| **TRAVEL** | Penalty per km traveled by the away team. | 1 per km |
+| **TIER_MISMATCH** | Penalty for placing a Tier-X match in a Tier-Y slot. | 20 * |X-Y| |
+
+#### 7.2.1 UEFA-Style Priority Resolution
+To prevent lower-tier matches from indiscriminately displacing higher-tier teams (e.g., Ahly, Zamalek) from their primary stadiums, the displacement penalty is tier-weighted.
+
+**Conflict Scenarios:**
+- **Tier 1 vs. Tier 3 Clash:** Displacing Tier 3 costs 2M. Accepting a maintenance overlap costs 5M. The solver will displace the Tier 3 team.
+- **Tier 1 vs. Tier 1 Clash:** Displacing Tier 1 costs 10M. Accepting a maintenance overlap costs 5M. The solver will allow the back-to-back matches at the primary stadium (UEFA 48-hour style).
 
 Hard feasibility always outranks soft preferences.
 
@@ -277,7 +288,14 @@ Output:
 
 ## 8. CAF Audit
 
-After baseline solving, the system audits CAF constraints.
+After baseline solving, the system audits CAF constraints. 
+
+### 8.1 Proactive Pruning vs. Safety Net Architecture
+The system uses a two-tier defense against CAF conflicts:
+1. **Tier 1: Proactive Pruning (Phase 3a):** The domain builder automatically removes CAF-conflicting slots from each match's options. If a valid baseline solution is found, it is usually 100% CAF-safe by design.
+2. **Tier 2: Safety Net (Phase 4 & 5):** If a match has *no* CAF-safe slots within its strict 5-day round window, the domain builder "relaxes" the filter to allow a baseline solution. The **CAF Audit** is the safety net that catches these intentionally allowed violations and moves them to the **CAF Repair** phase for rescheduling.
+
+**Note:** If the Audit reports "0 violations," it means the Proactive Pruning was successful and no matches required postponement.
 
 A baseline match is a CAF violation if:
 

@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 from ortools.sat.python import cp_model
 
 from src.constants import (
+    ALT_STADIUM_RELIEF_PENALTY,
     BASELINE_SOLVER_TIME_LIMIT_S,
     HARD_MAX_MATCHES_PER_WEEK,
     MAX_MATCHES_PER_DAY,
@@ -25,6 +26,7 @@ from src.constants import (
     SOFT_MAX_MATCHES_PER_WEEK,
     SOFT_MIN_MATCHES_PER_WEEK,
     W_ROUND_ORDER,
+    W_STADIUM_MAINTENANCE_OVERLAP,
     W_TIER_MISMATCH,
     W_TRAVEL,
     W_WEEK_OVERLOAD,
@@ -34,9 +36,6 @@ from src.data_loader import LeagueData
 from src.fixture_generator import Match
 from src.tiers import compute_slot_tiers
 from src.venue_rules import build_team_lookup, get_venue_options
-
-
-ALT_STADIUM_RELIEF_PENALTY = 1_000_000
 
 
 @dataclass
@@ -202,7 +201,7 @@ def _solve_baseline_legacy(
     matches: List[Match],
     domains: Dict[int, List[int]],
 ) -> Optional[List[ScheduledMatch]]:
-    print("[baseline] Building CP-SAT model...")
+    print("[baseline] Building CP-SAT model (legacy mode)...")
     t0 = time.time()
 
     slot_ctx = _build_slot_context(data)
@@ -509,11 +508,12 @@ def _solve_baseline_with_stadium_gap(
         return data.dist_matrix.get(away_home_stadium, {}).get(venue, 0.0)
 
     model = cp_model.CpModel()
+    objective_terms = []
 
     x: Dict[int, Dict[Tuple[int, str], cp_model.IntVar]] = {}
     assignment_meta: Dict[Tuple[int, int, str], dict] = {}
     venue_slot_vars: Dict[Tuple[str, int], List[cp_model.IntVar]] = defaultdict(list)
-    venue_date_non_forced_vars: Dict[Tuple[str, date], List[cp_model.IntVar]] = defaultdict(list)
+    venue_date_vars: Dict[Tuple[str, date], List[cp_model.IntVar]] = defaultdict(list)
 
     for match in matches:
         options = venue_options_by_match[match.match_idx]
@@ -534,8 +534,7 @@ def _solve_baseline_with_stadium_gap(
                     "travel_km": travel,
                 }
                 venue_slot_vars[(venue, slot_idx)].append(var)
-                if not is_forced:
-                    venue_date_non_forced_vars[(venue, slot_dates[slot_idx])].append(var)
+                venue_date_vars[(venue, slot_dates[slot_idx])].append(var)
 
     print(f"[baseline] Variables created: {sum(len(v) for v in x.values())}")
 
@@ -632,34 +631,55 @@ def _solve_baseline_with_stadium_gap(
                 model.Add(sum(vars_in_window) <= 1)
 
     service_gap = MIN_STADIUM_SERVICE_GAP_DAYS
-    venue_dates: Dict[str, List[date]] = defaultdict(list)
-    for venue, venue_date in venue_date_non_forced_vars.keys():
-        venue_dates[venue].append(venue_date)
+    if service_gap > 0:
+        venue_to_dates: Dict[str, List[date]] = defaultdict(list)
+        for (venue, v_date) in venue_date_vars.keys():
+            venue_to_dates[venue].append(v_date)
 
-    for venue, dates in venue_dates.items():
-        ordered_dates = sorted(set(dates))
-        for start_idx, start_date in enumerate(ordered_dates):
-            end_date = start_date + timedelta(days=service_gap)
-            vars_in_window = []
-            for venue_date in ordered_dates[start_idx:]:
-                if venue_date > end_date:
-                    break
-                vars_in_window.extend(venue_date_non_forced_vars[(venue, venue_date)])
-            if len(vars_in_window) > 1:
-                model.Add(sum(vars_in_window) <= 1)
+        for venue, dates in venue_to_dates.items():
+            ordered_dates = sorted(set(dates))
+            for i, start_date in enumerate(ordered_dates):
+                end_date = start_date + timedelta(days=service_gap)
+                vars_in_window = []
+                for v_date in ordered_dates[i:]:
+                    if v_date > end_date:
+                        break
+                    vars_in_window.extend(venue_date_vars[(venue, v_date)])
+                
+                if len(vars_in_window) > 1:
+                    overlap_var = model.NewBoolVar(f"overlap_{venue}_{start_date}")
+                    model.Add(sum(vars_in_window) > 1).OnlyEnforceIf(overlap_var)
+                    model.Add(sum(vars_in_window) <= 1).OnlyEnforceIf(overlap_var.Not())
+                    objective_terms.append(overlap_var * W_STADIUM_MAINTENANCE_OVERLAP)
 
     _add_round_gap_constraints(model, matches_by_round, match_day, max_slot_day)
 
     print("[baseline] Hard constraints added.")
 
-    objective_terms = []
+    TIER_WEIGHTS = {1: 10, 2: 5, 3: 2, 4: 1}
 
     for match in matches:
+        home_tier = int(teams_dict.get(match.home_team, {}).get("Tier", 4))
+        tier_weight = TIER_WEIGHTS.get(home_tier, 1)
+        
         nominal = nominal_week[match.round_num]
-        for (slot_idx, _venue), var in x[match.match_idx].items():
+        for (slot_idx, venue), var in x[match.match_idx].items():
+            meta = assignment_meta[(match.match_idx, slot_idx, venue)]
+            
             week_diff = abs(slot_weeks[slot_idx] - nominal)
             if week_diff > 0:
                 objective_terms.append(var * (W_ROUND_ORDER * week_diff))
+
+            travel_cost = int(meta["travel_km"] * W_TRAVEL)
+            if travel_cost > 0:
+                objective_terms.append(var * travel_cost)
+
+            tier_diff = abs(match.match_tier - slot_tiers[slot_idx])
+            if tier_diff > 0:
+                objective_terms.append(var * (W_TIER_MISMATCH * tier_diff))
+
+            if meta["is_alt"]:
+                objective_terms.append(var * (ALT_STADIUM_RELIEF_PENALTY * tier_weight))
 
     for week_num in all_weeks:
         week_slots = slots_by_week.get(week_num, [])
@@ -690,20 +710,6 @@ def _solve_baseline_with_stadium_gap(
         model.Add(over >= load - SOFT_MAX_MATCHES_PER_WEEK)
         model.Add(over >= 0)
         objective_terms.append(over * W_WEEK_OVERLOAD)
-
-    for match in matches:
-        for (slot_idx, venue), var in x[match.match_idx].items():
-            meta = assignment_meta[(match.match_idx, slot_idx, venue)]
-            travel_cost = int(meta["travel_km"] * W_TRAVEL)
-            if travel_cost > 0:
-                objective_terms.append(var * travel_cost)
-
-            tier_diff = abs(match.match_tier - slot_tiers[slot_idx])
-            if tier_diff > 0:
-                objective_terms.append(var * (W_TIER_MISMATCH * tier_diff))
-
-            if meta["is_alt"]:
-                objective_terms.append(var * ALT_STADIUM_RELIEF_PENALTY)
 
     if objective_terms:
         model.Minimize(sum(objective_terms))

@@ -289,10 +289,13 @@ def _find_valid_assignments(
 
             if slot_idx in state.venue_slots.get(venue, set()):
                 continue
+            
+            # Maintenance check is now soft in repair too
+            maintenance_violation = 0
             if (not is_forced) and (not _check_stadium_service_gap(venue, slot_date, state)):
-                continue
+                maintenance_violation = 1
 
-            valid.append((slot_idx, venue, is_forced, is_alt))
+            valid.append((slot_idx, venue, is_forced, is_alt, maintenance_violation))
 
     return valid
 
@@ -522,7 +525,8 @@ def _caf_repair_with_stadium_gap(
             valid,
             key=lambda item: (
                 abs((slot_dates[item[0]] - match.date).days),
-                1 if item[3] else 0,
+                item[4],  # maintenance_violation
+                1 if item[3] else 0,  # is_alt
             ),
         )
         match_valid_slots[match.match_idx] = [

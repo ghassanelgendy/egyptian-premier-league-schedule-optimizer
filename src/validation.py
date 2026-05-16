@@ -311,7 +311,7 @@ def _validate_stadium_service_gap(
             if gap < required_gap:
                 _add_issue(
                     issues,
-                    "ERROR",
+                    "WARN",
                     "STADIUM_SERVICE_GAP",
                     "",
                     curr.round_num,
