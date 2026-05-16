@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+import threading
 import calendar
 from datetime import date as pydate
 from contextlib import redirect_stderr, redirect_stdout
@@ -746,12 +747,38 @@ def _run_phase(
 ) -> Any:
     status.update(label=name, state="running")
     start = time.time()
-    with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
-        result = fn()
+
+    # Thread-safe container for the result
+    container = {"result": None, "error": None}
+
+    def _thread_target():
+        try:
+            with redirect_stdout(log_buffer), redirect_stderr(log_buffer):
+                container["result"] = fn()
+        except Exception as e:
+            container["error"] = e
+
+    thread = threading.Thread(target=_thread_target)
+    thread.start()
+
+    # Main thread loop: yields to event loop to handle keepalive pings
+    last_log_val = ""
+    while thread.is_alive():
+        current_logs = log_buffer.getvalue()
+        if current_logs != last_log_val:
+            log_box.code(current_logs, language="text")
+            last_log_val = current_logs
+        time.sleep(0.5)
+
+    thread.join()
+
+    if container["error"]:
+        raise container["error"]
+
     elapsed = time.time() - start
     log_box.code(log_buffer.getvalue(), language="text")
     status.update(label=f"{name} (done in {elapsed:.1f}s)", state="complete")
-    return result
+    return container["result"]
 
 
 def _render_artifacts_section() -> None:
@@ -810,27 +837,27 @@ def _render_artifacts_section() -> None:
             if schedule is None:
                 st.info("`output/optimized_schedule.csv` not found yet.")
             else:
-                st.dataframe(schedule, use_container_width=True, height=420)
+                st.dataframe(schedule, width="stretch", height=420)
         with tab2:
             if pre is None:
                 st.info("`output/optimized_schedule_pre_caf.csv` not found yet.")
             else:
-                st.dataframe(pre, use_container_width=True, height=420)
+                st.dataframe(pre, width="stretch", height=420)
         with tab3:
             if queue is None:
                 st.info("`output/caf_postponement_queue.csv` not found yet.")
             else:
-                st.dataframe(queue, use_container_width=True, height=420)
+                st.dataframe(queue, width="stretch", height=420)
         with tab4:
             if repaired is None:
                 st.info("`output/caf_rescheduled_matches.csv` not found yet.")
             else:
-                st.dataframe(repaired, use_container_width=True, height=420)
+                st.dataframe(repaired, width="stretch", height=420)
         with tab5:
             if unresolved is None:
                 st.info("`output/unresolved_caf_postponements.csv` not found yet.")
             else:
-                st.dataframe(unresolved, use_container_width=True, height=420)
+                st.dataframe(unresolved, width="stretch", height=420)
 
     with st.expander("Download artifacts"):
         root = Path(".")
@@ -1523,7 +1550,7 @@ def _render_selected_detail_rows(
         return
 
     visible = filtered if not display_columns else filtered[[col for col in display_columns if col in filtered.columns]]
-    st.dataframe(visible, use_container_width=True, hide_index=True, height=height)
+    st.dataframe(visible, width="stretch", hide_index=True, height=height)
 
 
 def _render_validation_dashboard() -> None:
@@ -1541,13 +1568,14 @@ def _render_validation_dashboard() -> None:
             "Schedule-based views will be partial, but other validation artifacts can still be inspected."
         )
 
-    overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab = st.tabs(
+    overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab, monte_carlo_tab = st.tabs(
         [
             "Overview",
             "Constraint Compliance",
             "Feasibility & Solver Pressure",
             "CAF & Repair",
             "Fairness & Operational Insights",
+            "Monte Carlo Analysis",
         ]
     )
 
@@ -1565,6 +1593,9 @@ def _render_validation_dashboard() -> None:
 
     with fairness_tab:
         _render_fairness_insights(dashboard_data)
+        
+    with monte_carlo_tab:
+        _render_monte_carlo_tab()
 
 
 def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
@@ -1685,7 +1716,7 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
     with badge_col:
         st.markdown("**Validation badge table**")
         badge_rows = _build_validation_badge_rows(validation_df, unresolved_count)
-        st.dataframe(badge_rows, use_container_width=True, hide_index=True)
+        st.dataframe(badge_rows, width="stretch", hide_index=True)
 
     if validation_df is None:
         st.warning("Final validation report is missing, so hard-rule status cannot be confirmed here.")
@@ -1766,7 +1797,7 @@ def _render_constraint_compliance(dashboard_data: Dict[str, Any]) -> None:
         st.caption(f"Showing {len(filtered_findings)} of {len(validation_df)} validation row(s).")
         st.dataframe(
             filtered_findings.drop(columns=[c for c in ["_Date"] if c in filtered_findings.columns]),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=320,
         )
@@ -1788,7 +1819,7 @@ def _render_constraint_compliance(dashboard_data: Dict[str, Any]) -> None:
                 tooltip_fields=["Family", "Count"],
                 height=260,
             )
-            st.dataframe(constraint_counts, use_container_width=True, hide_index=True)
+            st.dataframe(constraint_counts, width="stretch", hide_index=True)
             if issue_rows is not None and not issue_rows.empty:
                 issue_detail_df = issue_rows.copy()
                 issue_detail_df["Family"] = issue_detail_df["Check"].apply(_validation_issue_family)
@@ -1898,7 +1929,7 @@ def _render_constraint_compliance(dashboard_data: Dict[str, Any]) -> None:
                 sort="-y",
                 height=300,
             )
-            st.dataframe(streak_summary, use_container_width=True, hide_index=True, height=280)
+            st.dataframe(streak_summary, width="stretch", hide_index=True, height=280)
             streak_detail = team_sequence.copy()
             streak_detail = streak_detail.merge(
                 streak_summary[["Team_ID", "Max_Streak"]],
@@ -1948,7 +1979,7 @@ def _render_constraint_compliance(dashboard_data: Dict[str, Any]) -> None:
                     )
                     .sort_values(["Balance_Violation_Count", "Team_ID"], ascending=[False, True])
                 )
-                st.dataframe(balance_summary, use_container_width=True, hide_index=True, height=320)
+                st.dataframe(balance_summary, width="stretch", hide_index=True, height=320)
 
     with order_col:
         st.markdown("**Round order consistency**")
@@ -1974,14 +2005,14 @@ def _render_constraint_compliance(dashboard_data: Dict[str, Any]) -> None:
                                 if col in inversion_rows.columns
                             ]
                         ],
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                         height=200,
                     )
                 if not global_order_rows.empty:
                     st.dataframe(
                         global_order_rows.drop(columns=[c for c in ["_Date"] if c in global_order_rows.columns]),
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                         height=160,
                     )
@@ -2090,7 +2121,7 @@ def _render_feasibility_pressure(dashboard_data: Dict[str, Any]) -> None:
         if pressure["tightest_matches"].empty:
             st.info("No match-level feasible-slot rows were available.")
         else:
-            st.dataframe(pressure["tightest_matches"], use_container_width=True, hide_index=True, height=340)
+            st.dataframe(pressure["tightest_matches"], width="stretch", hide_index=True, height=340)
 
     with upper_col:
         st.markdown("**Round-level average feasible slots**")
@@ -2111,7 +2142,7 @@ def _render_feasibility_pressure(dashboard_data: Dict[str, Any]) -> None:
                 sort=alt.SortField(field="round", order="ascending"),
                 height=300,
             )
-            st.dataframe(pressure["round_average"], use_container_width=True, hide_index=True, height=340)
+            st.dataframe(pressure["round_average"], width="stretch", hide_index=True, height=340)
             feasible_by_round = feasible_slots.copy()
             feasible_by_round["Round_Label"] = "Round " + pd.to_numeric(
                 feasible_by_round["round"], errors="coerce"
@@ -2149,7 +2180,7 @@ def _render_feasibility_pressure(dashboard_data: Dict[str, Any]) -> None:
     )
     if round_windows is not None:
         with st.expander("Preview baseline round windows"):
-            st.dataframe(round_windows, use_container_width=True, hide_index=True, height=260)
+            st.dataframe(round_windows, width="stretch", hide_index=True, height=260)
 
 
 def _render_caf_repair_dashboard(dashboard_data: Dict[str, Any]) -> None:
@@ -2249,7 +2280,7 @@ def _render_caf_repair_dashboard(dashboard_data: Dict[str, Any]) -> None:
         if affected_summary.empty:
             st.info("No teams were affected in the current audit output.")
         else:
-            st.dataframe(affected_summary, use_container_width=True, hide_index=True, height=260)
+            st.dataframe(affected_summary, width="stretch", hide_index=True, height=260)
 
     st.divider()
     st.markdown("**Repair outcome funnel**")
@@ -2272,7 +2303,7 @@ def _render_caf_repair_dashboard(dashboard_data: Dict[str, Any]) -> None:
             height=260,
         )
     with table_col:
-        st.dataframe(funnel_df, use_container_width=True, hide_index=True, height=220)
+        st.dataframe(funnel_df, width="stretch", hide_index=True, height=220)
 
     stage_detail_frames: List[pd.DataFrame] = []
     audited_stage = caf_audit.copy()
@@ -2333,7 +2364,7 @@ def _render_caf_repair_dashboard(dashboard_data: Dict[str, Any]) -> None:
             elif df.empty:
                 st.info(empty_message)
             else:
-                st.dataframe(df, use_container_width=True, hide_index=True, height=280)
+                st.dataframe(df, width="stretch", hide_index=True, height=280)
 
 
 def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
@@ -2396,7 +2427,7 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
             )
             st.dataframe(
                 travel_stats[["Team_ID", "Total_km", "Away_trips", "Avg_km_per_away_trip", "Longest_trip_km"]],
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 height=280,
             )
@@ -2438,7 +2469,7 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
             )
             venue_table = venue_load.copy()
             venue_table["Share"] = venue_table["Share"].map(lambda value: _format_pct(float(value)))
-            st.dataframe(venue_table, use_container_width=True, hide_index=True, height=280)
+            st.dataframe(venue_table, width="stretch", hide_index=True, height=280)
             if schedule is not None:
                 _render_selected_detail_rows(
                     schedule,
@@ -2479,7 +2510,7 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                 sort=alt.SortField(field="Round", order="ascending"),
                 height=300,
             )
-            st.dataframe(round_span_summary["details"], use_container_width=True, hide_index=True, height=280)
+            st.dataframe(round_span_summary["details"], width="stretch", hide_index=True, height=280)
             round_schedule_detail = round_span_detail.copy()
             if schedule is not None:
                 round_matches = schedule.copy()
@@ -2524,7 +2555,7 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                 tooltip_fields=["Month", "Matches"],
                 height=300,
             )
-            st.dataframe(monthly_volume, use_container_width=True, hide_index=True, height=280)
+            st.dataframe(monthly_volume, width="stretch", hide_index=True, height=280)
             if schedule is not None:
                 month_detail = schedule.copy()
                 month_detail["Month"] = pd.to_datetime(month_detail["_Date"], errors="coerce").dt.to_period("M").astype(str)
@@ -2554,7 +2585,7 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
         else:
             st.dataframe(
                 rest_gap_summary["by_team"].head(12),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 height=320,
             )
@@ -2578,7 +2609,7 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
             ]
             st.dataframe(
                 home_away_patterns[pattern_cols].sort_values("Team_ID"),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 height=320,
             )
@@ -2962,7 +2993,7 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
         sorted_stats = sorted_stats.head(int(top_n.split()[-1]))
 
     chart_data = sorted_stats.set_index("Team")["Total_km"]
-    st.bar_chart(chart_data, use_container_width=True, height=420, color=PALETTE["primary"])
+    st.bar_chart(chart_data, width="stretch", height=420, color=PALETTE["primary"])
 
     display_stats = stats.copy()
     display_stats["Icon"] = display_stats["Team_ID"].apply(lambda tid: _team_icon_data_uri(str(tid)))
@@ -2979,7 +3010,7 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
                 "Longest_trip_km",
             ]
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=520,
         column_config={
@@ -3070,7 +3101,7 @@ def _render_explore() -> None:
                 )
                 round_counts["_Round_Num"] = round_counts["_Round_Num"].astype(int)
                 round_counts.rename(columns={"_Round_Num": "Round"}, inplace=True)
-                st.dataframe(round_counts, use_container_width=True, hide_index=True, height=420)
+                st.dataframe(round_counts, width="stretch", hide_index=True, height=420)
         elif df.empty:
             st.warning(f"No matches found for Round {selected_round} in {schedule_source}.")
         else:
@@ -3081,7 +3112,7 @@ def _render_explore() -> None:
             st.write(f"**Round {selected_round}**: {len(round_matches)} match(es)")
             st.dataframe(
                 round_matches.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in round_matches.columns]),
-                use_container_width=True,
+                width="stretch",
                 height=520,
             )
 
@@ -3142,7 +3173,7 @@ def _render_explore() -> None:
 
         st.write(f"**Matches for team `{chosen_team}`**: {len(team_matches)}")
         st.dataframe(team_matches.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in team_matches.columns]),
-                     use_container_width=True, height=520)
+                     width="stretch", height=520)
 
         csv_bytes = team_matches.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in team_matches.columns]).to_csv(index=False).encode("utf-8")
         st.download_button(
@@ -3211,7 +3242,7 @@ def _render_explore() -> None:
                 st.write(f"**Head-to-head `{a}` vs `{b}`**: {len(h2h)} match(es)")
                 st.dataframe(
                     h2h.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in h2h.columns]),
-                    use_container_width=True,
+                    width="stretch",
                     height=520,
                 )
 
@@ -3245,13 +3276,13 @@ def _render_explore() -> None:
 
         nav_left, nav_title, nav_right = st.columns([1, 2, 1])
         with nav_left:
-            if st.button("< Previous month", use_container_width=True):
+            if st.button("< Previous month", width="stretch"):
                 current = pydate(int(st.session_state["calendar_year"]), int(st.session_state["calendar_month"]), 1)
                 prev_month_end = current - pd.Timedelta(days=1)
                 st.session_state["calendar_year"] = prev_month_end.year
                 st.session_state["calendar_month"] = prev_month_end.month
         with nav_right:
-            if st.button("Next month >", use_container_width=True):
+            if st.button("Next month >", width="stretch"):
                 current = pydate(int(st.session_state["calendar_year"]), int(st.session_state["calendar_month"]), 1)
                 next_month_start = current + pd.DateOffset(months=1)
                 st.session_state["calendar_year"] = next_month_start.year
@@ -3276,7 +3307,7 @@ def _render_explore() -> None:
         day_matches = df[df["_Date"] == pick].copy()
         if not day_matches.empty:
             st.success(f"{len(day_matches)} match(es) scheduled on {pick}.")
-            st.dataframe(day_matches.drop(columns=["_Date"]), use_container_width=True, height=420)
+            st.dataframe(day_matches.drop(columns=["_Date"]), width="stretch", height=420)
         else:
             reasons: List[str] = []
             if load_inputs:
@@ -3352,7 +3383,7 @@ def _render_explore() -> None:
             rows.append(row)
 
         cal_df = pd.DataFrame(rows, columns=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
-        st.dataframe(cal_df, use_container_width=True, hide_index=True)
+        st.dataframe(cal_df, width="stretch", hide_index=True)
 
         st.divider()
         st.markdown("**Month summary**")
@@ -3397,7 +3428,7 @@ def _render_explore() -> None:
                 pd.DataFrame(
                     [{"Date": d, "Day": d.strftime("%A"), "Matches": n} for d, n in busiest]
                 ),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -3431,7 +3462,37 @@ def _render_explore() -> None:
                     row["Slot_rows"] = int(slots_on_date_count.get(d, 0)) if slot_dates else 0
                     row["In_slot_universe"] = (d in slot_dates) if slot_dates else False
                 day_rows.append(row)
-            st.dataframe(pd.DataFrame(day_rows), use_container_width=True, height=520)
+            st.dataframe(pd.DataFrame(day_rows), width="stretch", height=520)
+
+
+def _render_monte_carlo_tab() -> None:
+    st.markdown("### Monte Carlo Analysis")
+    st.caption("Aggregated results from the batch mode (`python main.py --runs N`).")
+
+    results_path = os.path.join("output", "multi_run", "monte_carlo_results.csv")
+    if not os.path.exists(results_path):
+        st.info("No Monte Carlo results found. Run the optimizer in batch mode from the terminal to generate these stats.")
+        return
+
+    df = pd.read_csv(results_path)
+    st.success(f"Loaded results for {len(df)} simulation runs.")
+
+    col1, col2, col3 = st.columns(3)
+    best_run = df.sort_values(["validation_errors", "unresolved_count", "baseline_objective"]).iloc[0]
+    col1.metric("Best seed", int(best_run["seed"]))
+    col2.metric("Best objective", f"{best_run['baseline_objective']:,.0f}")
+    col3.metric("Min errors", int(best_run["validation_errors"]))
+
+    st.divider()
+    st.markdown("**Objective value distribution**")
+    st.bar_chart(df.set_index("seed")["baseline_objective"], color=PALETTE["primary"], width="stretch")
+
+    st.markdown("**Travel km distribution**")
+    st.bar_chart(df.set_index("seed")["total_travel_km"], color=PALETTE["muted"], width="stretch")
+
+    st.divider()
+    st.markdown("**Raw run data**")
+    st.dataframe(df, width="stretch", hide_index=True)
 
 
 def main() -> None:
@@ -3650,7 +3711,7 @@ def main() -> None:
                 if df is None:
                     st.error("Could not read CSV.")
                 else:
-                    st.dataframe(df, use_container_width=True, height=520)
+                    st.dataframe(df, width="stretch", height=520)
             elif selected.suffix.lower() == ".json":
                 st.json(_read_json_if_exists(selected.as_posix()))
             else:
@@ -3669,4 +3730,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
