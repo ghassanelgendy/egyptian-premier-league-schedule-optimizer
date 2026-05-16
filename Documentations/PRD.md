@@ -610,10 +610,43 @@ Browse files:
 
 ---
 
-## 15. Known Implementation Notes
+## 16. Dashboard Metrics Explained
 
-- `MAX_MATCHES_PER_DAY` is a hard cap in both baseline and repair.
-- Repair currently uses a deterministic greedy multi-pass search, not a second CP-SAT optimization.
-- `REPAIR_SOLVER_TIME_LIMIT_S`, `SOFT_MAX_MATCHES_PER_WEEK`, and `W_TIER_MISMATCH` are imported in the repair module for configuration continuity, even though current repair placement is greedy.
-- Baseline weekly hard minimum is documented as configurable, but current baseline handles small week fragments through soft balancing.
-- The UI patches constants in imported modules at runtime. It does not rewrite `src/constants.py` during a UI run.
+This section explains the key diagnostic and operational metrics exposed in the Streamlit UI.
+
+## 16.1 Feasibility Pressure Dashboard
+
+These metrics evaluate the "tightness" of the scheduling problem before the solver executes.
+
+| Metric | What it Represents | Example | Why it Matters |
+|---|---|---|---|
+| **Min/Median/Max Feasible Slots** | The statistical distribution of valid calendar options available per match. | Min: 4, Median: 120, Max: 250. | Identifies if the overall season is highly constrained or flexible. |
+| **Matches <= 25/50/100** | Count of fixtures with dangerously low slot options within their round window. | "5 matches <= 25" means five fixtures have very few places to land. | High counts here indicate a "fragile" schedule prone to solver failure. |
+| **Feasible-Slot Histogram** | A frequency distribution of matches by their available slot counts. | A large bar at 'X=12' means many matches have exactly 12 options. | Visualizes the "difficulty" profile of the entire season. |
+| **Tightest Matches** | A table listing the specific fixtures with the fewest available slots. | Round 4: AHL vs ZAM has only 2 valid slots. | The primary debugging tool for solver "Infeasibility" reports. |
+| **Round-Level Avg Feasibility** | The average number of slots available for matches in a specific round. | Round 17 has an average of 15 slots; Round 1 has 180. | Identifies "crunch weeks" (e.g., due to heavy CAF overlap). |
+
+## 16.2 CAF Audit & Repair Dashboard
+
+These metrics track how CAF conflicts are identified and resolved.
+
+| Metric | What it Represents | Example | Why it Matters |
+|---|---|---|---|
+| **CAF Violations Found** | Matches in the baseline schedule that violate CAF rest or blocker rules. | 12 matches found with < 4 days rest from a CAF fixture. | Quantifies the "correction" needed after the baseline solve. |
+| **Repaired Matches** | Matches successfully moved from the postponement queue to a safe, later slot. | 10 out of 12 violations were successfully rescheduled. | Indicates the success rate of the greedy repair algorithm. |
+| **Unresolved Matches** | Matches that could not find any valid later slot during repair. | 2 matches remain unresolved. | Highlights fixtures that require manual intervention or relaxed variables. |
+| **Repair Outcome Funnel** | A step-by-step count of matches from audit to queue to final placement. | Audited (306) -> Violating (12) -> Repaired (10). | Visualizes the "survival rate" of matches through the repair pipeline. |
+
+## 16.3 Season Summary & Validation Dashboard
+
+These metrics verify the quality and integrity of the final schedule.
+
+| Metric | What it Represents | Example | Why it Matters |
+|---|---|---|---|
+| **Away Travel Range** | The difference in total distance (km) between the most and least traveled teams. | Range: 1,500 km (Team A: 5k, Team B: 3.5k). | Measures "geographic fairness" across the league. |
+| **Max Rest Gap** | The longest period any team goes between two consecutive league matches. | Al Ittihad has a 21-day gap due to a FIFA break. | Identifies potential loss of match fitness or schedule "dead zones." |
+| **Top 3 Venue Share** | The percentage of all matches played in the three most-used stadiums. | Cairo Stadium, Borg El Arab, and Al Salam host 45% of matches. | Monitors stadium wear-and-tear and over-centralization. |
+| **Rounds Spanning 1/2/3+ Weeks** | How many abstract rounds are completed within a single calendar week vs. dragged out. | 25 rounds in 1 week, 9 rounds in 2+ weeks. | Measures the "compactness" and chronological flow of the season. |
+| **Per-Team Max Streak** | The longest consecutive run of Home or Away matches for any club. | Pyramids has a streak of 2 (H-H). | Ensures no team is forced into long periods without home revenue or travel relief. |
+| **Rolling-5 H/A Balance** | The min/max home match count in any 5-match window for a team. | Min: 2, Max: 3. | Verifies consistent alternation between home and away matches. |
+| **Round Order Consistency** | Counts of "Team Inversions" (playing Round 10 before Round 9). | 4 team inversions reported. | High counts mean the "round" concept is becoming meaningless due to postponements. |
