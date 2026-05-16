@@ -324,6 +324,20 @@ MODEL_CONTROL_GROUPS = [
             ),
         ],
     ),
+    (
+        "UI & Performance (Cloud Safety)",
+        [
+            (
+                "NUM_WORKERS",
+                "Solver CPU workers",
+                4,
+                1,
+                16,
+                1,
+                "Number of CPU cores dedicated to solving. Lower this (e.g., 2 or 4) if the app crashes on cloud.",
+            ),
+        ],
+    ),
 ]
 
 
@@ -419,6 +433,9 @@ def _render_model_config_controls() -> Dict[str, int]:
 
     st.markdown("**Model variables**")
     st.caption("Applied to the next pipeline run in this Streamlit session.")
+    
+    # Default to False for Cloud stability (prevents websocket flood)
+    st.toggle("Show live logs", value=False, key="ui::show_live_logs", help="Disable if the app crashes during solve. Recommended for Cloud.")
 
     for group_name, fields in MODEL_CONTROL_GROUPS:
         with st.expander(group_name, expanded=group_name in ("Rest and streak rules", "Solver limits")):
@@ -761,14 +778,26 @@ def _run_phase(
     thread = threading.Thread(target=_thread_target)
     thread.start()
 
-    # Main thread loop: yields to event loop to handle keepalive pings
-    last_log_val = ""
+    # Main thread loop: yields to handle keepalive pings
+    last_log_len = 0
+    show_logs = st.session_state.get("ui::show_live_logs", False)
+    
     while thread.is_alive():
-        current_logs = log_buffer.getvalue()
-        if current_logs != last_log_val:
-            log_box.code(current_logs, language="text")
-            last_log_val = current_logs
-        time.sleep(0.5)
+        if show_logs:
+            try:
+                current_logs = log_buffer.getvalue()
+                if len(current_logs) != last_log_len:
+                    lines = current_logs.splitlines()
+                    tail = "\n".join(lines[-15:]) # Even smaller tail
+                    log_box.text(tail)
+                    last_log_len = len(current_logs)
+            except Exception:
+                # Ignore UI update errors if websocket is struggling
+                pass
+        
+        # Aggressive yield for cloud stability (5 seconds)
+        # This keeps the main thread idle most of the time to process pings
+        time.sleep(5.0)
 
     thread.join()
 
@@ -776,7 +805,13 @@ def _run_phase(
         raise container["error"]
 
     elapsed = time.time() - start
-    log_box.code(log_buffer.getvalue(), language="text")
+    if show_logs:
+        try:
+            final_logs = log_buffer.getvalue()
+            log_box.text("\n".join(final_logs.splitlines()[-30:]))
+        except Exception:
+            pass
+    
     status.update(label=f"{name} (done in {elapsed:.1f}s)", state="complete")
     return container["result"]
 
@@ -1556,17 +1591,8 @@ def _render_selected_detail_rows(
 def _render_validation_dashboard() -> None:
     st.subheader("Validate & Insights")
     st.caption(
-        "Read-only validation dashboard over the current artifacts in `output/` and `output/phases/`."
+        "Read-only validation dashboard. Data is loaded on-demand for each tab to ensure cloud stability."
     )
-
-    dashboard_data = _load_validation_dashboard_inputs()
-    schedule = dashboard_data["schedule"]
-
-    if schedule is None:
-        st.warning(
-            "`output/optimized_schedule.csv` is missing. "
-            "Schedule-based views will be partial, but other validation artifacts can still be inspected."
-        )
 
     overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab, monte_carlo_tab = st.tabs(
         [
@@ -1579,23 +1605,58 @@ def _render_validation_dashboard() -> None:
         ]
     )
 
+    # We only load "available" status initially
+    available = {key: os.path.exists(path) for key, path in VALIDATION_DASHBOARD_PATHS.items()}
+    
     with overview_tab:
-        _render_validation_overview(dashboard_data)
+        if available["schedule"] and available["final_validation"]:
+            # Overview needs specific files
+            data_keys = ["schedule", "final_validation", "baseline_solver_status", "repair_solver_status", "week_round_map", "team_sequence_validation"]
+            subset = _load_dashboard_subset(data_keys)
+            _render_validation_overview(subset)
+        else:
+            st.info("Run the pipeline to populate the overview dashboard.")
 
     with compliance_tab:
-        _render_constraint_compliance(dashboard_data)
+        if available["final_validation"]:
+            subset = _load_dashboard_subset(["final_validation", "team_sequence_validation", "caf_audit"])
+            _render_constraint_compliance(subset)
+        else:
+            st.info("Final validation report not found.")
 
     with feasibility_tab:
-        _render_feasibility_pressure(dashboard_data)
+        if available["baseline_feasible_slots"]:
+            subset = _load_dashboard_subset(["baseline_feasible_slots", "baseline_solver_status", "round_windows"])
+            _render_feasibility_pressure(subset)
+        else:
+            st.info("Feasibility data not found.")
 
     with caf_tab:
-        _render_caf_repair_dashboard(dashboard_data)
+        if available["caf_audit"]:
+            subset = _load_dashboard_subset(["caf_audit", "caf_queue", "caf_rescheduled", "caf_unresolved", "repair_solver_status"])
+            _render_caf_repair_dashboard(subset)
+        else:
+            st.info("CAF audit data not found.")
 
     with fairness_tab:
-        _render_fairness_insights(dashboard_data)
+        if available["schedule"]:
+            subset = _load_dashboard_subset(["schedule", "week_round_map", "home_away_patterns", "team_sequence_validation"])
+            _render_fairness_insights(subset)
+        else:
+            st.info("Schedule data not found.")
         
     with monte_carlo_tab:
         _render_monte_carlo_tab()
+
+
+@st.cache_data(show_spinner=False)
+def _load_dashboard_subset(keys: List[str]) -> Dict[str, Any]:
+    """Helper to load only the required dataframes for a specific tab."""
+    full_data = _load_validation_dashboard_inputs()
+    # Add availability markers for the specific subset
+    subset = {k: full_data.get(k) for k in keys}
+    subset["available"] = {k: full_data["available"].get(k, False) for k in keys}
+    return subset
 
 
 def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:

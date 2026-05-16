@@ -32,6 +32,9 @@ from src.constants import (
     W_WEEK_OVERLOAD,
     W_WEEK_UNDERLOAD,
 )
+
+# May be patched by UI
+NUM_WORKERS = 4
 from src.data_loader import LeagueData
 from src.fixture_generator import Match
 from src.tiers import compute_slot_tiers
@@ -404,7 +407,7 @@ def _solve_baseline_legacy(
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = BASELINE_SOLVER_TIME_LIMIT_S
-    solver.parameters.num_workers = 8
+    solver.parameters.num_workers = 4
     solver.parameters.log_search_progress = True
 
     status = solver.Solve(model)
@@ -733,7 +736,7 @@ def _solve_baseline_with_stadium_gap(
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = BASELINE_SOLVER_TIME_LIMIT_S
-    solver.parameters.num_workers = 8
+    solver.parameters.num_workers = 4
     solver.parameters.log_search_progress = True
 
     status = solver.Solve(model)

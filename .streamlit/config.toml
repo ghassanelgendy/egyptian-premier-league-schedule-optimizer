@@ -1,0 +1,18 @@
+[server]
+enableCORS = false
+enableXsrfProtection = false
+maxMessageSize = 500
+maxUploadSize = 500
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = true
+
+[theme]
+primaryColor = "#68239e"
+backgroundColor = "#232126"
+secondaryBackgroundColor = "#2f2934"
+textColor = "#f8f9f7"
+font = "sans serif"
