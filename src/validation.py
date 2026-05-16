@@ -28,8 +28,8 @@ def write_validation_reports(
     repaired: List[ScheduledMatch],
     unresolved: List[ScheduledMatch],
     data: LeagueData,
-) -> None:
-    """Write final validation reports under output/phases."""
+) -> Tuple[List[Dict[str, object]], List[Dict[str, object]]]:
+    """Write final validation reports and return them for analysis."""
 
     os.makedirs(PHASES_DIR, exist_ok=True)
 
@@ -52,6 +52,8 @@ def write_validation_reports(
 
     _write_team_sequence(sequence_rows)
     _write_validation_report(issues)
+
+    return issues, sequence_rows
 
 
 def _build_team_sequence_rows(
