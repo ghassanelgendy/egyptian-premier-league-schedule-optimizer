@@ -36,6 +36,7 @@ from src.constants import (
     MAX_CONSECUTIVE_HOME,
     MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
+    MIN_DAYS_BETWEEN_ROUNDS,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
     MIN_STADIUM_SERVICE_GAP_DAYS,
@@ -215,6 +216,15 @@ MODEL_CONTROL_GROUPS = [
                 10,
                 1,
                 "Concurrent matches allowed in the same kickoff slot.",
+            ),
+            (
+                "MIN_DAYS_BETWEEN_ROUNDS",
+                "Min days between rounds",
+                MIN_DAYS_BETWEEN_ROUNDS,
+                0,
+                7,
+                1,
+                "Minimum calendar-day separation between the last match of one non-postponed round and the first match of the next. Set to 1 to forbid same-day round overlap.",
             ),
             (
                 "MIN_STADIUM_SERVICE_GAP_DAYS",

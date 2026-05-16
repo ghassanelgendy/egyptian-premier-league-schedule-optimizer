@@ -17,6 +17,7 @@ from src.constants import (
     HARD_MAX_MATCHES_PER_WEEK,
     MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
+    MIN_DAYS_BETWEEN_ROUNDS,
     MIN_REST_DAYS_LOCAL,
     MIN_STADIUM_SERVICE_GAP_DAYS,
     NUM_ROUNDS,
@@ -89,19 +90,10 @@ def _build_slot_context(data: LeagueData) -> dict:
     slot_datetimes = list(
         slots["Date time"] if "Date time" in slots.columns else [None] * n_slots
     )
-    slot_order = {
-        item: idx
-        for idx, item in enumerate(
-            sorted(set((slot_dates[si], str(slot_datetimes[si])) for si in range(n_slots)))
-        )
-    }
-    slot_time_index = [
-        slot_order[(slot_dates[si], str(slot_datetimes[si]))]
-        for si in range(n_slots)
-    ]
-
     all_dates = sorted(set(slot_dates))
     all_weeks = sorted(set(slot_weeks))
+    slot_day_lookup = {slot_date: idx for idx, slot_date in enumerate(all_dates)}
+    slot_day_index = [slot_day_lookup[slot_date] for slot_date in slot_dates]
 
     slots_by_date: Dict[date, List[int]] = defaultdict(list)
     for si, slot_date in enumerate(slot_dates):
@@ -129,13 +121,13 @@ def _build_slot_context(data: LeagueData) -> dict:
         "slot_tiers": slot_tiers,
         "slot_day_ids": slot_day_ids,
         "slot_datetimes": slot_datetimes,
-        "slot_time_index": slot_time_index,
+        "slot_day_index": slot_day_index,
         "all_dates": all_dates,
         "all_weeks": all_weeks,
         "slots_by_date": slots_by_date,
         "slots_by_week": slots_by_week,
         "nominal_week": nominal_week,
-        "max_slot_time": max(slot_time_index) if slot_time_index else 0,
+        "max_slot_day": max(slot_day_index) if slot_day_index else 0,
     }
 
 
@@ -160,6 +152,51 @@ def _build_match_context(
     return teams_dict, tier1_teams, matches_by_team, matches_by_round
 
 
+def _build_match_day_vars(
+    model: cp_model.CpModel,
+    matches: List[Match],
+    assignment_terms_by_match: Dict[int, List[Tuple[int, cp_model.IntVar]]],
+    max_slot_day: int,
+) -> Dict[int, cp_model.IntVar]:
+    match_day: Dict[int, cp_model.IntVar] = {}
+    for match in matches:
+        d_var = model.NewIntVar(0, max_slot_day, f"match_day_{match.match_idx}")
+        model.Add(
+            d_var
+            == sum(
+                day_index * var
+                for day_index, var in assignment_terms_by_match[match.match_idx]
+            )
+        )
+        match_day[match.match_idx] = d_var
+    return match_day
+
+
+def _add_round_gap_constraints(
+    model: cp_model.CpModel,
+    matches_by_round: Dict[int, List[int]],
+    match_day: Dict[int, cp_model.IntVar],
+    max_slot_day: int,
+) -> None:
+    round_start_day: Dict[int, cp_model.IntVar] = {}
+    round_end_day: Dict[int, cp_model.IntVar] = {}
+
+    for round_num in range(1, NUM_ROUNDS + 1):
+        vars_in_round = [match_day[match_idx] for match_idx in matches_by_round[round_num]]
+        start_var = model.NewIntVar(0, max_slot_day, f"round_{round_num}_start_day")
+        end_var = model.NewIntVar(0, max_slot_day, f"round_{round_num}_end_day")
+        model.AddMinEquality(start_var, vars_in_round)
+        model.AddMaxEquality(end_var, vars_in_round)
+        round_start_day[round_num] = start_var
+        round_end_day[round_num] = end_var
+
+    for round_num in range(1, NUM_ROUNDS):
+        model.Add(
+            round_end_day[round_num] + MIN_DAYS_BETWEEN_ROUNDS
+            <= round_start_day[round_num + 1]
+        )
+
+
 def _solve_baseline_legacy(
     data: LeagueData,
     matches: List[Match],
@@ -175,13 +212,13 @@ def _solve_baseline_legacy(
     slot_tiers = slot_ctx["slot_tiers"]
     slot_day_ids = slot_ctx["slot_day_ids"]
     slot_datetimes = slot_ctx["slot_datetimes"]
-    slot_time_index = slot_ctx["slot_time_index"]
+    slot_day_index = slot_ctx["slot_day_index"]
     all_dates = slot_ctx["all_dates"]
     all_weeks = slot_ctx["all_weeks"]
     slots_by_date = slot_ctx["slots_by_date"]
     slots_by_week = slot_ctx["slots_by_week"]
     nominal_week = slot_ctx["nominal_week"]
-    max_slot_time = slot_ctx["max_slot_time"]
+    max_slot_day = slot_ctx["max_slot_day"]
     n_slots = slot_ctx["n_slots"]
 
     teams_dict, tier1_teams, matches_by_team, matches_by_round = _build_match_context(
@@ -217,17 +254,18 @@ def _solve_baseline_legacy(
 
     print(f"[baseline] Variables created: {sum(len(v) for v in x.values())}")
 
-    match_time: Dict[int, cp_model.IntVar] = {}
-    for match in matches:
-        t_var = model.NewIntVar(0, max_slot_time, f"match_time_{match.match_idx}")
-        model.Add(
-            t_var
-            == sum(
-                slot_time_index[slot_idx] * var
+    match_day = _build_match_day_vars(
+        model,
+        matches,
+        {
+            match.match_idx: [
+                (slot_day_index[slot_idx], var)
                 for slot_idx, var in x[match.match_idx].items()
-            )
-        )
-        match_time[match.match_idx] = t_var
+            ]
+            for match in matches
+        },
+        max_slot_day,
+    )
 
     for match in matches:
         model.Add(sum(x[match.match_idx].values()) == 1)
@@ -305,19 +343,7 @@ def _solve_baseline_legacy(
             if len(vars_in_window) > 1:
                 model.Add(sum(vars_in_window) <= 1)
 
-    round_min: Dict[int, cp_model.IntVar] = {}
-    round_max: Dict[int, cp_model.IntVar] = {}
-    for round_num in range(1, NUM_ROUNDS + 1):
-        vars_in_round = [match_time[match_idx] for match_idx in matches_by_round[round_num]]
-        round_min_var = model.NewIntVar(0, max_slot_time, f"round_{round_num}_min")
-        round_max_var = model.NewIntVar(0, max_slot_time, f"round_{round_num}_max")
-        model.AddMinEquality(round_min_var, vars_in_round)
-        model.AddMaxEquality(round_max_var, vars_in_round)
-        round_min[round_num] = round_min_var
-        round_max[round_num] = round_max_var
-
-    for round_num in range(1, NUM_ROUNDS):
-        model.Add(round_max[round_num] + 1 <= round_min[round_num + 1])
+    _add_round_gap_constraints(model, matches_by_round, match_day, max_slot_day)
 
     print("[baseline] Hard constraints added.")
 
@@ -458,13 +484,13 @@ def _solve_baseline_with_stadium_gap(
     slot_tiers = slot_ctx["slot_tiers"]
     slot_day_ids = slot_ctx["slot_day_ids"]
     slot_datetimes = slot_ctx["slot_datetimes"]
-    slot_time_index = slot_ctx["slot_time_index"]
+    slot_day_index = slot_ctx["slot_day_index"]
     all_dates = slot_ctx["all_dates"]
     all_weeks = slot_ctx["all_weeks"]
     slots_by_date = slot_ctx["slots_by_date"]
     slots_by_week = slot_ctx["slots_by_week"]
     nominal_week = slot_ctx["nominal_week"]
-    max_slot_time = slot_ctx["max_slot_time"]
+    max_slot_day = slot_ctx["max_slot_day"]
     n_slots = slot_ctx["n_slots"]
 
     teams_dict, tier1_teams, matches_by_team, matches_by_round = _build_match_context(
@@ -513,17 +539,18 @@ def _solve_baseline_with_stadium_gap(
 
     print(f"[baseline] Variables created: {sum(len(v) for v in x.values())}")
 
-    match_time: Dict[int, cp_model.IntVar] = {}
-    for match in matches:
-        t_var = model.NewIntVar(0, max_slot_time, f"match_time_{match.match_idx}")
-        model.Add(
-            t_var
-            == sum(
-                slot_time_index[slot_idx] * var
+    match_day = _build_match_day_vars(
+        model,
+        matches,
+        {
+            match.match_idx: [
+                (slot_day_index[slot_idx], var)
                 for (slot_idx, _venue), var in x[match.match_idx].items()
-            )
-        )
-        match_time[match.match_idx] = t_var
+            ]
+            for match in matches
+        },
+        max_slot_day,
+    )
 
     for match in matches:
         model.Add(sum(x[match.match_idx].values()) == 1)
@@ -621,19 +648,7 @@ def _solve_baseline_with_stadium_gap(
             if len(vars_in_window) > 1:
                 model.Add(sum(vars_in_window) <= 1)
 
-    round_min: Dict[int, cp_model.IntVar] = {}
-    round_max: Dict[int, cp_model.IntVar] = {}
-    for round_num in range(1, NUM_ROUNDS + 1):
-        vars_in_round = [match_time[match_idx] for match_idx in matches_by_round[round_num]]
-        round_min_var = model.NewIntVar(0, max_slot_time, f"round_{round_num}_min")
-        round_max_var = model.NewIntVar(0, max_slot_time, f"round_{round_num}_max")
-        model.AddMinEquality(round_min_var, vars_in_round)
-        model.AddMaxEquality(round_max_var, vars_in_round)
-        round_min[round_num] = round_min_var
-        round_max[round_num] = round_max_var
-
-    for round_num in range(1, NUM_ROUNDS):
-        model.Add(round_max[round_num] + 1 <= round_min[round_num + 1])
+    _add_round_gap_constraints(model, matches_by_round, match_day, max_slot_day)
 
     print("[baseline] Hard constraints added.")
 

@@ -12,6 +12,7 @@ from src.baseline_solver import ScheduledMatch
 from src.constants import (
     MATCHES_PER_ROUND,
     MAX_MATCHES_PER_DAY,
+    MIN_DAYS_BETWEEN_ROUNDS,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
     MIN_STADIUM_SERVICE_GAP_DAYS,
@@ -337,20 +338,30 @@ def _validate_global_round_order(
         nxt = by_round.get(round_num + 1, [])
         if not current or not nxt:
             continue
-        current_latest = max((sm.date, str(sm.date_time)) for sm in current)
-        next_earliest = min((sm.date, str(sm.date_time)) for sm in nxt)
-        if current_latest > next_earliest:
+        current_latest = max(sm.date for sm in current)
+        next_earliest = min(sm.date for sm in nxt)
+        gap_days = (next_earliest - current_latest).days
+        if gap_days < MIN_DAYS_BETWEEN_ROUNDS:
+            if MIN_DAYS_BETWEEN_ROUNDS == 1:
+                detail = (
+                    f"Non-postponed round {round_num + 1} starts on {next_earliest} "
+                    f"while round {round_num} ends on {current_latest}; consecutive "
+                    "rounds must start on a later calendar day"
+                )
+            else:
+                detail = (
+                    f"Non-postponed round {round_num + 1} starts only {gap_days} "
+                    f"day(s) after round {round_num} ends; need at least "
+                    f"{MIN_DAYS_BETWEEN_ROUNDS}"
+                )
             _add_issue(
                 issues,
                 "ERROR",
                 "GLOBAL_ROUND_ORDER",
                 "",
                 round_num + 1,
-                next_earliest[0],
-                (
-                    f"Non-postponed round {round_num + 1} starts before "
-                    f"round {round_num} has finished"
-                ),
+                next_earliest,
+                detail,
             )
 
 
