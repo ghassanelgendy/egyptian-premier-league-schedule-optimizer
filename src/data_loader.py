@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, time as dt_time
 from typing import Dict, List, Set
 
 import pandas as pd
@@ -60,6 +60,40 @@ def _parse_date(val) -> date | None:
         return pd.Timestamp(val).date()
     except Exception:
         return None
+
+
+def _normalize_binary_series(series: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce")
+    if numeric.notna().any():
+        return numeric.fillna(0).astype(int)
+
+    normalized = series.fillna("").astype(str).str.strip().str.lower()
+    return normalized.isin({"1", "true", "yes", "y"}).astype(int)
+
+
+def _normalize_slot_datetimes(slots: pd.DataFrame) -> None:
+    if "Date time" not in slots.columns:
+        return
+
+    kickoff_values = slots["Date time"]
+    non_null = kickoff_values.dropna()
+    if non_null.empty:
+        slots["Date time"] = pd.to_datetime(kickoff_values, errors="coerce")
+        return
+
+    sample = non_null.iloc[0]
+    if isinstance(sample, dt_time):
+        slots["Date time"] = [
+            (
+                datetime.combine(match_date.date(), kickoff)
+                if pd.notna(match_date) and isinstance(kickoff, dt_time)
+                else pd.NaT
+            )
+            for match_date, kickoff in zip(slots["Date"], kickoff_values)
+        ]
+        return
+
+    slots["Date time"] = pd.to_datetime(kickoff_values, errors="coerce")
 
 
 def _load_data_model(path: str) -> tuple[pd.DataFrame, pd.DataFrame, dict, list]:
@@ -137,11 +171,16 @@ def _load_expanded_calendar(path: str) -> tuple[
     """
     xls = pd.ExcelFile(path, engine="openpyxl")
 
-    # Locate sheets (handle the space in 'expanded _calendar_table')
+    # Locate sheets. Prefer the visible `expanded _calendar_table` sheet over
+    # the hidden `expanded_calendar` sheet when both are present.
     sheet_names = xls.sheet_names
     main_sheet = None
     for s in sheet_names:
-        if s.replace(" ", "") == "expanded_calendar" and "table" not in s.lower():
+        if s.strip().lower() == "expanded _calendar_table":
+            main_sheet = s
+            break
+    for s in sheet_names:
+        if main_sheet is None and s.replace(" ", "") == "expanded_calendar" and "table" not in s.lower():
             main_sheet = s
             break
     if main_sheet is None:
@@ -177,14 +216,16 @@ def _load_expanded_calendar(path: str) -> tuple[
     slots["Date"] = pd.to_datetime(slots["Date"], errors="coerce")
     slots["_date"] = slots["Date"].apply(lambda d: d.date() if pd.notna(d) else None)
 
-    if "Date time" in slots.columns:
-        slots["Date time"] = pd.to_datetime(slots["Date time"], errors="coerce")
+    _normalize_slot_datetimes(slots)
 
     for col in ("Day_ID", "Week_Num", "Day_name"):
         if col not in slots.columns:
             raise ValueError(f"Sheet '{main_sheet}' missing '{col}' column")
 
     slots["Week_Num"] = pd.to_numeric(slots["Week_Num"], errors="coerce").astype("Int64")
+    for col in ("Is_FIFA", "Is_CAF", "Is_Ramadan", "Is_SuperCup"):
+        if col in slots.columns:
+            slots[col] = _normalize_binary_series(slots[col])
 
     # --- FIFA dates (union of three sources) ---
     fifa_dates: Set[date] = set()
