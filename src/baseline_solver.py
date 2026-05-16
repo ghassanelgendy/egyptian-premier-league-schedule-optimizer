@@ -631,11 +631,11 @@ def _solve_baseline_with_stadium_gap(
                 model.Add(sum(vars_in_window) <= 1)
 
     service_gap = MIN_STADIUM_SERVICE_GAP_DAYS
-    if service_gap > 0:
-        venue_to_dates: Dict[str, List[date]] = defaultdict(list)
-        for (venue, v_date) in venue_date_vars.keys():
-            venue_to_dates[venue].append(v_date)
+    venue_to_dates: Dict[str, List[date]] = defaultdict(list)
+    for (v, d) in venue_date_vars.keys():
+        venue_to_dates[v].append(d)
 
+    if service_gap > 0:
         for venue, dates in venue_to_dates.items():
             ordered_dates = sorted(set(dates))
             for i, start_date in enumerate(ordered_dates):
@@ -650,11 +650,26 @@ def _solve_baseline_with_stadium_gap(
                     overlap_var = model.NewBoolVar(f"overlap_{venue}_{start_date}")
                     model.Add(sum(vars_in_window) > 1).OnlyEnforceIf(overlap_var)
                     model.Add(sum(vars_in_window) <= 1).OnlyEnforceIf(overlap_var.Not())
-                    objective_terms.append(overlap_var * W_STADIUM_MAINTENANCE_OVERLAP)
+                    
+                    # Base maintenance penalty
+                    penalty = W_STADIUM_MAINTENANCE_OVERLAP
+                    objective_terms.append(overlap_var * penalty)
 
     _add_round_gap_constraints(model, matches_by_round, match_day, max_slot_day)
 
     print("[baseline] Hard constraints added.")
+
+    # Same-day stadium penalty (MASSIVE)
+    # We create a new set of overlap variables strictly for same-day clashes.
+    for venue, dates in venue_to_dates.items():
+        for d in dates:
+            same_day_vars = venue_date_vars.get((venue, d), [])
+            if len(same_day_vars) > 1:
+                sd_overlap = model.NewBoolVar(f"sd_overlap_{venue}_{d}")
+                model.Add(sum(same_day_vars) > 1).OnlyEnforceIf(sd_overlap)
+                model.Add(sum(same_day_vars) <= 1).OnlyEnforceIf(sd_overlap.Not())
+                # 50 million penalty for matches on the exact same day
+                objective_terms.append(sd_overlap * 50_000_000)
 
     TIER_WEIGHTS = {1: 10, 2: 5, 3: 2, 4: 1}
 

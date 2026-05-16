@@ -54,6 +54,8 @@ from src.constants import (
     W_TRAVEL,
     W_WEEK_OVERLOAD,
     W_WEEK_UNDERLOAD,
+    W_STADIUM_MAINTENANCE_OVERLAP,
+    ALT_STADIUM_RELIEF_PENALTY,
 )
 
 
@@ -240,6 +242,24 @@ MODEL_CONTROL_GROUPS = [
     (
         "Objective weights",
         [
+            (
+                "W_STADIUM_MAINTENANCE_OVERLAP",
+                "Stadium overlap weight",
+                W_STADIUM_MAINTENANCE_OVERLAP,
+                0,
+                50000000,
+                1000000,
+                "Penalty for matches at same venue within service gap.",
+            ),
+            (
+                "ALT_STADIUM_RELIEF_PENALTY",
+                "Alt stadium base weight",
+                ALT_STADIUM_RELIEF_PENALTY,
+                0,
+                50000000,
+                1000000,
+                "Base penalty for using alt stadium (scaled by team tier).",
+            ),
             ("W_ROUND_ORDER", "Round order weight", W_ROUND_ORDER, 0, 10000, 1, "Chronological round pressure."),
             (
                 "W_WEEK_UNDERLOAD",
