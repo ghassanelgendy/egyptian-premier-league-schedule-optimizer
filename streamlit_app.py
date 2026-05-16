@@ -1611,7 +1611,16 @@ def _render_validation_dashboard() -> None:
     with overview_tab:
         if available["schedule"] and available["final_validation"]:
             # Overview needs specific files
-            data_keys = ["schedule", "final_validation", "baseline_solver_status", "repair_solver_status", "week_round_map", "team_sequence_validation"]
+            data_keys = [
+                "schedule",
+                "final_validation",
+                "baseline_solver_status",
+                "repair_solver_status",
+                "week_round_map",
+                "team_sequence",
+                "caf_unresolved",
+                "caf_rescheduled",
+            ]
             subset = _load_dashboard_subset(data_keys)
             _render_validation_overview(subset)
         else:
@@ -1619,14 +1628,14 @@ def _render_validation_dashboard() -> None:
 
     with compliance_tab:
         if available["final_validation"]:
-            subset = _load_dashboard_subset(["final_validation", "team_sequence_validation", "caf_audit"])
+            subset = _load_dashboard_subset(["final_validation", "team_sequence", "caf_audit"])
             _render_constraint_compliance(subset)
         else:
             st.info("Final validation report not found.")
 
     with feasibility_tab:
         if available["baseline_feasible_slots"]:
-            subset = _load_dashboard_subset(["baseline_feasible_slots", "baseline_solver_status", "round_windows"])
+            subset = _load_dashboard_subset(["feasible_slots", "baseline_solver_status", "round_windows"])
             _render_feasibility_pressure(subset)
         else:
             st.info("Feasibility data not found.")
@@ -1640,7 +1649,7 @@ def _render_validation_dashboard() -> None:
 
     with fairness_tab:
         if available["schedule"]:
-            subset = _load_dashboard_subset(["schedule", "week_round_map", "home_away_patterns", "team_sequence_validation"])
+            subset = _load_dashboard_subset(["schedule", "week_round_map", "home_away_patterns", "team_sequence"])
             _render_fairness_insights(subset)
         else:
             st.info("Schedule data not found.")
