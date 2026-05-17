@@ -132,7 +132,10 @@ def main(seed: int = DEFAULT_SEED, runs: int = 1) -> None:
     print(f"  CAF teams: {list(data.caf_dates_by_team.keys())}")
 
     if runs > 1:
-        run_monte_carlo(data, seed, runs, run_pipeline)
+        # For Monte Carlo, we use the provided --parallel flag if present.
+        # Otherwise, default to 4 parallel workers.
+        max_workers = getattr(args, "parallel", 4)
+        run_monte_carlo(data, seed, runs, run_pipeline, max_workers=max_workers)
     else:
         run_pipeline(data, seed, is_batch=False)
 
@@ -149,5 +152,7 @@ if __name__ == "__main__":
                         help=f"Random seed for DRR generation (default: {DEFAULT_SEED})")
     parser.add_argument("--runs", type=int, default=1,
                         help="Number of Monte Carlo runs (default: 1)")
+    parser.add_argument("--parallel", type=int, default=4,
+                        help="Number of parallel runs for Monte Carlo (default: 4)")
     args = parser.parse_args()
     main(seed=args.seed, runs=args.runs)

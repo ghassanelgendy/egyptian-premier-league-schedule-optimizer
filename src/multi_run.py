@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import os
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -33,8 +34,9 @@ def run_monte_carlo(
     initial_seed: int,
     num_runs: int,
     pipeline_fn: Any,
+    max_workers: int = 4,
 ) -> None:
-    """Run the pipeline multiple times with checkpointing and interrupt protection."""
+    """Run the pipeline multiple times in parallel with checkpointing."""
     
     results_dir = os.path.join("output", "multi_run")
     os.makedirs(results_dir, exist_ok=True)
@@ -43,16 +45,15 @@ def run_monte_carlo(
     metrics_list: List[RunMetrics] = []
     finished_seeds: set[int] = set()
 
-    # Load existing progress if available
+    # Load existing progress
     if os.path.exists(summary_path):
         try:
             existing_df = pd.read_csv(summary_path)
             for _, row in existing_df.iterrows():
-                # Reconstruct RunMetrics from row
                 m = RunMetrics(**{k: row[k] for k in RunMetrics.__annotations__.keys()})
                 metrics_list.append(m)
                 finished_seeds.add(int(m.seed))
-            print(f"Resuming Monte Carlo: Found {len(metrics_list)} existing runs in {summary_path}")
+            print(f"Resuming Monte Carlo: Found {len(metrics_list)} existing runs.")
         except Exception as e:
             print(f"Could not load existing results ({e}), starting fresh.")
 
@@ -62,46 +63,65 @@ def run_monte_carlo(
             if best_metrics is None or _is_better(m, best_metrics):
                 best_metrics = m
 
-    print(f"\nStarting Monte Carlo simulation: {num_runs} runs starting with base seed {initial_seed}")
+    seeds_to_run = [initial_seed + i for i in range(num_runs) if (initial_seed + i) not in finished_seeds]
     
-    try:
-        for i in range(num_runs):
-            current_seed = initial_seed + i
-            if current_seed in finished_seeds:
-                continue
-
-            print(f"\n>>> RUN {len(metrics_list)+1}/{num_runs} (Seed: {current_seed})")
+    if not seeds_to_run:
+        print("All requested runs are already finished.")
+    else:
+        print(f"\nStarting Parallel Monte Carlo: {len(seeds_to_run)} seeds remaining using {max_workers} workers.")
+        
+        # We use a process pool for true parallelism
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # Map seeds to the pipeline function
+            # Note: We pass is_batch=True to suppress UI/file conflicts
+            future_to_seed = {
+                executor.submit(pipeline_fn, data, seed, True): seed 
+                for seed in seeds_to_run
+            }
             
-            t0 = time.time()
             try:
-                metrics = pipeline_fn(data, current_seed, is_batch=True)
-                if metrics is None:
-                    print(f"  !!! Run {current_seed} returned INFEASIBLE.")
-                    continue
-                    
-                wall_time = time.time() - t0
-                metrics.wall_time_s = wall_time
-                metrics_list.append(metrics)
-                finished_seeds.add(current_seed)
-                
-                # Update best
-                if best_metrics is None or _is_better(metrics, best_metrics):
-                    best_metrics = metrics
-                    print(f"  *** New Best Seed Found: {current_seed} (Objective: {metrics.baseline_objective}) ***")
+                for future in as_completed(future_to_seed):
+                    seed = future_to_seed[future]
+                    try:
+                        metrics = future.result()
+                        if metrics is None:
+                            print(f"  !!! Run {seed} returned INFEASIBLE.")
+                            continue
+                            
+                        metrics_list.append(metrics)
+                        
+                        if best_metrics is None or _is_better(metrics, best_metrics):
+                            best_metrics = metrics
+                            print(f"  *** New Best Seed Found: {seed} (Objective: {metrics.baseline_objective}) ***")
 
-                # Incremental Save (Checkpoint)
-                _save_summary(summary_path, metrics_list)
+                        # Checkpoint after every success
+                        _save_summary(summary_path, metrics_list)
+                        print(f"  [Progress] Finished seed {seed} ({len(metrics_list)}/{num_runs})")
 
-            except Exception as e:
-                print(f"  !!! Run {current_seed} failed with error: {e}")
-                import traceback
-                traceback.print_exc()
-                continue
+                    except Exception as e:
+                        print(f"  !!! Run {seed} failed with error: {e}")
+            
+            except KeyboardInterrupt:
+                print("\n\n!!! INTERRUPT DETECTED !!! Shutting down workers...")
+                executor.shutdown(wait=False, cancel_futures=True)
 
-    except KeyboardInterrupt:
-        print("\n\n!!! INTERRUPT DETECTED !!!")
-        print(f"Gracefully stopping. Processed {len(metrics_list)} runs so far.")
-        # Summary already saved incrementally
+    # Final Summary and Restore Best
+    if metrics_list:
+        print("\n" + "=" * 60)
+        print("MONTE CARLO SUMMARY")
+        print("=" * 60)
+        print(f"  Total Successful Runs: {len(metrics_list)}")
+        if best_metrics:
+            print(f"  Best Seed Found: {best_metrics.seed}")
+            print(f"  Best Objective: {best_metrics.baseline_objective}")
+        print(f"  Full results at: {summary_path}")
+        print("=" * 60)
+        
+        if best_metrics:
+            print(f"\nRestoring final artifacts for the best-performing seed ({best_metrics.seed})...")
+            pipeline_fn(data, best_metrics.seed, is_batch=False)
+    else:
+        print("\nNo successful runs to aggregate.")
 
     # Final Summary Printout
     if metrics_list:
