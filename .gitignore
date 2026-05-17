@@ -6,3 +6,11 @@
 /src/__pycache__
 /src/__pycache__
 *.pyc
+generate_fifa_18_19.py
+generate_historical_caf.py
+generate_historical_caf_verified.py
+generate_historical_fifa.py
+update_all_historical_fifa.py
+update_fifa_18_19.py
+update_fifa_20_21.py
+update_fifa_19_20.py
