@@ -212,8 +212,6 @@ def _find_valid_slots(
     for slot_idx, slot_date in enumerate(slot_dates):
         if slot_date is None:
             continue
-        if slot_date < match.date:
-            continue
         if state.date_load.get(slot_date, 0) >= MAX_MATCHES_PER_DAY:
             continue
 
@@ -269,8 +267,6 @@ def _find_valid_assignments(
 
     for slot_idx, slot_date in enumerate(slot_dates):
         if slot_date is None:
-            continue
-        if slot_date < match.date:
             continue
         if state.date_load.get(slot_date, 0) >= MAX_MATCHES_PER_DAY:
             continue
@@ -362,9 +358,6 @@ def _match_can_play_on_date(
     state: _OccupiedState,
     caf_teams: Set[str],
 ) -> bool:
-    if candidate_date < match.date:
-        return False
-
     home_dates = state.team_dates.get(match.home_team, [])
     hi = bisect.bisect_left(home_dates, candidate_date)
     if hi < len(home_dates) and home_dates[hi] == candidate_date:
@@ -435,7 +428,7 @@ def _candidate_slots_for_final_round(
         [
             slot_idx
             for slot_idx, slot_date in enumerate(slot_dates)
-            if slot_date is not None and slot_date >= first_date
+            if slot_date is not None
         ],
         key=lambda slot_idx: (
             abs((slot_dates[slot_idx] - first_date).days),

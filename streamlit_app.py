@@ -1620,13 +1620,14 @@ def _render_validation_dashboard() -> None:
         "Read-only validation dashboard. Data is loaded on-demand for each tab to ensure cloud stability."
     )
 
-    overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab, monte_carlo_tab, historical_tab = st.tabs(
+    overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab, maintenance_tab, monte_carlo_tab, historical_tab = st.tabs(
         [
             "Overview",
             "Constraint Compliance",
             "Feasibility & Solver Pressure",
             "CAF & Repair",
             "Fairness & Operational Insights",
+            "Maintenance & Venues",
             "Monte Carlo Analysis",
             "Historical Comparison",
         ]
@@ -1683,11 +1684,83 @@ def _render_validation_dashboard() -> None:
         else:
             st.info("Schedule data not found.")
 
+    with maintenance_tab:
+        if available["schedule"]:
+            subset = _load_dashboard_subset(["schedule"])
+            _render_maintenance_dashboard(subset)
+        else:
+            st.info("Schedule data not found.")
+
     with monte_carlo_tab:
         _render_monte_carlo_tab()
 
     with historical_tab:
         _render_historical_tab()
+
+
+def _render_maintenance_dashboard(dashboard_data: Dict[str, Any]) -> None:
+    st.header("🏟️ Stadium Maintenance & Venues")
+    schedule = dashboard_data.get("schedule")
+    if schedule is None or schedule.empty:
+        st.info("No schedule data available.")
+        return
+
+    st.markdown("Track venue utilization and maintenance gaps across the season.")
+
+    venue_load = _build_venue_load_summary(schedule)
+
+    col1, col2 = st.columns([0.8, 1.2])
+    with col1:
+        st.subheader("Matches per Venue")
+        st.dataframe(venue_load, hide_index=True, width="stretch")
+
+    with col2:
+        st.subheader("Venue Utilization Timeline")
+        # Scatter plot of dates vs venues
+        chart = (
+            alt.Chart(schedule)
+            .mark_circle(size=70)
+            .encode(
+                x=alt.X("_Date:T", title="Date"),
+                y=alt.Y("Venue_Stadium_ID:N", title="Stadium", sort="-x"),
+                color=alt.Color("Match_Tier:N", title="Match Tier"),
+                tooltip=["Round", "Home_Team_ID", "Away_Team_ID", "_Date", "Match_Tier"],
+            )
+            .properties(height=400)
+            .interactive()
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+    st.divider()
+    st.subheader("Service Gap Violations")
+    st.write(f"Current minimum service gap: **{MIN_STADIUM_SERVICE_GAP_DAYS} days**")
+
+    # Calculate gaps
+    maint_df = schedule.sort_values(["Venue_Stadium_ID", "_Date"]).copy()
+    maint_df["Prev_Date"] = maint_df.groupby("Venue_Stadium_ID")["_Date"].shift(1)
+
+    def _calc_gap(row):
+        if pd.isna(row["Prev_Date"]) or pd.isna(row["_Date"]):
+            return np.nan
+        return (row["_Date"] - row["Prev_Date"]).days
+
+    maint_df["Gap_Days"] = maint_df.apply(_calc_gap, axis=1)
+
+    violations = maint_df[maint_df["Gap_Days"] <= MIN_STADIUM_SERVICE_GAP_DAYS].copy()
+    if violations.empty:
+        st.success("No maintenance gap violations found.")
+    else:
+        st.warning(f"Found {len(violations)} match(es) violating the stadium service gap.")
+        display_cols = [
+            "Venue_Stadium_ID",
+            "Round",
+            "_Date",
+            "Prev_Date",
+            "Gap_Days",
+            "Home_Team_ID",
+            "Away_Team_ID",
+        ]
+        st.dataframe(violations[display_cols], hide_index=True, width="stretch")
 
 
 def _render_historical_tab() -> None:
@@ -2869,6 +2942,7 @@ def _match_label(row: pd.Series) -> str:
     home = str(row.get("Home_Team_ID", "") or "TBD")
     away = str(row.get("Away_Team_ID", "") or "TBD")
     round_num = row.get("Round", "")
+    venue = str(row.get("Venue_Stadium_ID", "") or "")
     time_label = ""
     raw_time = row.get("Date_time", "")
     parsed = pd.to_datetime(raw_time, errors="coerce")
@@ -2877,6 +2951,7 @@ def _match_label(row: pd.Series) -> str:
 
     prefix = f"R{html.escape(str(round_num))} " if str(round_num).strip() else ""
     time_html = f"<span>{html.escape(time_label)}</span>" if time_label else ""
+    venue_html = f"<span class=\"calendar-venue\">🏟️ {html.escape(venue)}</span>" if venue else ""
     teams_html = (
         "<div class=\"calendar-match-line\">"
         f"{_team_badge_html(home, size=20)}"
@@ -2884,7 +2959,7 @@ def _match_label(row: pd.Series) -> str:
         f"{_team_badge_html(away, size=20)}"
         "</div>"
     )
-    return f"<div class=\"calendar-match\">{prefix}{teams_html}{time_html}</div>"
+    return f"<div class=\"calendar-match\">{prefix}{teams_html}{time_html}{venue_html}</div>"
 
 
 def _empty_day_reason(
@@ -3037,6 +3112,13 @@ def _render_month_grid(
   font-size: 0.72rem;
   font-weight: 600;
   margin-top: 2px;
+}
+.calendar-venue {
+  color: #ab97ba;
+  font-size: 0.68rem;
+  display: block;
+  margin-top: 2px;
+  font-style: italic;
 }
 .calendar-empty {
   color: #ab97ba;

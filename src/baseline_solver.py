@@ -1202,11 +1202,11 @@ def _solve_baseline_legacy(
                         "candidate slot."
                     )
                     return None
-                raise RuntimeError(
-                    "No tier-1 slots available in domain for tier-1 derby: "
-                    f"{match.home_team} vs {match.away_team} "
-                    f"(match_idx={match.match_idx})."
+                print(
+                    f"[baseline] No tier-1 slots available in domain for tier-1 derby: "
+                    f"{match.home_team} vs {match.away_team}. Returning None to trigger fallback."
                 )
+                return None
             model.Add(sum(tier1_slot_vars) == 1)
 
     for team_id, match_indices in matches_by_team.items():
@@ -1520,11 +1520,11 @@ def _solve_baseline_with_venue_flex(
                         "candidate slot."
                     )
                     return None
-                raise RuntimeError(
-                    "No tier-1 slots available in domain for tier-1 derby: "
-                    f"{match.home_team} vs {match.away_team} "
-                    f"(match_idx={match.match_idx})."
+                print(
+                    f"[baseline] No tier-1 slots available in domain for tier-1 derby: "
+                    f"{match.home_team} vs {match.away_team}. Returning None to trigger fallback."
                 )
+                return None
             model.Add(sum(tier1_slot_vars) == 1)
 
     for team_id, match_indices in matches_by_team.items():
