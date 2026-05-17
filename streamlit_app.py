@@ -15,7 +15,7 @@ import sys
 import time
 import threading
 import calendar
-from datetime import date as pydate
+from datetime import date as pydate, timedelta
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -23,6 +23,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 import altair as alt
 import pandas as pd
+import numpy as np
 import streamlit as st
 
 from src.constants import (
@@ -1648,6 +1649,18 @@ def _render_validation_dashboard() -> None:
         else:
             st.info("CAF audit data not found.")
 
+    with fairness_tab:
+        if available["schedule"]:
+            subset = _load_dashboard_subset(
+                ["schedule", "week_round_map", "home_away_patterns", "team_sequence", "team_sequence_validation"]
+            )
+            _render_fairness_insights(subset)
+        else:
+            st.info("Schedule data not found.")
+
+    with monte_carlo_tab:
+        _render_monte_carlo_tab()
+
     with historical_tab:
         _render_historical_tab()
 
@@ -1666,7 +1679,7 @@ def _render_historical_tab() -> None:
     data = load_data()
     
     @st.cache_data
-    def get_historical_stats(_dist_matrix):
+    def get_historical_stats(_dist_matrix, v="1.4"):
         engine = HistoricalEngine(_dist_matrix)
         return engine.analyze_all()
     
@@ -1695,15 +1708,13 @@ def _render_historical_tab() -> None:
                 all_gaps.append(max(0, gap - f_count))
         
         # HA Streak
-        from src.validation import analyze_team_sequences
-        seq_df = analyze_team_sequences(opt_df)
-        max_ha = seq_df["Streak_Length"].max() if not seq_df.empty else 2
+        seq_df = subset["team_sequence"]
+        max_ha = seq_df["Streak_Length"].max() if seq_df is not None and not seq_df.empty else 2
 
         current_model_stat = {
             'Season': 'OUR MODEL',
             'Matches': len(opt_df),
             'FIFA Days': len(data.fifa_dates),
-            'Total Travel': int(opt_df["Travel_km"].sum()) if "Travel_km" in opt_df.columns else 0,
             'Max Raw Gap': max(all_gaps) + 5 if all_gaps else 32, # illustrative
             'Max Waste Gap': max(all_gaps) if all_gaps else 5,
             'HA Streak': int(max_ha)
@@ -1712,6 +1723,14 @@ def _render_historical_tab() -> None:
         
     h_df = pd.DataFrame(hist_data)
     
+    # Standardize column order
+    cols_to_show = ["Season", "Matches", "FIFA Days", "Max Raw Gap", "Max Waste Gap", "HA Streak"]
+    h_df = h_df[cols_to_show]
+    
+    # Sort by season to ensure consistent chart ordering
+    h_df['Season_Sort'] = h_df['Season'].apply(lambda x: '9999' if x == 'OUR MODEL' else x.split('/')[0])
+    h_df = h_df.sort_values('Season_Sort').drop(columns=['Season_Sort'])
+
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("The 'Ghost Gap' Comparison")
@@ -1724,8 +1743,18 @@ def _render_historical_tab() -> None:
         st.bar_chart(h_df, x="Season", y="HA Streak", color="#FF3366")
         
     st.subheader("Full Historical Audit Trail")
-    st.dataframe(h_df, width="stretch", hide_index=True)
+    # Rename for clarity in the final table if desired, or just show Avg Travel
+    display_df = h_df.drop(columns=["Total Travel"], errors="ignore")
+    st.dataframe(display_df, width="stretch", hide_index=True)
     
+    with st.expander("🔬 Methodology & Assumptions"):
+        st.markdown("""
+        **How we compare against the past:**
+        1. **The Primary Stadium Assumption:** Since historical CSVs don't record the specific stadium used, we assume teams played at their primary home ground (e.g., Ahly at Cairo Intl). 
+        2. **Conservative Benchmark:** In reality, historical travel was likely *higher* than shown here because teams often moved matches to alternative stadiums.
+        3. **The 'True Waste Gap':** We subtract all FIFA dates and a 4-day buffer for every CAF match from the total days between games to find 'dead time' in the calendar.
+        """)
+
     st.info("💡 **Insight:** Your optimizer reduces the historical 'Waste Gap' from ~45 days down to 5 days, effectively saving 10 weeks of the calendar.")
 
 

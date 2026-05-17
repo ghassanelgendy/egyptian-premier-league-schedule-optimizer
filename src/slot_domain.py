@@ -13,6 +13,11 @@ from src.constants import (
     FINAL_ROUND_NUM,
     MATCHES_PER_ROUND,
     MIN_REST_DAYS_CAF,
+    NON_FINAL_ROUND_BASE_WINDOW_DAYS,
+    NON_FINAL_ROUND_EPL_FALLBACK_WINDOW_DAYS,
+    NON_FINAL_ROUND_MAX_WINDOW_DAYS,
+    NON_FINAL_ROUND_MIN_FEASIBLE_SLOTS_PER_MATCH,
+    NON_FINAL_ROUND_MIN_SLOT_COUNT,
     NUM_ROUNDS,
     PHASES_DIR,
 )
@@ -29,12 +34,10 @@ class RoundWindow:
     slot_indices: List[int]
 
 
-ROUND_WINDOW_DAYS = 5
-
-
 def build_domains(
     data: LeagueData,
     matches: List[Match],
+    non_final_policy: str = "compact",
 ) -> Dict[int, List[int]]:
     """For each match, return the list of usable-slot row indices it can use.
 
@@ -51,77 +54,75 @@ def build_domains(
     slot_dates: List[date] = list(slots["_date"])
 
     round_windows = build_round_windows(data)
-    caf_teams: Set[str] = set()
-    for _, row in data.teams.iterrows():
-        if row["Cont_Flag"] in ("CL", "CC"):
-            caf_teams.add(row["Team_ID"])
-
-    buffer_days = MIN_REST_DAYS_CAF + 1  # 5 calendar days apart
-    blocked_by_team: Dict[str, Set[int]] = {}
-    for team_id in caf_teams:
-        blocked: Set[int] = set()
-        caf_dates = data.caf_dates_by_team.get(team_id, [])
-        for caf_d in caf_dates:
-            for si in range(n_usable):
-                sd = slot_dates[si]
-                if sd is None:
-                    continue
-                if abs((sd - caf_d).days) < buffer_days:
-                    blocked.add(si)
-        blocked_by_team[team_id] = blocked
-
-    round_slots_by_round = {
-        rw.round_num: set(rw.slot_indices)
-        for rw in round_windows
-    }
-    domains: Dict[int, List[int]] = {}
-    caf_relaxed_matches: Set[int] = set()
-    for m in matches:
-        round_allowed = round_slots_by_round.get(m.round_num, set())
-        if not round_allowed:
-            raise RuntimeError(f"No round window slots found for round {m.round_num}")
-
-        forbidden: Set[int] = set()
-        for team_id in (m.home_team, m.away_team):
-            forbidden |= blocked_by_team.get(team_id, set())
-
-        filtered = round_allowed - forbidden
-        if not filtered and forbidden:
-            # Keep the round window binding hard. If CAF pruning empties a round
-            # domain, allow the baseline to keep the match inside its round and
-            # let CAF audit/repair handle the violation afterwards.
-            domains[m.match_idx] = sorted(round_allowed)
-            caf_relaxed_matches.add(m.match_idx)
-        else:
-            domains[m.match_idx] = sorted(filtered)
+    caf_teams = _collect_caf_teams(data)
+    blocked_by_team = _build_blocked_by_team(slot_dates, n_usable, data, caf_teams)
+    round_windows = _apply_non_final_policy(
+        data,
+        matches,
+        round_windows,
+        blocked_by_team,
+        non_final_policy,
+    )
+    domains, caf_relaxed_matches = _compute_domains_for_windows(
+        matches,
+        round_windows,
+        blocked_by_team,
+    )
 
     _write_round_windows_csv(round_windows)
     _write_domain_csv(matches, domains, round_windows, caf_relaxed_matches)
     return domains
 
 
+def _apply_non_final_policy(
+    data: LeagueData,
+    matches: List[Match],
+    round_windows: List[RoundWindow],
+    blocked_by_team: Dict[str, Set[int]],
+    non_final_policy: str,
+) -> List[RoundWindow]:
+    if non_final_policy == "compact":
+        return _expand_non_final_round_windows(
+            data,
+            matches,
+            round_windows,
+            blocked_by_team,
+            NON_FINAL_ROUND_MAX_WINDOW_DAYS,
+            None,
+        )
+    if non_final_policy == "epl_relaxed":
+        return _expand_non_final_round_windows(
+            data,
+            matches,
+            round_windows,
+            blocked_by_team,
+            NON_FINAL_ROUND_EPL_FALLBACK_WINDOW_DAYS,
+            NON_FINAL_ROUND_EPL_FALLBACK_WINDOW_DAYS,
+        )
+    if non_final_policy == "epl_full":
+        return _spill_non_final_round_windows(data, round_windows)
+    raise ValueError(f"Unknown non-final round policy: {non_final_policy}")
+
+
 def build_round_windows(data: LeagueData) -> List[RoundWindow]:
     """Build 34 chronological baseline round windows from playable slot weeks.
 
-    Windows are rolling date ranges, not calendar weeks. A five-day candidate is
-    eligible if it has enough non-FIFA slot rows for a full round and every CAF
-    team has at least one CAF-safe slot somewhere inside it. This lets the
-    league use midweek/weekend cadence while skipping FIFA and CAF-heavy gaps.
+    Windows are rolling date ranges, not calendar weeks. Non-final rounds start
+    from compact base windows, then the domain builder may extend pressured
+    rounds further forward using only real calendar dates. The final round keeps
+    its dedicated tail domain.
     """
     slots = data.usable_slots.copy()
     slots = slots[slots["_date"].notna()].copy()
     if slots.empty:
         raise ValueError("No usable non-FIFA slots are available")
 
-    caf_teams: Set[str] = set()
-    for _, row in data.teams.iterrows():
-        if row["Cont_Flag"] in ("CL", "CC"):
-            caf_teams.add(row["Team_ID"])
+    caf_teams = _collect_caf_teams(data)
 
     candidates: List[tuple[date, date, List[int]]] = []
     all_dates = sorted(set(slots["_date"]))
     for start_d in all_dates:
-        end_d = start_d + timedelta(days=ROUND_WINDOW_DAYS - 1)
+        end_d = start_d + timedelta(days=NON_FINAL_ROUND_BASE_WINDOW_DAYS - 1)
         group = slots[(slots["_date"] >= start_d) & (slots["_date"] <= end_d)]
         if len(group) < MATCHES_PER_ROUND:
             continue
@@ -175,6 +176,190 @@ def build_round_windows(data: LeagueData) -> List[RoundWindow]:
         ))
 
     return windows
+
+
+def _collect_caf_teams(data: LeagueData) -> Set[str]:
+    caf_teams: Set[str] = set()
+    for _, row in data.teams.iterrows():
+        if row["Cont_Flag"] in ("CL", "CC"):
+            caf_teams.add(row["Team_ID"])
+    return caf_teams
+
+
+def _build_blocked_by_team(
+    slot_dates: List[date],
+    n_usable: int,
+    data: LeagueData,
+    caf_teams: Set[str],
+) -> Dict[str, Set[int]]:
+    buffer_days = MIN_REST_DAYS_CAF + 1
+    blocked_by_team: Dict[str, Set[int]] = {}
+    for team_id in caf_teams:
+        blocked: Set[int] = set()
+        caf_dates = data.caf_dates_by_team.get(team_id, [])
+        for caf_d in caf_dates:
+            for si in range(n_usable):
+                sd = slot_dates[si]
+                if sd is None:
+                    continue
+                if abs((sd - caf_d).days) < buffer_days:
+                    blocked.add(si)
+        blocked_by_team[team_id] = blocked
+    return blocked_by_team
+
+
+def _compute_domains_for_windows(
+    matches: List[Match],
+    round_windows: List[RoundWindow],
+    blocked_by_team: Dict[str, Set[int]],
+) -> tuple[Dict[int, List[int]], Set[int]]:
+    round_slots_by_round = {
+        rw.round_num: set(rw.slot_indices)
+        for rw in round_windows
+    }
+    domains: Dict[int, List[int]] = {}
+    caf_relaxed_matches: Set[int] = set()
+
+    for match in matches:
+        round_allowed = round_slots_by_round.get(match.round_num, set())
+        if not round_allowed:
+            raise RuntimeError(
+                f"No round window slots found for round {match.round_num}"
+            )
+
+        forbidden: Set[int] = set()
+        for team_id in (match.home_team, match.away_team):
+            forbidden |= blocked_by_team.get(team_id, set())
+
+        filtered = round_allowed - forbidden
+        if not filtered and forbidden:
+            domains[match.match_idx] = sorted(round_allowed)
+            caf_relaxed_matches.add(match.match_idx)
+        else:
+            domains[match.match_idx] = sorted(filtered)
+
+    return domains, caf_relaxed_matches
+
+
+def _expand_non_final_round_windows(
+    data: LeagueData,
+    matches: List[Match],
+    round_windows: List[RoundWindow],
+    blocked_by_team: Dict[str, Set[int]],
+    max_window_days: int,
+    target_window_days: int | None,
+) -> List[RoundWindow]:
+    slots = data.usable_slots
+    season_end = max(slots["_date"])
+    expanded_windows = list(round_windows)
+
+    matches_by_round: Dict[int, List[Match]] = {}
+    for match in matches:
+        matches_by_round.setdefault(match.round_num, []).append(match)
+
+    domains, _ = _compute_domains_for_windows(matches, expanded_windows, blocked_by_team)
+
+    for idx, round_window in enumerate(expanded_windows):
+        if round_window.round_num == FINAL_ROUND_NUM:
+            continue
+
+        round_matches = matches_by_round.get(round_window.round_num, [])
+        if not round_matches:
+            continue
+
+        max_end = min(
+            season_end,
+            round_window.start_date + timedelta(days=max_window_days - 1),
+        )
+        target_end = None
+        if target_window_days is not None:
+            target_end = min(
+                season_end,
+                round_window.start_date + timedelta(days=target_window_days - 1),
+            )
+        current_window = round_window
+
+        while (
+            (
+                _round_needs_more_slack(current_window, round_matches, domains)
+                or (
+                    target_end is not None
+                    and current_window.end_date < target_end
+                )
+            )
+            and current_window.end_date < max_end
+        ):
+            current_window = _make_round_window(
+                slots,
+                current_window.round_num,
+                current_window.start_date,
+                current_window.end_date + timedelta(days=1),
+            )
+            expanded_windows[idx] = current_window
+            domains, _ = _compute_domains_for_windows(
+                matches,
+                expanded_windows,
+                blocked_by_team,
+            )
+
+    return expanded_windows
+
+
+def _spill_non_final_round_windows(
+    data: LeagueData,
+    round_windows: List[RoundWindow],
+) -> List[RoundWindow]:
+    slots = data.usable_slots
+    season_end = max(slots["_date"])
+    spilled_windows: List[RoundWindow] = []
+
+    for round_window in round_windows:
+        if round_window.round_num == FINAL_ROUND_NUM:
+            spilled_windows.append(round_window)
+            continue
+        spilled_windows.append(
+            _make_round_window(
+                slots,
+                round_window.round_num,
+                round_window.start_date,
+                season_end,
+            )
+        )
+
+    return spilled_windows
+
+
+def _round_needs_more_slack(
+    round_window: RoundWindow,
+    round_matches: List[Match],
+    domains: Dict[int, List[int]],
+) -> bool:
+    if len(round_window.slot_indices) < NON_FINAL_ROUND_MIN_SLOT_COUNT:
+        return True
+
+    return any(
+        len(domains.get(match.match_idx, [])) < NON_FINAL_ROUND_MIN_FEASIBLE_SLOTS_PER_MATCH
+        for match in round_matches
+    )
+
+
+def _make_round_window(
+    slots,
+    round_num: int,
+    start_date: date,
+    end_date: date,
+) -> RoundWindow:
+    group = slots[(slots["_date"] >= start_date) & (slots["_date"] <= end_date)]
+    week_nums = sorted(
+        set(group["Week_Num"].fillna(0).astype(int).tolist())
+    )
+    return RoundWindow(
+        round_num=round_num,
+        start_date=start_date,
+        end_date=end_date,
+        week_nums=";".join(str(w) for w in week_nums),
+        slot_indices=list(group.index),
+    )
 
 
 def _window_has_caf_safe_capacity(

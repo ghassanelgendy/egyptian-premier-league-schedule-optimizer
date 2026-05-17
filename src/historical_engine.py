@@ -11,10 +11,11 @@ TEAM_STADIUM = {
     'MOD': 'AL_SALAM', 'SMO': 'BORG_ARAB', 'ZED': 'CAIRO_INTL', 'CER': 'SUEZ_CANAL',
     'ENP': 'PETRO_SPORT', 'ITH': 'ALEX_STADIUM', 'TLG': 'GEHAZ_REYADA', 'BNK': 'CAIRO_INTL',
     'PHA': 'BORG_ARAB', 'GOU': 'EL_GOUNA', 'ISM': 'ISMAILIA_ST', 'MAH': 'MAHALLA',
-    'PET': 'PETRO_SPORT', 'HAR': 'HARAS', 'ASW': 'ASWAN', 'BAL': 'GHAZL_MAH',
+    'HAR': 'HARAS', 'ASW': 'ASWAN', 'BAL': 'MAHALLA',
     'EAS': 'PETRO_SPORT', 'NOG': 'PETRO_SPORT', 'DAK': 'PETRO_SPORT', 'ENT': 'AL_SALAM',
-    'MAK': 'CAIRO_INTL', 'DEG': 'PETRO_SPORT'
-}
+    'MAK': 'CAIRO_INTL', 'DEG': 'PETRO_SPORT', 'MOK': 'ARAB_CONT'
+    }
+
 
 NAME_MAP = {
     'Ahly SC': 'AHL', 'Al Ahly SC': 'AHL', 'Ahly': 'AHL',
@@ -37,7 +38,7 @@ NAME_MAP = {
     'Aswan SC': 'ASW', 'Baladiya': 'BAL', 'Eastern Company': 'EAS',
     'Ittihad Alex': 'ITH', 'Al Ittihad Alex': 'ITH',
     'Nogoom FC': 'NOG', 'El Dakhlia': 'DAK', 'Entag El Harby': 'ENT',
-    'Wadi Degla': 'DEG', 'El Makasa': 'MAK'
+    'Wadi Degla': 'DEG', 'El Makasa': 'MAK', 'El Mokawloon': 'MOK'
 }
 
 def get_team_id(name):
@@ -82,7 +83,6 @@ class HistoricalEngine:
             'Season': tag.replace('_', '/'),
             'Matches': len(df_clean),
             'FIFA Days': sum(1 for d in fifa_dates if df_sorted['Date'].min().date() <= d <= df_sorted['Date'].max().date()),
-            'Total Travel': 0,
             'Max Raw Gap': 0,
             'Max Waste Gap': 0,
             'HA Streak': 0
@@ -94,21 +94,15 @@ class HistoricalEngine:
         for _, row in df_sorted.iterrows():
             h_id, a_id, d = get_team_id(row['Home Team']), get_team_id(row['Away Team']), row['Date'].date()
             for tid in [h_id, a_id]:
-                if tid not in team_data: team_data[tid] = {'dates': [], 'ha': []}
+                if tid not in team_data: 
+                    team_data[tid] = {'dates': [], 'ha': []}
                 team_data[tid]['dates'].append(d)
-            
+
             team_data[h_id]['ha'].append('H')
             team_data[a_id]['ha'].append('A')
 
-            # Travel
-            h_stadium = TEAM_STADIUM.get(h_id, 'CAIRO_INTL')
-            a_base = TEAM_STADIUM.get(a_id, 'CAIRO_INTL')
-            curr = team_loc.get(a_id, a_base)
-            if curr in self.dist_matrix and h_stadium in self.dist_matrix[curr]:
-                metrics['Total Travel'] += self.dist_matrix[curr][h_stadium]
-            team_loc[a_id] = h_stadium
-
         all_raw, all_waste = [], []
+
         max_streak = 0
         for tid, data in team_data.items():
             dates = sorted(data['dates'])
@@ -132,12 +126,13 @@ class HistoricalEngine:
             for i in range(1, len(data['ha'])):
                 if data['ha'][i] == data['ha'][i-1]:
                     streak += 1
-                    max_streak = max(max_streak, streak)
-                else: streak = 1
+                else:
+                    streak = 1
+                if streak > max_streak:
+                    max_streak = streak
 
         metrics['Max Raw Gap'] = max(all_raw) if all_raw else 0
         metrics['Max Waste Gap'] = max(all_waste) if all_waste else 0
         metrics['HA Streak'] = max_streak
-        metrics['Total Travel'] = int(metrics['Total Travel'])
 
         return metrics

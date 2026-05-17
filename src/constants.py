@@ -37,6 +37,15 @@ MIN_DAYS_BETWEEN_ROUNDS = 1  # 1 forbids same-day round overlap; 2 adds one idle
 MIN_STADIUM_SERVICE_GAP_DAYS = 0  # 0 keeps legacy fixed-venue behavior
 
 # ---------------------------------------------------------------------------
+# Round window policy
+# ---------------------------------------------------------------------------
+NON_FINAL_ROUND_BASE_WINDOW_DAYS = 5
+NON_FINAL_ROUND_MAX_WINDOW_DAYS = 28
+NON_FINAL_ROUND_EPL_FALLBACK_WINDOW_DAYS = 56
+NON_FINAL_ROUND_MIN_SLOT_COUNT = NON_FINAL_ROUND_BASE_WINDOW_DAYS * MAX_MATCHES_PER_DAY
+NON_FINAL_ROUND_MIN_FEASIBLE_SLOTS_PER_MATCH = MATCHES_PER_ROUND
+
+# ---------------------------------------------------------------------------
 # Final-round publication rule
 # ---------------------------------------------------------------------------
 FINAL_ROUND_NUM = NUM_ROUNDS

@@ -258,8 +258,9 @@ class FinalRoundSchedulingTests(unittest.TestCase):
         for day_offset in range(total_days):
             current_date = start_date + timedelta(days=day_offset)
             week_num = 1 + (day_offset // 5)
-            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_A", hour=18))
-            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_B", hour=21))
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_A", hour=16))
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_B", hour=19))
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_C", hour=21))
 
         data = _make_league_data(team_ids, slot_rows)
         matches = [
@@ -285,6 +286,105 @@ class FinalRoundSchedulingTests(unittest.TestCase):
                 for offset in range(10)
             },
         )
+
+    def test_non_final_round_widens_only_when_base_window_is_too_tight(self) -> None:
+        team_ids = [f"T{i}" for i in range(18)]
+        slot_rows: list[dict] = []
+        start_date = date(2026, 1, 1)
+        total_days = (NUM_ROUNDS * 5) + 10
+        stressed_slot_counts = {
+            45: 2,
+            46: 2,
+            47: 2,
+            48: 2,
+            49: 1,
+            50: 2,
+            51: 2,
+        }
+
+        for day_offset in range(total_days):
+            current_date = start_date + timedelta(days=day_offset)
+            week_num = 1 + (day_offset // 5)
+            slot_count = stressed_slot_counts.get(day_offset, 2)
+            for slot_num in range(slot_count):
+                slot_rows.append(
+                    _slot_row(current_date, week_num, f"{day_offset}_{slot_num}", hour=18 + slot_num)
+                )
+
+        data = _make_league_data(team_ids, slot_rows)
+        matches = [
+            Match(0, 10, team_ids[0], team_ids[1], f"ST_{team_ids[0]}", match_tier=3),
+        ]
+
+        domains = build_domains(data, matches)
+        round_10_dates = sorted({data.usable_slots.loc[idx, "_date"] for idx in domains[0]})
+
+        self.assertEqual(round_10_dates[0], start_date + timedelta(days=45))
+        self.assertEqual(round_10_dates[-1], start_date + timedelta(days=52))
+        self.assertEqual(len(round_10_dates), 8)
+
+    def test_epl_full_policy_spills_non_final_round_forward_without_touching_final_round(self) -> None:
+        team_ids = [f"T{i}" for i in range(18)]
+        slot_rows: list[dict] = []
+        start_date = date(2026, 1, 1)
+        total_days = (NUM_ROUNDS * 5) + 10
+
+        for day_offset in range(total_days):
+            current_date = start_date + timedelta(days=day_offset)
+            week_num = 1 + (day_offset // 5)
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_A", hour=16))
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_B", hour=19))
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_C", hour=21))
+
+        data = _make_league_data(team_ids, slot_rows)
+        matches = [
+            Match(0, 10, team_ids[0], team_ids[1], f"ST_{team_ids[0]}", match_tier=3),
+            Match(1, FINAL_ROUND_NUM, team_ids[2], team_ids[3], f"ST_{team_ids[2]}", match_tier=3),
+        ]
+
+        domains = build_domains(data, matches, non_final_policy="epl_full")
+        round_10_dates = {data.usable_slots.loc[idx, "_date"] for idx in domains[0]}
+        round_34_dates = {data.usable_slots.loc[idx, "_date"] for idx in domains[1]}
+
+        self.assertEqual(
+            round_10_dates,
+            {
+                start_date + timedelta(days=45 + offset)
+                for offset in range(total_days - 45)
+            },
+        )
+        self.assertEqual(
+            round_34_dates,
+            {
+                start_date + timedelta(days=165 + offset)
+                for offset in range(total_days - 165)
+            },
+        )
+
+    def test_epl_relaxed_policy_creates_bounded_spillover_window(self) -> None:
+        team_ids = [f"T{i}" for i in range(18)]
+        slot_rows: list[dict] = []
+        start_date = date(2026, 1, 1)
+        total_days = (NUM_ROUNDS * 5) + 10
+
+        for day_offset in range(total_days):
+            current_date = start_date + timedelta(days=day_offset)
+            week_num = 1 + (day_offset // 5)
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_A", hour=16))
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_B", hour=19))
+            slot_rows.append(_slot_row(current_date, week_num, f"{day_offset}_C", hour=21))
+
+        data = _make_league_data(team_ids, slot_rows)
+        matches = [
+            Match(0, 10, team_ids[0], team_ids[1], f"ST_{team_ids[0]}", match_tier=3),
+        ]
+
+        domains = build_domains(data, matches, non_final_policy="epl_relaxed")
+        round_10_dates = sorted({data.usable_slots.loc[idx, "_date"] for idx in domains[0]})
+
+        self.assertEqual(round_10_dates[0], start_date + timedelta(days=45))
+        self.assertEqual(round_10_dates[-1], start_date + timedelta(days=100))
+        self.assertEqual(len(round_10_dates), 56)
 
     def test_baseline_packs_final_round_into_one_day_without_venue_overlap(self) -> None:
         data, matches, domains = _build_baseline_inputs()
