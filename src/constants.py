@@ -65,6 +65,9 @@ W_TRAVEL = 1              # per-km travel penalty
 W_TIER_MISMATCH = 20      # match-tier vs slot-tier gap
 W_CAF_PREFERRED = 10      # bonus for achieving 6-day CAF gap instead of 5
 
+W_EVENING_PREFERENCE = 50     # per-hour penalty for kickoff before 21:00 (encourages 8pm/10pm)
+W_SLOT_SPREAD = 500           # penalty for >1 match in same slot on same day (spread across times)
+
 W_STADIUM_MAINTENANCE_OVERLAP = 5_000_000  # penalty for back-to-back stadium use
 ALT_STADIUM_RELIEF_PENALTY = 1_000_000     # base penalty for using alternate stadium
 OTHER_STADIUM_RELIEF_PENALTY = 3_000_000   # base penalty for using a non-home, non-alt fallback venue

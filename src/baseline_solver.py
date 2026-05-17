@@ -32,8 +32,10 @@ from src.constants import (
     PHASES_DIR,
     SOFT_MAX_MATCHES_PER_WEEK,
     SOFT_MIN_MATCHES_PER_WEEK,
+    W_EVENING_PREFERENCE,
     W_HOME_VENUE_DISPLACEMENT,
     W_ROUND_ORDER,
+    W_SLOT_SPREAD,
     W_STADIUM_MAINTENANCE_OVERLAP,
     W_TIER_MISMATCH,
     W_TRAVEL,
@@ -395,6 +397,18 @@ def _build_slot_context(data: LeagueData) -> dict:
             (round_num - 1) * week_span / (NUM_ROUNDS - 1)
         )
 
+    slot_kickoff_hours: List[int] = []
+    for dt in slot_datetimes:
+        hour = 12  # default if time is missing
+        if dt is not None:
+            try:
+                import pandas as _pd
+                if not _pd.isna(dt):
+                    hour = dt.hour
+            except (AttributeError, TypeError):
+                pass
+        slot_kickoff_hours.append(hour)
+
     return {
         "slots": slots,
         "n_slots": n_slots,
@@ -405,6 +419,7 @@ def _build_slot_context(data: LeagueData) -> dict:
         "slot_day_ids": slot_day_ids,
         "slot_datetimes": slot_datetimes,
         "slot_day_index": slot_day_index,
+        "slot_kickoff_hours": slot_kickoff_hours,
         "all_dates": all_dates,
         "all_weeks": all_weeks,
         "slots_by_date": slots_by_date,
@@ -1108,6 +1123,7 @@ def _solve_baseline_legacy(
     nominal_week = slot_ctx["nominal_week"]
     max_slot_day = slot_ctx["max_slot_day"]
     n_slots = slot_ctx["n_slots"]
+    slot_kickoff_hours = slot_ctx["slot_kickoff_hours"]
 
     teams_dict, tier1_teams, matches_by_team, matches_by_round = _build_match_context(
         data, matches
@@ -1324,6 +1340,24 @@ def _solve_baseline_legacy(
             if tier_diff > 0:
                 objective_terms.append(var * (W_TIER_MISMATCH * tier_diff))
 
+    # --- Evening preference: penalize earlier kickoff times ---
+    if W_EVENING_PREFERENCE > 0:
+        for match in matches:
+            for slot_idx, var in x[match.match_idx].items():
+                hour_penalty = max(0, 21 - slot_kickoff_hours[slot_idx])
+                if hour_penalty > 0:
+                    objective_terms.append(var * (W_EVENING_PREFERENCE * hour_penalty))
+
+    # --- Slot spread: penalize >1 match in the same kickoff slot on same day ---
+    if W_SLOT_SPREAD > 0:
+        for slot_idx in range(n_slots):
+            vars_in_slot = all_vars_by_slot.get(slot_idx, [])
+            if len(vars_in_slot) > 1:
+                collision = model.NewBoolVar(f"slot_collision_{slot_idx}")
+                model.Add(sum(vars_in_slot) > 1).OnlyEnforceIf(collision)
+                model.Add(sum(vars_in_slot) <= 1).OnlyEnforceIf(collision.Not())
+                objective_terms.append(collision * W_SLOT_SPREAD)
+
     if objective_terms:
         model.Minimize(sum(objective_terms))
 
@@ -1416,6 +1450,7 @@ def _solve_baseline_with_venue_flex(
     nominal_week = slot_ctx["nominal_week"]
     max_slot_day = slot_ctx["max_slot_day"]
     n_slots = slot_ctx["n_slots"]
+    slot_kickoff_hours = slot_ctx["slot_kickoff_hours"]
 
     teams_dict, tier1_teams, matches_by_team, matches_by_round = _build_match_context(
         data, matches
@@ -1696,6 +1731,24 @@ def _solve_baseline_with_venue_flex(
         model.Add(over >= load - SOFT_MAX_MATCHES_PER_WEEK)
         model.Add(over >= 0)
         objective_terms.append(over * W_WEEK_OVERLOAD)
+
+    # --- Evening preference: penalize earlier kickoff times ---
+    if W_EVENING_PREFERENCE > 0:
+        for match in matches:
+            for (slot_idx, venue), var in x[match.match_idx].items():
+                hour_penalty = max(0, 21 - slot_kickoff_hours[slot_idx])
+                if hour_penalty > 0:
+                    objective_terms.append(var * (W_EVENING_PREFERENCE * hour_penalty))
+
+    # --- Slot spread: penalize >1 match in the same kickoff slot on same day ---
+    if W_SLOT_SPREAD > 0:
+        for slot_idx in range(n_slots):
+            vars_in_slot = all_vars_by_slot.get(slot_idx, [])
+            if len(vars_in_slot) > 1:
+                collision = model.NewBoolVar(f"slot_collision_{slot_idx}")
+                model.Add(sum(vars_in_slot) > 1).OnlyEnforceIf(collision)
+                model.Add(sum(vars_in_slot) <= 1).OnlyEnforceIf(collision.Not())
+                objective_terms.append(collision * W_SLOT_SPREAD)
 
     if objective_terms:
         model.Minimize(sum(objective_terms))
