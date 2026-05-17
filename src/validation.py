@@ -10,8 +10,10 @@ from typing import Dict, List, Set, Tuple
 
 from src.baseline_solver import ScheduledMatch
 from src.constants import (
+    FINAL_ROUND_NUM,
     MATCHES_PER_ROUND,
     MAX_MATCHES_PER_DAY,
+    MAX_MATCHES_PER_SLOT,
     MIN_DAYS_BETWEEN_ROUNDS,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
@@ -21,6 +23,11 @@ from src.constants import (
     PHASES_DIR,
 )
 from src.data_loader import LeagueData
+from src.final_round import (
+    allowed_matches_in_slot,
+    allowed_matches_on_date,
+    get_valid_final_round_shared_date,
+)
 
 
 def write_validation_reports(
@@ -44,7 +51,10 @@ def write_validation_reports(
 
     _validate_completeness(all_matches, unresolved, issues)
     _validate_fifa(all_matches, data, issues)
-    _validate_daily_load(all_matches, issues)
+    _validate_final_round_same_day(all_matches, issues)
+    valid_final_round_date = get_valid_final_round_shared_date(all_matches)
+    _validate_daily_load(all_matches, issues, valid_final_round_date)
+    _validate_slot_load(all_matches, issues, valid_final_round_date)
     _validate_venue_slots(all_matches, issues)
     _validate_stadium_service_gap(all_matches, issues)
     _validate_global_round_order(accepted, issues)
@@ -270,13 +280,15 @@ def _validate_venue_slots(
 def _validate_daily_load(
     matches: List[ScheduledMatch],
     issues: List[Dict[str, object]],
+    valid_final_round_date: date | None,
 ) -> None:
     by_date: Dict[date, List[ScheduledMatch]] = defaultdict(list)
     for sm in matches:
         by_date[sm.date].append(sm)
 
     for match_date, group in by_date.items():
-        if len(group) > MAX_MATCHES_PER_DAY:
+        allowed = allowed_matches_on_date(match_date, valid_final_round_date)
+        if len(group) > allowed:
             _add_issue(
                 issues,
                 "ERROR",
@@ -286,9 +298,73 @@ def _validate_daily_load(
                 match_date,
                 (
                     f"{len(group)} matches are scheduled on {match_date}; "
-                    f"maximum allowed is {MAX_MATCHES_PER_DAY}"
+                    f"maximum allowed is {allowed}"
                 ),
             )
+
+
+def _validate_slot_load(
+    matches: List[ScheduledMatch],
+    issues: List[Dict[str, object]],
+    valid_final_round_date: date | None,
+) -> None:
+    by_slot: Dict[int, List[ScheduledMatch]] = defaultdict(list)
+    for sm in matches:
+        by_slot[sm.slot_idx].append(sm)
+
+    for slot_idx, group in by_slot.items():
+        slot_date = group[0].date
+        allowed = allowed_matches_in_slot(slot_date, valid_final_round_date)
+        if len(group) > allowed:
+            _add_issue(
+                issues,
+                "ERROR",
+                "SLOT_MATCH_CAP",
+                "",
+                "",
+                slot_date,
+                (
+                    f"{len(group)} matches share slot index {slot_idx} on "
+                    f"{slot_date}; maximum allowed is {allowed}"
+                ),
+            )
+
+
+def _validate_final_round_same_day(
+    matches: List[ScheduledMatch],
+    issues: List[Dict[str, object]],
+) -> None:
+    final_round_matches = [
+        sm for sm in matches
+        if sm.round_num == FINAL_ROUND_NUM
+    ]
+    if not final_round_matches:
+        return
+
+    final_round_dates = sorted({sm.date for sm in final_round_matches})
+    if len(final_round_matches) == MATCHES_PER_ROUND and len(final_round_dates) == 1:
+        return
+
+    if not final_round_dates:
+        detail = "Round 34 has no scheduled matches in the published schedule"
+        error_date = ""
+    else:
+        detail = (
+            f"Round 34 has {len(final_round_matches)} scheduled matches across "
+            f"{len(final_round_dates)} date(s): "
+            + ", ".join(str(d) for d in final_round_dates)
+        )
+        error_date = final_round_dates[0]
+
+    _add_issue(
+        issues,
+        "ERROR",
+        "FINAL_ROUND_SINGLE_DAY",
+        "",
+        FINAL_ROUND_NUM,
+        error_date,
+        detail,
+    )
 
 
 def _validate_stadium_service_gap(

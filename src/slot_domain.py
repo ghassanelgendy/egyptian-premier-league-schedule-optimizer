@@ -8,7 +8,14 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Dict, List, Set
 
-from src.constants import MATCHES_PER_ROUND, MIN_REST_DAYS_CAF, NUM_ROUNDS, PHASES_DIR
+from src.constants import (
+    ENFORCE_FINAL_ROUND_SINGLE_DAY,
+    FINAL_ROUND_NUM,
+    MATCHES_PER_ROUND,
+    MIN_REST_DAYS_CAF,
+    NUM_ROUNDS,
+    PHASES_DIR,
+)
 from src.data_loader import LeagueData
 from src.fixture_generator import Match
 
@@ -63,19 +70,27 @@ def build_domains(
                     blocked.add(si)
         blocked_by_team[team_id] = blocked
 
-    all_indices = set(range(n_usable))
+    round_slots_by_round = {
+        rw.round_num: set(rw.slot_indices)
+        for rw in round_windows
+    }
     domains: Dict[int, List[int]] = {}
     caf_relaxed_matches: Set[int] = set()
     for m in matches:
+        round_allowed = round_slots_by_round.get(m.round_num, set())
+        if not round_allowed:
+            raise RuntimeError(f"No round window slots found for round {m.round_num}")
+
         forbidden: Set[int] = set()
         for team_id in (m.home_team, m.away_team):
             forbidden |= blocked_by_team.get(team_id, set())
 
-        filtered = all_indices - forbidden
+        filtered = round_allowed - forbidden
         if not filtered and forbidden:
-            # This should be rare with full-season domains, but keep the run
-            # diagnosable if a team's CAF calendar blocks the whole season.
-            domains[m.match_idx] = sorted(all_indices)
+            # Keep the round window binding hard. If CAF pruning empties a round
+            # domain, allow the baseline to keep the match inside its round and
+            # let CAF audit/repair handle the violation afterwards.
+            domains[m.match_idx] = sorted(round_allowed)
             caf_relaxed_matches.add(m.match_idx)
         else:
             domains[m.match_idx] = sorted(filtered)
@@ -130,20 +145,33 @@ def build_round_windows(data: LeagueData) -> List[RoundWindow]:
             f"Need {NUM_ROUNDS} playable round windows, got {len(selected)}"
         )
 
+    season_end = max(all_dates)
     windows: List[RoundWindow] = []
     for round_idx, (start_d, end_d, indices) in enumerate(
         selected,
         start=1,
     ):
+        effective_end = end_d
+        effective_indices = indices
+        if ENFORCE_FINAL_ROUND_SINGLE_DAY and round_idx == FINAL_ROUND_NUM:
+            tail = slots[slots["_date"] >= start_d]
+            effective_end = season_end
+            effective_indices = list(tail.index)
+
         week_nums = sorted(
-            set(slots.loc[indices, "Week_Num"].fillna(0).astype(int).tolist())
+            set(
+                slots.loc[effective_indices, "Week_Num"]
+                .fillna(0)
+                .astype(int)
+                .tolist()
+            )
         )
         windows.append(RoundWindow(
             round_num=round_idx,
             start_date=start_d,
-            end_date=end_d,
+            end_date=effective_end,
             week_nums=";".join(str(w) for w in week_nums),
-            slot_indices=indices,
+            slot_indices=effective_indices,
         ))
 
     return windows

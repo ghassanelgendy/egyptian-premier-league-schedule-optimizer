@@ -37,6 +37,15 @@ MIN_DAYS_BETWEEN_ROUNDS = 1  # 1 forbids same-day round overlap; 2 adds one idle
 MIN_STADIUM_SERVICE_GAP_DAYS = 0  # 0 keeps legacy fixed-venue behavior
 
 # ---------------------------------------------------------------------------
+# Final-round publication rule
+# ---------------------------------------------------------------------------
+FINAL_ROUND_NUM = NUM_ROUNDS
+ENFORCE_FINAL_ROUND_SINGLE_DAY = True
+FINAL_ROUND_SHARED_DATE_IN_FINAL_SCHEDULE = True
+FINAL_ROUND_MAX_MATCHES_PER_DAY = MATCHES_PER_ROUND
+FINAL_ROUND_MAX_MATCHES_PER_SLOT = MATCHES_PER_ROUND
+
+# ---------------------------------------------------------------------------
 # Soft-objective weights  (higher = more important)
 # ---------------------------------------------------------------------------
 W_ROUND_ORDER = 100       # keep rounds in chronological week order

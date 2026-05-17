@@ -12,18 +12,27 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Dict, List, Set, Tuple
 
+from ortools.sat.python import cp_model
+
 from src.constants import (
+    ENFORCE_FINAL_ROUND_SINGLE_DAY,
+    FINAL_ROUND_MAX_MATCHES_PER_DAY,
+    FINAL_ROUND_MAX_MATCHES_PER_SLOT,
+    FINAL_ROUND_SHARED_DATE_IN_FINAL_SCHEDULE,
     HARD_MAX_MATCHES_PER_WEEK,
     MAX_CONSECUTIVE_HOME,
     MAX_MATCHES_PER_DAY,
+    MAX_MATCHES_PER_SLOT,
     MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
     MIN_STADIUM_SERVICE_GAP_DAYS,
     PHASES_DIR,
+    REPAIR_SOLVER_TIME_LIMIT_S,
 )
 from src.baseline_solver import ScheduledMatch
 from src.caf_audit import CAFViolation
 from src.data_loader import LeagueData
+from src.final_round import is_final_round
 from src.tiers import compute_slot_tiers
 from src.venue_rules import build_team_lookup, get_venue_options
 
@@ -223,7 +232,7 @@ def _find_valid_slots(
         if not _check_caf_buffer(match.away_team, slot_date, data.caf_dates_by_team, caf_teams):
             continue
 
-        if state.slot_usage.get(slot_idx, 0) > 0:
+        if state.slot_usage.get(slot_idx, 0) >= MAX_MATCHES_PER_SLOT:
             continue
         if state.week_load.get(slot_weeks[slot_idx], 0) >= HARD_MAX_MATCHES_PER_WEEK:
             continue
@@ -241,8 +250,8 @@ def _find_valid_assignments(
     slot_weeks: List[int],
     caf_teams: Set[str],
     teams_dict: Dict[str, dict],
-) -> List[Tuple[int, str, bool, bool]]:
-    valid: List[Tuple[int, str, bool, bool]] = []
+) -> List[Tuple[int, str, bool, bool, int]]:
+    valid: List[Tuple[int, str, bool, bool, int]] = []
     options = get_venue_options(match.home_team, match.away_team, teams_dict, data.sec_rules)
 
     for slot_idx, slot_date in enumerate(slot_dates):
@@ -278,7 +287,7 @@ def _find_valid_assignments(
         if not _check_caf_buffer(match.away_team, slot_date, data.caf_dates_by_team, caf_teams):
             continue
 
-        if state.slot_usage.get(slot_idx, 0) > 0:
+        if state.slot_usage.get(slot_idx, 0) >= MAX_MATCHES_PER_SLOT:
             continue
         if state.week_load.get(slot_weeks[slot_idx], 0) >= HARD_MAX_MATCHES_PER_WEEK:
             continue
@@ -325,6 +334,440 @@ def _update_state(
     state.slot_usage[slot_idx] = state.slot_usage.get(slot_idx, 0) + 1
 
 
+def _collect_caf_teams(data: LeagueData) -> Set[str]:
+    return {
+        row["Team_ID"]
+        for _, row in data.teams.iterrows()
+        if row["Cont_Flag"] in ("CL", "CC")
+    }
+
+
+def _match_can_play_on_date(
+    match: ScheduledMatch,
+    candidate_date: date,
+    data: LeagueData,
+    state: _OccupiedState,
+    caf_teams: Set[str],
+) -> bool:
+    if candidate_date < match.date:
+        return False
+
+    home_dates = state.team_dates.get(match.home_team, [])
+    hi = bisect.bisect_left(home_dates, candidate_date)
+    if hi < len(home_dates) and home_dates[hi] == candidate_date:
+        return False
+
+    away_dates = state.team_dates.get(match.away_team, [])
+    ai = bisect.bisect_left(away_dates, candidate_date)
+    if ai < len(away_dates) and away_dates[ai] == candidate_date:
+        return False
+
+    if not _check_rest_days(match.home_team, candidate_date, state, MIN_REST_DAYS_LOCAL):
+        return False
+    if not _check_rest_days(match.away_team, candidate_date, state, MIN_REST_DAYS_LOCAL):
+        return False
+
+    if not _check_streak(match.home_team, candidate_date, "H", state):
+        return False
+    if not _check_streak(match.away_team, candidate_date, "A", state):
+        return False
+
+    if not _check_caf_buffer(match.home_team, candidate_date, data.caf_dates_by_team, caf_teams):
+        return False
+    if not _check_caf_buffer(match.away_team, candidate_date, data.caf_dates_by_team, caf_teams):
+        return False
+
+    return True
+
+
+def _promote_final_round_batch(
+    accepted: List[ScheduledMatch],
+    queued_matches: Dict[int, ScheduledMatch],
+) -> List[ScheduledMatch]:
+    if not (
+        ENFORCE_FINAL_ROUND_SINGLE_DAY
+        and FINAL_ROUND_SHARED_DATE_IN_FINAL_SCHEDULE
+        and any(is_final_round(match.round_num) for match in queued_matches.values())
+    ):
+        return []
+
+    batch_by_match_idx: Dict[int, ScheduledMatch] = {
+        match.match_idx: match
+        for match in queued_matches.values()
+        if is_final_round(match.round_num)
+    }
+    for match in accepted:
+        if is_final_round(match.round_num):
+            batch_by_match_idx[match.match_idx] = match
+
+    accepted[:] = [match for match in accepted if not is_final_round(match.round_num)]
+    for match_idx in list(queued_matches):
+        if is_final_round(queued_matches[match_idx].round_num):
+            queued_matches.pop(match_idx)
+
+    return sorted(batch_by_match_idx.values(), key=lambda match: match.match_idx)
+
+
+def _candidate_dates_for_final_round(
+    batch_matches: List[ScheduledMatch],
+    slot_dates: List[date],
+) -> List[date]:
+    if not batch_matches:
+        return []
+
+    first_date = min(match.date for match in batch_matches)
+    unique_dates = {
+        slot_date
+        for slot_date in slot_dates
+        if slot_date is not None and slot_date >= first_date
+    }
+    return sorted(
+        unique_dates,
+        key=lambda candidate_date: (
+            abs((candidate_date - first_date).days),
+            candidate_date,
+        ),
+    )
+
+
+def _repair_final_round_batch_legacy(
+    batch_matches: List[ScheduledMatch],
+    data: LeagueData,
+    state: _OccupiedState,
+    slot_dates: List[date],
+    slot_weeks: List[int],
+    slot_tiers_list: List[int],
+    slot_day_ids: List[str],
+    slot_day_names: List[str],
+    slot_datetimes: List[object],
+    caf_teams: Set[str],
+) -> Tuple[List[ScheduledMatch], List[ScheduledMatch]]:
+    if not batch_matches:
+        return [], []
+
+    print(
+        f"[caf_repair] Final-round batch repair: {len(batch_matches)} matches "
+        "must share one date."
+    )
+
+    for candidate_date in _candidate_dates_for_final_round(batch_matches, slot_dates):
+        slot_indices = [
+            slot_idx
+            for slot_idx, slot_date in enumerate(slot_dates)
+            if slot_date == candidate_date
+        ]
+        if not slot_indices:
+            continue
+
+        week_nums = {slot_weeks[slot_idx] for slot_idx in slot_indices}
+        if len(week_nums) != 1:
+            continue
+        week_num = next(iter(week_nums))
+
+        if (
+            state.date_load.get(candidate_date, 0) + len(batch_matches)
+            > FINAL_ROUND_MAX_MATCHES_PER_DAY
+        ):
+            continue
+        if (
+            state.week_load.get(week_num, 0) + len(batch_matches)
+            > HARD_MAX_MATCHES_PER_WEEK
+        ):
+            continue
+
+        if any(
+            not _match_can_play_on_date(match, candidate_date, data, state, caf_teams)
+            for match in batch_matches
+        ):
+            continue
+
+        match_slot_options: Dict[int, List[int]] = {}
+        for match in batch_matches:
+            feasible_slots = [
+                slot_idx
+                for slot_idx in slot_indices
+                if slot_idx not in state.venue_slots.get(match.venue, set())
+                and state.slot_usage.get(slot_idx, 0) < FINAL_ROUND_MAX_MATCHES_PER_SLOT
+            ]
+            if not feasible_slots:
+                break
+            match_slot_options[match.match_idx] = feasible_slots
+
+        if len(match_slot_options) != len(batch_matches):
+            continue
+
+        model = cp_model.CpModel()
+        y: Dict[Tuple[int, int], cp_model.IntVar] = {}
+        for match in batch_matches:
+            for slot_idx in match_slot_options[match.match_idx]:
+                y[(match.match_idx, slot_idx)] = model.NewBoolVar(
+                    f"fr_{match.match_idx}_{slot_idx}"
+                )
+
+        for match in batch_matches:
+            model.Add(
+                sum(
+                    y[(match.match_idx, slot_idx)]
+                    for slot_idx in match_slot_options[match.match_idx]
+                ) == 1
+            )
+
+        for slot_idx in slot_indices:
+            vars_in_slot = [
+                y[(match.match_idx, slot_idx)]
+                for match in batch_matches
+                if (match.match_idx, slot_idx) in y
+            ]
+            if vars_in_slot:
+                model.Add(
+                    state.slot_usage.get(slot_idx, 0) + sum(vars_in_slot)
+                    <= FINAL_ROUND_MAX_MATCHES_PER_SLOT
+                )
+
+        for slot_idx in slot_indices:
+            venue_groups: Dict[str, List[cp_model.IntVar]] = defaultdict(list)
+            for match in batch_matches:
+                var = y.get((match.match_idx, slot_idx))
+                if var is not None:
+                    venue_groups[match.venue].append(var)
+            for vars_in_venue_slot in venue_groups.values():
+                if len(vars_in_venue_slot) > 1:
+                    model.Add(sum(vars_in_venue_slot) <= 1)
+
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = REPAIR_SOLVER_TIME_LIMIT_S
+        solver.parameters.num_workers = 4
+        status = solver.Solve(model)
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            continue
+
+        repaired: List[ScheduledMatch] = []
+        for match in batch_matches:
+            chosen_slot = next(
+                slot_idx
+                for slot_idx in match_slot_options[match.match_idx]
+                if solver.Value(y[(match.match_idx, slot_idx)]) == 1
+            )
+            repaired.append(
+                ScheduledMatch(
+                    match_idx=match.match_idx,
+                    round_num=match.round_num,
+                    home_team=match.home_team,
+                    away_team=match.away_team,
+                    venue=match.venue,
+                    match_tier=match.match_tier,
+                    slot_idx=chosen_slot,
+                    day_id=slot_day_ids[chosen_slot],
+                    date=slot_dates[chosen_slot],
+                    date_time=slot_datetimes[chosen_slot],
+                    week_num=slot_weeks[chosen_slot],
+                    day_name=slot_day_names[chosen_slot],
+                    slot_tier=slot_tiers_list[chosen_slot],
+                    travel_km=match.travel_km,
+                    is_forced_venue=match.is_forced_venue,
+                )
+            )
+
+        print(
+            "[caf_repair] Final-round batch repaired on "
+            f"{candidate_date}."
+        )
+        return repaired, []
+
+    print("[caf_repair] Final-round batch has no common feasible repair date.")
+    return [], sorted(batch_matches, key=lambda match: match.match_idx)
+
+
+def _repair_final_round_batch_with_stadium_gap(
+    batch_matches: List[ScheduledMatch],
+    data: LeagueData,
+    state: _OccupiedState,
+    slot_dates: List[date],
+    slot_weeks: List[int],
+    slot_tiers_list: List[int],
+    slot_day_ids: List[str],
+    slot_day_names: List[str],
+    slot_datetimes: List[object],
+    caf_teams: Set[str],
+    teams_dict: Dict[str, dict],
+) -> Tuple[List[ScheduledMatch], List[ScheduledMatch]]:
+    if not batch_matches:
+        return [], []
+
+    print(
+        f"[caf_repair] Final-round batch repair: {len(batch_matches)} matches "
+        "must share one date."
+    )
+
+    for candidate_date in _candidate_dates_for_final_round(batch_matches, slot_dates):
+        slot_indices = [
+            slot_idx
+            for slot_idx, slot_date in enumerate(slot_dates)
+            if slot_date == candidate_date
+        ]
+        if not slot_indices:
+            continue
+
+        week_nums = {slot_weeks[slot_idx] for slot_idx in slot_indices}
+        if len(week_nums) != 1:
+            continue
+        week_num = next(iter(week_nums))
+
+        if (
+            state.date_load.get(candidate_date, 0) + len(batch_matches)
+            > FINAL_ROUND_MAX_MATCHES_PER_DAY
+        ):
+            continue
+        if (
+            state.week_load.get(week_num, 0) + len(batch_matches)
+            > HARD_MAX_MATCHES_PER_WEEK
+        ):
+            continue
+
+        if any(
+            not _match_can_play_on_date(match, candidate_date, data, state, caf_teams)
+            for match in batch_matches
+        ):
+            continue
+
+        match_assignment_options: Dict[int, List[Tuple[int, str, bool, bool, int]]] = {}
+        for match in batch_matches:
+            options = get_venue_options(
+                match.home_team,
+                match.away_team,
+                teams_dict,
+                data.sec_rules,
+            )
+            feasible_assignments: List[Tuple[int, str, bool, bool, int]] = []
+            for slot_idx in slot_indices:
+                if state.slot_usage.get(slot_idx, 0) >= FINAL_ROUND_MAX_MATCHES_PER_SLOT:
+                    continue
+                for venue in options.allowed_venues:
+                    if slot_idx in state.venue_slots.get(venue, set()):
+                        continue
+                    is_forced = options.is_forced_only
+                    is_alt = (not is_forced) and venue != options.primary_venue
+                    maintenance_violation = 0
+                    if (
+                        not is_forced
+                        and not _check_stadium_service_gap(venue, candidate_date, state)
+                    ):
+                        maintenance_violation = 1
+                    feasible_assignments.append(
+                        (slot_idx, venue, is_forced, is_alt, maintenance_violation)
+                    )
+
+            if not feasible_assignments:
+                break
+            match_assignment_options[match.match_idx] = feasible_assignments
+
+        if len(match_assignment_options) != len(batch_matches):
+            continue
+
+        model = cp_model.CpModel()
+        y: Dict[Tuple[int, int, str], cp_model.IntVar] = {}
+        objective_terms = []
+        for match in batch_matches:
+            for slot_idx, venue, _is_forced, is_alt, maintenance_violation in (
+                match_assignment_options[match.match_idx]
+            ):
+                key = (match.match_idx, slot_idx, venue)
+                y[key] = model.NewBoolVar(f"fr_{match.match_idx}_{slot_idx}_{venue}")
+                if maintenance_violation:
+                    objective_terms.append(y[key] * 1_000)
+                if is_alt:
+                    objective_terms.append(y[key] * 10)
+
+        for match in batch_matches:
+            model.Add(
+                sum(
+                    y[(match.match_idx, slot_idx, venue)]
+                    for slot_idx, venue, _is_forced, _is_alt, _maintenance in (
+                        match_assignment_options[match.match_idx]
+                    )
+                ) == 1
+            )
+
+        for slot_idx in slot_indices:
+            vars_in_slot = [
+                y[(match.match_idx, candidate_slot, venue)]
+                for match in batch_matches
+                for candidate_slot, venue, _is_forced, _is_alt, _maintenance in (
+                    match_assignment_options[match.match_idx]
+                )
+                if candidate_slot == slot_idx
+            ]
+            if vars_in_slot:
+                model.Add(
+                    state.slot_usage.get(slot_idx, 0) + sum(vars_in_slot)
+                    <= FINAL_ROUND_MAX_MATCHES_PER_SLOT
+                )
+
+        venue_slot_groups: Dict[Tuple[str, int], List[cp_model.IntVar]] = defaultdict(list)
+        for match in batch_matches:
+            for slot_idx, venue, _is_forced, _is_alt, _maintenance in (
+                match_assignment_options[match.match_idx]
+            ):
+                venue_slot_groups[(venue, slot_idx)].append(
+                    y[(match.match_idx, slot_idx, venue)]
+                )
+        for vars_in_venue_slot in venue_slot_groups.values():
+            if len(vars_in_venue_slot) > 1:
+                model.Add(sum(vars_in_venue_slot) <= 1)
+
+        if objective_terms:
+            model.Minimize(sum(objective_terms))
+
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = REPAIR_SOLVER_TIME_LIMIT_S
+        solver.parameters.num_workers = 4
+        status = solver.Solve(model)
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            continue
+
+        repaired: List[ScheduledMatch] = []
+        for match in batch_matches:
+            for slot_idx, venue, is_forced, _is_alt, _maintenance in (
+                match_assignment_options[match.match_idx]
+            ):
+                if solver.Value(y[(match.match_idx, slot_idx, venue)]) != 1:
+                    continue
+                away_home_stadium = teams_dict.get(match.away_team, {}).get(
+                    "Home_Stadium_ID",
+                    "",
+                )
+                travel = data.dist_matrix.get(away_home_stadium, {}).get(venue, 0.0)
+                repaired.append(
+                    ScheduledMatch(
+                        match_idx=match.match_idx,
+                        round_num=match.round_num,
+                        home_team=match.home_team,
+                        away_team=match.away_team,
+                        venue=venue,
+                        match_tier=match.match_tier,
+                        slot_idx=slot_idx,
+                        day_id=slot_day_ids[slot_idx],
+                        date=slot_dates[slot_idx],
+                        date_time=slot_datetimes[slot_idx],
+                        week_num=slot_weeks[slot_idx],
+                        day_name=slot_day_names[slot_idx],
+                        slot_tier=slot_tiers_list[slot_idx],
+                        travel_km=travel,
+                        is_forced_venue=is_forced,
+                    )
+                )
+                break
+
+        print(
+            "[caf_repair] Final-round batch repaired on "
+            f"{candidate_date}."
+        )
+        return repaired, []
+
+    print("[caf_repair] Final-round batch has no common feasible repair date.")
+    return [], sorted(batch_matches, key=lambda match: match.match_idx)
+
+
 def caf_repair(
     accepted: List[ScheduledMatch],
     violations: List[CAFViolation],
@@ -353,19 +796,16 @@ def _caf_repair_legacy(
         slots["Date time"] if "Date time" in slots.columns else [None] * len(slots)
     )
 
-    caf_teams = {
-        row["Team_ID"]
-        for _, row in data.teams.iterrows()
-        if row["Cont_Flag"] in ("CL", "CC")
-    }
-
-    state = _build_state(accepted)
+    caf_teams = _collect_caf_teams(data)
 
     queued_matches: Dict[int, ScheduledMatch] = {}
     for violation in violations:
         queued_matches[violation.match.match_idx] = violation.match
 
-    queued_list = list(queued_matches.values())
+    final_round_batch = _promote_final_round_batch(accepted, queued_matches)
+    state = _build_state(accepted)
+
+    queued_list = list(queued_matches.values()) + final_round_batch
     print(f"[caf_repair] {len(queued_list)} unique matches to repair.")
 
     match_valid_slots: Dict[int, List[Tuple[int, int]]] = {}
@@ -379,6 +819,33 @@ def _caf_repair_legacy(
 
     _write_repair_slot_counts(queued_list, match_valid_slots)
 
+    repaired: List[ScheduledMatch] = []
+    unresolved: List[ScheduledMatch] = []
+
+    if final_round_batch:
+        repaired_batch, unresolved_batch = _repair_final_round_batch_legacy(
+            final_round_batch,
+            data,
+            state,
+            slot_dates,
+            slot_weeks,
+            slot_tiers_list,
+            slot_day_ids,
+            slot_day_names,
+            slot_datetimes,
+            caf_teams,
+        )
+        repaired.extend(repaired_batch)
+        unresolved.extend(unresolved_batch)
+        for repaired_match in repaired_batch:
+            _update_state(
+                state,
+                repaired_match,
+                repaired_match.slot_idx,
+                repaired_match.date,
+                repaired_match.week_num,
+            )
+
     queued_sorted = sorted(
         queued_list,
         key=lambda match: (
@@ -387,10 +854,7 @@ def _caf_repair_legacy(
             match.match_idx,
         ),
     )
-
-    repaired: List[ScheduledMatch] = []
-    unresolved: List[ScheduledMatch] = []
-    remaining = queued_sorted
+    remaining = [match for match in queued_sorted if match.match_idx in queued_matches]
 
     for pass_num in range(1, 4):
         print(
@@ -494,20 +958,17 @@ def _caf_repair_with_stadium_gap(
         slots["Date time"] if "Date time" in slots.columns else [None] * len(slots)
     )
 
-    caf_teams = {
-        row["Team_ID"]
-        for _, row in data.teams.iterrows()
-        if row["Cont_Flag"] in ("CL", "CC")
-    }
+    caf_teams = _collect_caf_teams(data)
     teams_dict = build_team_lookup(data)
-
-    state = _build_state(accepted)
 
     queued_matches: Dict[int, ScheduledMatch] = {}
     for violation in violations:
         queued_matches[violation.match.match_idx] = violation.match
 
-    queued_list = list(queued_matches.values())
+    final_round_batch = _promote_final_round_batch(accepted, queued_matches)
+    state = _build_state(accepted)
+
+    queued_list = list(queued_matches.values()) + final_round_batch
     print(f"[caf_repair] {len(queued_list)} unique matches to repair.")
 
     match_valid_slots: Dict[int, List[Tuple[int, int]]] = {}
@@ -531,10 +992,38 @@ def _caf_repair_with_stadium_gap(
         )
         match_valid_slots[match.match_idx] = [
             (slot_idx, abs((slot_dates[slot_idx] - match.date).days))
-            for slot_idx, _venue, _is_forced, _is_alt in ranked
+            for slot_idx, _venue, _is_forced, _is_alt, _maintenance in ranked
         ]
 
     _write_repair_slot_counts(queued_list, match_valid_slots)
+
+    repaired: List[ScheduledMatch] = []
+    unresolved: List[ScheduledMatch] = []
+
+    if final_round_batch:
+        repaired_batch, unresolved_batch = _repair_final_round_batch_with_stadium_gap(
+            final_round_batch,
+            data,
+            state,
+            slot_dates,
+            slot_weeks,
+            slot_tiers_list,
+            slot_day_ids,
+            slot_day_names,
+            slot_datetimes,
+            caf_teams,
+            teams_dict,
+        )
+        repaired.extend(repaired_batch)
+        unresolved.extend(unresolved_batch)
+        for repaired_match in repaired_batch:
+            _update_state(
+                state,
+                repaired_match,
+                repaired_match.slot_idx,
+                repaired_match.date,
+                repaired_match.week_num,
+            )
 
     queued_sorted = sorted(
         queued_list,
@@ -544,10 +1033,7 @@ def _caf_repair_with_stadium_gap(
             match.match_idx,
         ),
     )
-
-    repaired: List[ScheduledMatch] = []
-    unresolved: List[ScheduledMatch] = []
-    remaining = queued_sorted
+    remaining = [match for match in queued_sorted if match.match_idx in queued_matches]
 
     for pass_num in range(1, 4):
         print(
@@ -577,10 +1063,11 @@ def _caf_repair_with_stadium_gap(
                 valid,
                 key=lambda item: (
                     abs((slot_dates[item[0]] - match.date).days),
+                    item[4],
                     1 if item[3] else 0,
                 ),
             )
-            best_slot, best_venue, is_forced, _is_alt = ranked[0]
+            best_slot, best_venue, is_forced, _is_alt, _maintenance = ranked[0]
             away_home_stadium = teams_dict.get(match.away_team, {}).get("Home_Stadium_ID", "")
             travel = data.dist_matrix.get(away_home_stadium, {}).get(best_venue, 0.0)
 

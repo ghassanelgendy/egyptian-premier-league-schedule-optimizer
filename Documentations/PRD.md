@@ -4,7 +4,7 @@
 
 **Version:** 3.0
 **Status:** Full product and model requirements for the current Streamlit application and CAF-aware scheduling pipeline.
-**Last updated:** 2026-04-16
+**Last updated:** 2026-05-17
 **Authoritative model inputs:** `data/Data_Model.xlsx` and `data/expanded_calendar.xlsx` only.
 
 ---
@@ -222,7 +222,8 @@ Round windows are built from playable slot dates:
 
 - FIFA dates are removed first.
 - Candidate windows are chronological date ranges from usable slots.
-- Current implementation uses rolling 5-day windows.
+- Rounds 1 through 33 use rolling 5-day windows.
+- Round 34 uses a tail domain: every playable slot from the start of its selected final-round window through the end of the season.
 - A candidate window must contain enough slot rows for a round.
 - CAF-heavy windows where CAF teams have no CAF-safe slot are skipped.
 - Selected windows must be chronological and non-overlapping.
@@ -244,17 +245,30 @@ The baseline solver assigns generated fixtures to concrete calendar slots using 
 |---|---|
 | H1 | Every generated fixture is assigned exactly once. |
 | H2 | No league match is assigned to a FIFA date. FIFA dates are removed from usable slots before solving. |
-| H3 | Baseline match domains are restricted to their selected round window. |
+| H3 | Baseline match domains are restricted to their selected round window. For Round 34, the selected window is the final-round tail domain. |
 | H4 | A team cannot play more than one league match on the same calendar date. |
 | H5 | A venue cannot host more than one match in the same slot. |
-| H6 | A kickoff slot cannot exceed `MAX_MATCHES_PER_SLOT`. |
-| H7 | A calendar date cannot exceed `MAX_MATCHES_PER_DAY` league matches. Default cap is 3. |
+| H6 | A kickoff slot cannot exceed `MAX_MATCHES_PER_SLOT`, except on the chosen Round 34 date where the special final-round slot cap applies. |
+| H7 | A calendar date cannot exceed `MAX_MATCHES_PER_DAY` league matches, except on the chosen Round 34 date where the special final-round day cap applies. |
 | H8 | A team must have at least `MIN_REST_DAYS_LOCAL` full rest days between league matches. |
 | H9 | Non-postponed baseline rounds must respect the minimum gap: Round `R+1` must start at least `MIN_DAYS_BETWEEN_ROUNDS` calendar days after Round `R` ends. |
 | H10 | Forced venue rules from `Sec_Matrix` must be respected by fixture generation. |
 | H11 | CAF teams must avoid known CAF dates and the hard CAF buffer when feasible inside the round window. |
+| H12 | All Round 34 matches must share exactly one calendar date. |
 
 If CAF-safe slots do not exist inside a strict round window for a match, the domain builder may relax the CAF filter for that match so the baseline remains complete. Such matches must then be caught by CAF audit and moved to the postponement queue.
+
+### 7.1.1 Final Round Publication Rule
+
+The current product enforces a one-day final round for `Round 34` only.
+
+- The rule applies to the final published schedule, not just the pre-CAF baseline.
+- The solver must not create synthetic dates or synthetic kickoff slots.
+- The only global constraints that may be relaxed for the final round are:
+  - same-date match count,
+  - same-kickoff match count.
+- Venue-slot exclusivity remains hard, so the same stadium still cannot host two matches in the same slot.
+- If the model cannot satisfy the full final-round rule together with rest, CAF, round-order, and venue integrity constraints, it must report infeasibility or unresolved matches rather than silently splitting the round across multiple days.
 
 ### 7.2 Baseline Soft Objectives
 
@@ -321,7 +335,7 @@ Audit outputs:
 
 ## 9. CAF Repair
 
-The repair phase removes violating baseline matches from the accepted schedule and tries to reinsert each queued match into a later valid slot.
+The repair phase removes violating baseline matches from the accepted schedule and tries to reinsert queued matches into later valid slots. If any Round 34 match enters repair, the full final round must be treated as one shared-date repair batch.
 
 ### 9.1 Free Slot Definition
 
@@ -329,11 +343,11 @@ For repair, a free slot means:
 
 - the slot is in the usable non-FIFA slot universe,
 - the slot date is on or after the original baseline match date,
-- no accepted league match already occupies that exact slot row,
+- the slot still respects the applicable same-slot load cap,
 - the venue is free in that slot,
 - the slot has valid date, time, day ID, and week metadata.
 
-Repair is stricter than baseline slot capacity. A repair slot must be empty even if `MAX_MATCHES_PER_SLOT` would otherwise allow multiple matches.
+Repair uses the same global day and slot caps as baseline, except that Round 34 may use the dedicated final-round caps on its chosen shared date.
 
 ### 9.2 Repair Feasibility Rules
 
@@ -341,14 +355,25 @@ Repair is stricter than baseline slot capacity. A repair slot must be empty even
 |---|---|
 | R1 | Slot is not a FIFA date. |
 | R2 | Slot date is not before the original match date. |
-| R3 | Date load is below `MAX_MATCHES_PER_DAY`. Default cap is 3. |
+| R3 | Date load is below the applicable daily cap. Default cap is `MAX_MATCHES_PER_DAY`; Round 34 may use the dedicated final-round day cap on its shared date. |
 | R4 | Neither team already has an accepted league match on the candidate date. |
 | R5 | Both teams satisfy local league rest rules against all accepted matches. |
-| R6 | Venue is free in the candidate slot. |
+| R6 | Venue is free in the candidate slot, even when the slot still has capacity for other venues. |
 | R7 | Inserting the match does not create a home/away streak violation. |
 | R8 | CAF teams satisfy the hard CAF buffer in both directions. |
 | R9 | Calendar week load is below `HARD_MAX_MATCHES_PER_WEEK`. |
 | R10 | If `MIN_STADIUM_SERVICE_GAP_DAYS > 0`, non-forced repair candidates must respect the same stadium maintenance window. Repair may switch a non-forced match to the alternate stadium; forced venues remain exempt. |
+
+### 9.3 Final Round Batch Repair
+
+If any `Round 34` match is postponed into CAF repair:
+
+- every Round 34 match is removed from the accepted published schedule and promoted into one repair batch,
+- the repair search must choose one common replacement date for the entire round,
+- rest-day rules, CAF buffers, home/away streak rules, week caps, and venue-slot exclusivity remain hard,
+- the shared replacement date may use the final-round day cap and final-round same-kickoff cap,
+- if no common feasible date exists, the repair phase must leave the full Round 34 batch unresolved,
+- it must never repair only part of Round 34 onto another date.
 
 Repair strategy:
 
@@ -383,7 +408,9 @@ Final validation must check:
 - ordered pair count,
 - unresolved postponement warning,
 - no FIFA-date matches,
-- daily match cap (`MAX_MATCHES_PER_DAY`),
+- Round 34 appears on exactly one calendar date in the final published schedule,
+- daily match cap (`MAX_MATCHES_PER_DAY`) except on the valid Round 34 shared date,
+- same-kickoff slot cap (`MAX_MATCHES_PER_SLOT`) except on the valid Round 34 shared date,
 - venue-slot conflicts,
 - non-forced stadium maintenance gaps when enabled,
 - non-postponed global round order,
@@ -599,21 +626,22 @@ Browse files:
 4. Dynamic round windows are selected from non-FIFA playable slots.
 5. Baseline scheduling creates a complete pre-CAF schedule or clearly reports infeasibility.
 6. No scheduled league match appears on a FIFA date.
-7. Baseline and repair enforce `MAX_MATCHES_PER_DAY`; default cap is 3.
-8. Baseline enforces `MAX_MATCHES_PER_SLOT`.
-9. Repair uses only empty slot rows.
+7. Baseline and repair enforce `MAX_MATCHES_PER_DAY` by default, but Round 34 may use the dedicated final-round day cap on its one valid shared date.
+8. Baseline and repair enforce `MAX_MATCHES_PER_SLOT` by default, but Round 34 may use the dedicated final-round slot cap on its one valid shared date.
+9. If Round 34 is repaired, the system repairs the full round as one batch on one common date or leaves the batch unresolved.
 10. Team same-day, rest-day, and venue-slot constraints are respected.
 11. Known CAF conflicts are audited after baseline.
 12. CAF-violating matches are written to the postponement queue.
 13. Repair keeps original `Round` metadata and sets repaired matches as postponed in final output.
 14. Unrepairable matches are written to unresolved output, not silently dropped.
 15. Final validation reports FIFA, CAF, daily cap, venue, rest, streak, completeness, and round-order issues.
-16. UI exposes all tunable variables, including max matches per day.
-17. UI defaults to Explore -> Team chooser.
-18. UI uses the Nile League dark palette and icon.
-19. Club icons are normalized to 500x500 and mapped to every current workbook team.
-20. The calendar grid shows matches, club icons, and no-match reasons per day.
-21. Travel stats visualize total season kilometers by team with club icons.
+16. Final validation reports a hard error if the published Round 34 schedule spans more than one date.
+17. UI exposes all tunable variables, including max matches per day.
+18. UI defaults to Explore -> Team chooser.
+19. UI uses the Nile League dark palette and icon.
+20. Club icons are normalized to 500x500 and mapped to every current workbook team.
+21. The calendar grid shows matches, club icons, and no-match reasons per day.
+22. Travel stats visualize total season kilometers by team with club icons.
 
 ---
 
@@ -629,42 +657,16 @@ Browse files:
 ---
 
 ## 16. Dashboard Metrics Explained
+... (as before) ...
 
-This section explains the key diagnostic and operational metrics exposed in the Streamlit UI.
+---
 
-## 16.1 Feasibility Pressure Dashboard
+## 17. Recent Development Milestones (Last 20 Commits)
 
-These metrics evaluate the "tightness" of the scheduling problem before the solver executes.
+The following capabilities have been recently integrated into the core pipeline:
 
-| Metric | What it Represents | Example | Why it Matters |
-|---|---|---|---|
-| **Min/Median/Max Feasible Slots** | The statistical distribution of valid calendar options available per match. | Min: 4, Median: 120, Max: 250. | Identifies if the overall season is highly constrained or flexible. |
-| **Matches <= 25/50/100** | Count of fixtures with dangerously low slot options within their round window. | "5 matches <= 25" means five fixtures have very few places to land. | High counts here indicate a "fragile" schedule prone to solver failure. |
-| **Feasible-Slot Histogram** | A frequency distribution of matches by their available slot counts. | A large bar at 'X=12' means many matches have exactly 12 options. | Visualizes the "difficulty" profile of the entire season. |
-| **Tightest Matches** | A table listing the specific fixtures with the fewest available slots. | Round 4: AHL vs ZAM has only 2 valid slots. | The primary debugging tool for solver "Infeasibility" reports. |
-| **Round-Level Avg Feasibility** | The average number of slots available for matches in a specific round. | Round 17 has an average of 15 slots; Round 1 has 180. | Identifies "crunch weeks" (e.g., due to heavy CAF overlap). |
-
-## 16.2 CAF Audit & Repair Dashboard
-
-These metrics track how CAF conflicts are identified and resolved.
-
-| Metric | What it Represents | Example | Why it Matters |
-|---|---|---|---|
-| **CAF Violations Found** | Matches in the baseline schedule that violate CAF rest or blocker rules. | 12 matches found with < 4 days rest from a CAF fixture. | Quantifies the "correction" needed after the baseline solve. |
-| **Repaired Matches** | Matches successfully moved from the postponement queue to a safe, later slot. | 10 out of 12 violations were successfully rescheduled. | Indicates the success rate of the greedy repair algorithm. |
-| **Unresolved Matches** | Matches that could not find any valid later slot during repair. | 2 matches remain unresolved. | Highlights fixtures that require manual intervention or relaxed variables. |
-| **Repair Outcome Funnel** | A step-by-step count of matches from audit to queue to final placement. | Audited (306) -> Violating (12) -> Repaired (10). | Visualizes the "survival rate" of matches through the repair pipeline. |
-
-## 16.3 Season Summary & Validation Dashboard
-
-These metrics verify the quality and integrity of the final schedule.
-
-| Metric | What it Represents | Example | Why it Matters |
-|---|---|---|---|
-| **Away Travel Range** | The difference in total distance (km) between the most and least traveled teams. | Range: 1,500 km (Team A: 5k, Team B: 3.5k). | Measures "geographic fairness" across the league. |
-| **Max Rest Gap** | The longest period any team goes between two consecutive league matches. | Al Ittihad has a 21-day gap due to a FIFA break. | Identifies potential loss of match fitness or schedule "dead zones." |
-| **Top 3 Venue Share** | The percentage of all matches played in the three most-used stadiums. | Cairo Stadium, Borg El Arab, and Al Salam host 45% of matches. | Monitors stadium wear-and-tear and over-centralization. |
-| **Rounds Spanning 1/2/3+ Weeks** | How many abstract rounds are completed within a single calendar week vs. dragged out. | 25 rounds in 1 week, 9 rounds in 2+ weeks. | Measures the "compactness" and chronological flow of the season. |
-| **Per-Team Max Streak** | The longest consecutive run of Home or Away matches for any club. | Pyramids has a streak of 2 (H-H). | Ensures no team is forced into long periods without home revenue or travel relief. |
-| **Rolling-5 H/A Balance** | The min/max home match count in any 5-match window for a team. | Min: 2, Max: 3. | Verifies consistent alternation between home and away matches. |
-| **Round Order Consistency** | Counts of "Team Inversions" (playing Round 10 before Round 9). | 4 team inversions reported. | High counts mean the "round" concept is becoming meaningless due to postponements. |
+- **Monte Carlo Engine:** Added a parallelized multi-run solver (`multi_run.py`) with checkpointing and resume capabilities. This allows for large-scale seed exploration to find the mathematically optimal schedule.
+- **Stadium Maintenance & Service Gaps:** Integrated soft penalties and hard gaps for stadium reuse, preventing back-to-back matches at the same venue within a specified service window.
+- **CAF Repair Safety Net:** Refined the two-tier CAF defense, ensuring matches with zero safe baseline slots are gracefully postponed and repaired.
+- **Improved Data Integrity:** Moved to a more robust date-handling system and cleaned up hidden workbook dependencies in the data loader.
+- **Enhanced Validation Suite:** Added rolling 5-match balance checks and round-order inversion diagnostics to the final validation report.

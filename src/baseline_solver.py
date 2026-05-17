@@ -15,6 +15,9 @@ from ortools.sat.python import cp_model
 from src.constants import (
     ALT_STADIUM_RELIEF_PENALTY,
     BASELINE_SOLVER_TIME_LIMIT_S,
+    ENFORCE_FINAL_ROUND_SINGLE_DAY,
+    FINAL_ROUND_MAX_MATCHES_PER_DAY,
+    FINAL_ROUND_MAX_MATCHES_PER_SLOT,
     HARD_MAX_MATCHES_PER_WEEK,
     MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
@@ -36,6 +39,7 @@ from src.constants import (
 # May be patched by UI
 NUM_WORKERS = 4
 from src.data_loader import LeagueData
+from src.final_round import collect_final_round_matches
 from src.fixture_generator import Match
 from src.tiers import compute_slot_tiers
 from src.venue_rules import build_team_lookup, get_venue_options
@@ -174,6 +178,97 @@ def _build_match_day_vars(
     return match_day
 
 
+def _build_final_round_shared_date_vars(
+    model: cp_model.CpModel,
+    matches: List[Match],
+    assignment_vars_by_match_slot: Dict[int, Dict[int, List[cp_model.IntVar]]],
+    slot_dates: List[date],
+) -> Dict[date, cp_model.IntVar]:
+    """Force every final-round match onto one shared calendar date."""
+    if not ENFORCE_FINAL_ROUND_SINGLE_DAY:
+        return {}
+
+    final_round_matches = collect_final_round_matches(matches)
+    if not final_round_matches:
+        return {}
+
+    candidate_dates = sorted({
+        slot_dates[slot_idx]
+        for match in final_round_matches
+        for slot_idx in assignment_vars_by_match_slot[match.match_idx]
+        if slot_dates[slot_idx] is not None
+    })
+    if not candidate_dates:
+        raise RuntimeError("Final round has no candidate dates in its domain")
+
+    chosen_date_vars: Dict[date, cp_model.IntVar] = {}
+    for candidate_date in candidate_dates:
+        label = candidate_date.strftime("%Y%m%d")
+        chosen_date_vars[candidate_date] = model.NewBoolVar(
+            f"final_round_date_{label}"
+        )
+
+    model.Add(sum(chosen_date_vars.values()) == 1)
+
+    for match in final_round_matches:
+        vars_by_date: Dict[date, List[cp_model.IntVar]] = defaultdict(list)
+        for slot_idx, vars_for_slot in assignment_vars_by_match_slot[match.match_idx].items():
+            slot_date = slot_dates[slot_idx]
+            if slot_date is not None:
+                vars_by_date[slot_date].extend(vars_for_slot)
+
+        for candidate_date, chosen_var in chosen_date_vars.items():
+            model.Add(sum(vars_by_date.get(candidate_date, [])) == chosen_var)
+
+    return chosen_date_vars
+
+
+def _add_daily_capacity_constraints(
+    model: cp_model.CpModel,
+    all_vars_by_date: Dict[date, List[cp_model.IntVar]],
+    final_round_date_vars: Dict[date, cp_model.IntVar],
+) -> None:
+    extra_capacity = FINAL_ROUND_MAX_MATCHES_PER_DAY - MAX_MATCHES_PER_DAY
+    for slot_date, vars_on_date in all_vars_by_date.items():
+        if not vars_on_date:
+            continue
+
+        chosen_var = final_round_date_vars.get(slot_date)
+        if chosen_var is None or extra_capacity <= 0:
+            if len(vars_on_date) > MAX_MATCHES_PER_DAY:
+                model.Add(sum(vars_on_date) <= MAX_MATCHES_PER_DAY)
+            continue
+
+        model.Add(
+            sum(vars_on_date)
+            <= MAX_MATCHES_PER_DAY + (extra_capacity * chosen_var)
+        )
+
+
+def _add_slot_capacity_constraints(
+    model: cp_model.CpModel,
+    all_vars_by_slot: Dict[int, List[cp_model.IntVar]],
+    slot_dates: List[date],
+    final_round_date_vars: Dict[date, cp_model.IntVar],
+) -> None:
+    extra_capacity = FINAL_ROUND_MAX_MATCHES_PER_SLOT - MAX_MATCHES_PER_SLOT
+    for slot_idx, vars_in_slot in all_vars_by_slot.items():
+        if not vars_in_slot:
+            continue
+
+        slot_date = slot_dates[slot_idx]
+        chosen_var = final_round_date_vars.get(slot_date)
+        if chosen_var is None or extra_capacity <= 0:
+            if len(vars_in_slot) > MAX_MATCHES_PER_SLOT:
+                model.Add(sum(vars_in_slot) <= MAX_MATCHES_PER_SLOT)
+            continue
+
+        model.Add(
+            sum(vars_in_slot)
+            <= MAX_MATCHES_PER_SLOT + (extra_capacity * chosen_var)
+        )
+
+
 def _add_round_gap_constraints(
     model: cp_model.CpModel,
     matches_by_round: Dict[int, List[int]],
@@ -268,6 +363,19 @@ def _solve_baseline_legacy(
         },
         max_slot_day,
     )
+    assignment_vars_by_match_slot = {
+        match.match_idx: {
+            slot_idx: [var]
+            for slot_idx, var in x[match.match_idx].items()
+        }
+        for match in matches
+    }
+    final_round_date_vars = _build_final_round_shared_date_vars(
+        model,
+        matches,
+        assignment_vars_by_match_slot,
+        slot_dates,
+    )
 
     for match in matches:
         model.Add(sum(x[match.match_idx].values()) == 1)
@@ -306,22 +414,25 @@ def _solve_baseline_legacy(
             if len(vars_in_slot) > 1:
                 model.Add(sum(vars_in_slot) <= 1)
 
+    all_vars_by_date: Dict[date, List[cp_model.IntVar]] = defaultdict(list)
     for slot_date, slot_indices in slots_by_date.items():
-        all_vars_on_date = []
         for match in matches:
             for slot_idx in slot_indices:
                 if slot_idx in x[match.match_idx]:
-                    all_vars_on_date.append(x[match.match_idx][slot_idx])
-        if len(all_vars_on_date) > MAX_MATCHES_PER_DAY:
-            model.Add(sum(all_vars_on_date) <= MAX_MATCHES_PER_DAY)
+                    all_vars_by_date[slot_date].append(x[match.match_idx][slot_idx])
+    _add_daily_capacity_constraints(model, all_vars_by_date, final_round_date_vars)
 
+    all_vars_by_slot: Dict[int, List[cp_model.IntVar]] = defaultdict(list)
     for slot_idx in range(n_slots):
-        all_vars_in_slot = []
         for match in matches:
             if slot_idx in x[match.match_idx]:
-                all_vars_in_slot.append(x[match.match_idx][slot_idx])
-        if len(all_vars_in_slot) > MAX_MATCHES_PER_SLOT:
-            model.Add(sum(all_vars_in_slot) <= MAX_MATCHES_PER_SLOT)
+                all_vars_by_slot[slot_idx].append(x[match.match_idx][slot_idx])
+    _add_slot_capacity_constraints(
+        model,
+        all_vars_by_slot,
+        slot_dates,
+        final_round_date_vars,
+    )
 
     rest_gap = MIN_REST_DAYS_LOCAL
     for team_id, match_indices in matches_by_team.items():
@@ -553,6 +664,19 @@ def _solve_baseline_with_stadium_gap(
         },
         max_slot_day,
     )
+    assignment_vars_by_match_slot: Dict[int, Dict[int, List[cp_model.IntVar]]] = {}
+    for match in matches:
+        grouped: Dict[int, List[cp_model.IntVar]] = defaultdict(list)
+        for (slot_idx, _venue), var in x[match.match_idx].items():
+            grouped[slot_idx].append(var)
+        assignment_vars_by_match_slot[match.match_idx] = dict(grouped)
+
+    final_round_date_vars = _build_final_round_shared_date_vars(
+        model,
+        matches,
+        assignment_vars_by_match_slot,
+        slot_dates,
+    )
 
     for match in matches:
         model.Add(sum(x[match.match_idx].values()) == 1)
@@ -588,26 +712,29 @@ def _solve_baseline_with_stadium_gap(
         if len(vars_in_slot) > 1:
             model.Add(sum(vars_in_slot) <= 1)
 
+    all_vars_by_date: Dict[date, List[cp_model.IntVar]] = defaultdict(list)
     for slot_date, slot_indices in slots_by_date.items():
-        all_vars_on_date = []
         for match in matches:
             for slot_idx in slot_indices:
                 for venue in venue_options_by_match[match.match_idx].allowed_venues:
                     var = x[match.match_idx].get((slot_idx, venue))
                     if var is not None:
-                        all_vars_on_date.append(var)
-        if len(all_vars_on_date) > MAX_MATCHES_PER_DAY:
-            model.Add(sum(all_vars_on_date) <= MAX_MATCHES_PER_DAY)
+                        all_vars_by_date[slot_date].append(var)
+    _add_daily_capacity_constraints(model, all_vars_by_date, final_round_date_vars)
 
+    all_vars_by_slot: Dict[int, List[cp_model.IntVar]] = defaultdict(list)
     for slot_idx in range(n_slots):
-        all_vars_in_slot = []
         for match in matches:
             for venue in venue_options_by_match[match.match_idx].allowed_venues:
                 var = x[match.match_idx].get((slot_idx, venue))
                 if var is not None:
-                    all_vars_in_slot.append(var)
-        if len(all_vars_in_slot) > MAX_MATCHES_PER_SLOT:
-            model.Add(sum(all_vars_in_slot) <= MAX_MATCHES_PER_SLOT)
+                    all_vars_by_slot[slot_idx].append(var)
+    _add_slot_capacity_constraints(
+        model,
+        all_vars_by_slot,
+        slot_dates,
+        final_round_date_vars,
+    )
 
     rest_gap = MIN_REST_DAYS_LOCAL
     for team_id, match_indices in matches_by_team.items():
