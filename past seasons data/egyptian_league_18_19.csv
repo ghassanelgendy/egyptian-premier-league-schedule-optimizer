@@ -1,307 +1,307 @@
-Matchday,Date,Home Team,Away Team,Time
-1.Matchday,Tue 31/07/18,Ittihad Alex,El Mokawloon,6:00 PM
-1.Matchday,Tue 31/07/18,Petrojet,Zamalek,9:00 PM
-1.Matchday,Wed 01/08/18,El Dakhlia,Wadi Degla,4:00 PM
-1.Matchday,Wed 01/08/18,Entag El Harby,Harras Hodoud,6:15 PM
-1.Matchday,Wed 01/08/18,Nogoom FC,Talaea El Gaish,9:00 PM
-1.Matchday,Thu 02/08/18,El Gouna,El Masry,6:00 PM
-1.Matchday,Thu 02/08/18,Ahly SC,Ismaily,9:00 PM
-1.Matchday,Fri 03/08/18,El Makasa,Smouha,6:00 PM
-1.Matchday,Fri 03/08/18,Enppi SC,Pyramids FC,9:00 PM
-2.Matchday,Sat 04/08/18,Zamalek,Ittihad Alex,8:00 PM
-2.Matchday,Mon 06/08/18,Harras Hodoud,El Dakhlia,4:30 PM
-2.Matchday,Mon 06/08/18,Ismaily,Petrojet,6:45 PM
-2.Matchday,Mon 06/08/18,Wadi Degla,El Gouna,9:00 PM
-2.Matchday,Tue 07/08/18,El Masry,Ahly SC,8:00 PM
-2.Matchday,Wed 08/08/18,Pyramids FC,Entag El Harby,4:30 PM
-2.Matchday,Wed 08/08/18,El Mokawloon,El Makasa,6:45 PM
-2.Matchday,Wed 08/08/18,Smouha,Nogoom FC,Pending
-2.Matchday,Wed 08/08/18,Talaea El Gaish,Enppi SC,9:00 PM
-3.Matchday,Tue 14/08/18,El Dakhlia,Entag El Harby,4:00 PM
-3.Matchday,Tue 14/08/18,El Gouna,Harras Hodoud,6:15 PM
-3.Matchday,Tue 14/08/18,Enppi SC,Smouha,Pending
-3.Matchday,Tue 14/08/18,Petrojet,El Masry,Pending
-3.Matchday,Tue 14/08/18,Talaea El Gaish,Pyramids FC,9:00 PM
-3.Matchday,Wed 15/08/18,Nogoom FC,El Mokawloon,8:00 PM
-3.Matchday,Thu 16/08/18,El Makasa,Zamalek,9:00 PM
-3.Matchday,Fri 17/08/18,Ittihad Alex,Ismaily,6:00 PM
-3.Matchday,Tue 21/08/18,Ahly SC,Wadi Degla,8:00 PM
-4.Matchday,Fri 10/08/18,Wadi Degla,Petrojet,8:00 PM
-4.Matchday,Fri 24/08/18,El Mokawloon,Enppi SC,4:00 PM
-4.Matchday,Fri 24/08/18,Ismaily,El Makasa,6:15 PM
-4.Matchday,Fri 24/08/18,Harras Hodoud,Ahly SC,9:00 PM
-4.Matchday,Sat 25/08/18,El Masry,Ittihad Alex,5:30 PM
-4.Matchday,Sun 26/08/18,Smouha,Talaea El Gaish,4:00 PM
-4.Matchday,Sun 26/08/18,Pyramids FC,El Dakhlia,6:15 PM
-4.Matchday,Sun 26/08/18,Entag El Harby,El Gouna,9:00 PM
-4.Matchday,Mon 27/08/18,Zamalek,Nogoom FC,8:00 PM
-5.Matchday,Fri 31/08/18,Petrojet,Harras Hodoud,6:00 PM
-5.Matchday,Fri 31/08/18,Nogoom FC,Ismaily,Pending
-5.Matchday,Fri 31/08/18,El Gouna,El Dakhlia,9:00 PM
-5.Matchday,Fri 31/08/18,Talaea El Gaish,El Mokawloon,Pending
-5.Matchday,Sat 01/09/18,Enppi SC,Zamalek,9:00 PM
-5.Matchday,Sun 02/09/18,Smouha,Pyramids FC,6:00 PM
-5.Matchday,Sun 02/09/18,Ahly SC,Entag El Harby,9:00 PM
-5.Matchday,Mon 03/09/18,El Makasa,El Masry,8:00 PM
-5.Matchday,Fri 28/09/18,Ittihad Alex,Wadi Degla,5:00 PM
-6.Matchday,Tue 11/09/18,El Masry,Nogoom FC,6:00 PM
-6.Matchday,Wed 12/09/18,Entag El Harby,Petrojet,3:30 PM
-6.Matchday,Wed 12/09/18,Harras Hodoud,Ittihad Alex,Pending
-6.Matchday,Wed 12/09/18,El Mokawloon,Smouha,6:00 PM
-6.Matchday,Wed 12/09/18,Pyramids FC,El Gouna,9:00 PM
-6.Matchday,Wed 12/09/18,Wadi Degla,El Makasa,Pending
-6.Matchday,Thu 13/09/18,Ismaily,Enppi SC,6:00 PM
-6.Matchday,Thu 13/09/18,Zamalek,Talaea El Gaish,9:00 PM
-6.Matchday,Sat 29/12/18,El Dakhlia,Ahly SC,5:00 PM
-7.Matchday,Mon 17/09/18,Petrojet,El Dakhlia,6:00 PM
-7.Matchday,Mon 17/09/18,Ittihad Alex,Entag El Harby,Pending
-7.Matchday,Mon 17/09/18,El Mokawloon,Pyramids FC,9:00 PM
-7.Matchday,Mon 17/09/18,El Makasa,Harras Hodoud,Pending
-7.Matchday,Tue 18/09/18,Talaea El Gaish,Ismaily,3:30 PM
-7.Matchday,Tue 18/09/18,Smouha,Zamalek,6:00 PM
-7.Matchday,Wed 19/09/18,Nogoom FC,Wadi Degla,9:00 PM
-7.Matchday,Thu 29/11/18,Enppi SC,El Masry,6:00 PM
-7.Matchday,Wed 05/12/18,Ahly SC,El Gouna,7:00 PM
-8.Matchday,Fri 21/09/18,El Dakhlia,Ittihad Alex,3:30 PM
-8.Matchday,Fri 21/09/18,Entag El Harby,El Makasa,6:00 PM
-8.Matchday,Sat 22/09/18,Petrojet,El Gouna,3:30 PM
-8.Matchday,Sat 22/09/18,Ismaily,Smouha,6:00 PM
-8.Matchday,Sun 23/09/18,Harras Hodoud,Nogoom FC,3:30 PM
-8.Matchday,Sun 23/09/18,Zamalek,El Mokawloon,9:00 PM
-8.Matchday,Mon 24/09/18,Wadi Degla,Enppi SC,6:00 PM
-8.Matchday,Fri 28/09/18,El Masry,Talaea El Gaish,7:00 PM
-8.Matchday,Fri 04/01/19,Pyramids FC,Ahly SC,5:00 PM
-9.Matchday,Sun 30/09/18,Nogoom FC,Entag El Harby,6:00 PM
-9.Matchday,Sun 30/09/18,El Makasa,El Dakhlia,9:00 PM
-9.Matchday,Mon 01/10/18,Enppi SC,Harras Hodoud,6:00 PM
-9.Matchday,Tue 02/10/18,Ittihad Alex,El Gouna,5:30 PM
-9.Matchday,Wed 03/10/18,Talaea El Gaish,Wadi Degla,9:00 PM
-9.Matchday,Sat 01/12/18,Petrojet,Ahly SC,5:00 PM
-9.Matchday,Sun 30/12/18,Smouha,El Masry,3:00 PM
-9.Matchday,Wed 02/01/19,El Mokawloon,Ismaily,5:00 PM
-9.Matchday,Thu 24/01/19,Zamalek,Pyramids FC,7:00 PM
-10.Matchday,Wed 03/10/18,Pyramids FC,Petrojet,6:00 PM
-10.Matchday,Fri 05/10/18,El Dakhlia,Nogoom FC,3:00 PM
-10.Matchday,Fri 05/10/18,Entag El Harby,Enppi SC,6:00 PM
-10.Matchday,Sat 06/10/18,El Gouna,El Makasa,6:00 PM
-10.Matchday,Sun 07/10/18,Harras Hodoud,Talaea El Gaish,3:00 PM
-10.Matchday,Sun 07/10/18,Wadi Degla,Smouha,6:00 PM
-10.Matchday,Sun 07/10/18,Ahly SC,Ittihad Alex,9:00 PM
-10.Matchday,Fri 25/01/19,El Masry,El Mokawloon,4:00 PM
-10.Matchday,Thu 18/04/19,Ismaily,Zamalek,5:00 PM
-11.Matchday,Thu 18/10/18,Talaea El Gaish,Entag El Harby,3:00 PM
-11.Matchday,Thu 18/10/18,Nogoom FC,El Gouna,6:00 PM
-11.Matchday,Thu 18/10/18,El Mokawloon,Wadi Degla,9:00 PM
-11.Matchday,Fri 19/10/18,Smouha,Harras Hodoud,3:00 PM
-11.Matchday,Fri 19/10/18,Ismaily,Pyramids FC,6:00 PM
-11.Matchday,Fri 19/10/18,Enppi SC,El Dakhlia,9:00 PM
-11.Matchday,Sat 20/10/18,Ittihad Alex,Petrojet,7:00 PM
-11.Matchday,Thu 06/12/18,Zamalek,El Masry,6:00 PM
-11.Matchday,Thu 24/01/19,El Makasa,Ahly SC,4:00 PM
-12.Matchday,Thu 01/11/18,Harras Hodoud,El Mokawloon,2:00 PM
-12.Matchday,Thu 01/11/18,Petrojet,El Makasa,4:30 PM
-12.Matchday,Thu 01/11/18,Wadi Degla,Zamalek,7:30 PM
-12.Matchday,Fri 02/11/18,El Dakhlia,Talaea El Gaish,1:45 PM
-12.Matchday,Fri 02/11/18,El Gouna,Enppi SC,2:30 PM
-12.Matchday,Fri 02/11/18,Entag El Harby,Smouha,4:30 PM
-12.Matchday,Fri 02/11/18,Pyramids FC,Ittihad Alex,Pending
-12.Matchday,Sat 03/11/18,Ismaily,El Masry,4:00 PM
-12.Matchday,Mon 17/12/18,Ahly SC,Nogoom FC,6:00 PM
-13.Matchday,Mon 05/11/18,Zamalek,Harras Hodoud,6:00 PM
-13.Matchday,Tue 06/11/18,Nogoom FC,Petrojet,1:45 PM
-13.Matchday,Tue 06/11/18,Talaea El Gaish,El Gouna,4:00 PM
-13.Matchday,Tue 06/11/18,Smouha,El Dakhlia,Pending
-13.Matchday,Tue 06/11/18,El Mokawloon,Entag El Harby,7:00 PM
-13.Matchday,Wed 07/11/18,Ismaily,Wadi Degla,6:30 PM
-13.Matchday,Thu 08/11/18,El Makasa,Ittihad Alex,6:00 PM
-13.Matchday,Tue 08/01/19,El Masry,Pyramids FC,6:30 PM
-13.Matchday,Tue 05/02/19,Enppi SC,Ahly SC,5:00 PM
-14.Matchday,Sat 10/11/18,Entag El Harby,Zamalek,5:00 PM
-14.Matchday,Sat 10/11/18,El Gouna,Smouha,7:30 PM
-14.Matchday,Sun 11/11/18,Harras Hodoud,Ismaily,1:45 PM
-14.Matchday,Sun 11/11/18,Petrojet,Enppi SC,4:00 PM
-14.Matchday,Sun 11/11/18,Wadi Degla,El Masry,6:30 PM
-14.Matchday,Mon 12/11/18,El Dakhlia,El Mokawloon,1:45 PM
-14.Matchday,Mon 12/11/18,Ittihad Alex,Nogoom FC,4:00 PM
-14.Matchday,Mon 12/11/18,Pyramids FC,El Makasa,7:00 PM
-14.Matchday,Sun 09/12/18,Ahly SC,Talaea El Gaish,6:00 PM
-15.Matchday,Tue 20/11/18,El Mokawloon,El Gouna,1:45 PM
-15.Matchday,Tue 20/11/18,Enppi SC,Ittihad Alex,5:00 PM
-15.Matchday,Wed 21/11/18,Nogoom FC,El Makasa,1:45 PM
-15.Matchday,Wed 21/11/18,Talaea El Gaish,Petrojet,4:15 PM
-15.Matchday,Wed 21/11/18,Harras Hodoud,El Masry,Pending
-15.Matchday,Wed 21/11/18,Ismaily,Entag El Harby,7:00 PM
-15.Matchday,Wed 21/11/18,Wadi Degla,Pyramids FC,Pending
-15.Matchday,Thu 22/11/18,Zamalek,El Dakhlia,6:00 PM
-15.Matchday,Tue 08/01/19,Smouha,Ahly SC,4:00 PM
-16.Matchday,Sun 25/11/18,El Makasa,Enppi SC,2:15 PM
-16.Matchday,Sun 25/11/18,Ittihad Alex,Talaea El Gaish,4:30 PM
-16.Matchday,Sun 25/11/18,Entag El Harby,El Masry,7:00 PM
-16.Matchday,Mon 26/11/18,Harras Hodoud,Wadi Degla,1:45 PM
-16.Matchday,Mon 26/11/18,Petrojet,Smouha,4:15 PM
-16.Matchday,Mon 26/11/18,Zamalek,El Gouna,7:00 PM
-16.Matchday,Tue 27/11/18,Ahly SC,El Mokawloon,6:00 PM
-16.Matchday,Wed 28/11/18,Nogoom FC,Pyramids FC,6:00 PM
-16.Matchday,Sat 05/01/19,El Dakhlia,Ismaily,1:30 PM
-17.Matchday,Mon 10/12/18,El Mokawloon,Petrojet,1:45 PM
-17.Matchday,Mon 10/12/18,El Masry,El Dakhlia,4:00 PM
-17.Matchday,Mon 10/12/18,Pyramids FC,Harras Hodoud,6:30 PM
-17.Matchday,Tue 11/12/18,Wadi Degla,Entag El Harby,4:00 PM
-17.Matchday,Wed 12/12/18,Smouha,Ittihad Alex,4:00 PM
-17.Matchday,Wed 12/12/18,Enppi SC,Nogoom FC,6:30 PM
-17.Matchday,Thu 13/12/18,Talaea El Gaish,El Makasa,6:00 PM
-17.Matchday,Sat 30/03/19,Zamalek,Ahly SC,6:00 PM
-17.Matchday,Wed 10/04/19,Ismaily,El Gouna,5:30 PM
-18.Matchday,Thu 20/12/18,Wadi Degla,El Dakhlia,6:00 PM
-18.Matchday,Fri 21/12/18,El Mokawloon,Ittihad Alex,6:00 PM
-18.Matchday,Sat 22/12/18,Smouha,El Makasa,4:00 PM
-18.Matchday,Sat 22/12/18,Pyramids FC,Enppi SC,6:30 PM
-18.Matchday,Sun 23/12/18,Harras Hodoud,Entag El Harby,4:00 PM
-18.Matchday,Sun 23/12/18,Talaea El Gaish,Nogoom FC,6:30 PM
-18.Matchday,Fri 28/12/18,Zamalek,Petrojet,6:00 PM
-18.Matchday,Thu 03/01/19,El Masry,El Gouna,6:00 PM
-18.Matchday,Wed 22/05/19,Ismaily,Ahly SC,10:00 PM
-19.Matchday,Wed 26/12/18,El Gouna,Wadi Degla,4:00 PM
-19.Matchday,Sat 05/01/19,Ittihad Alex,Zamalek,5:00 PM
-19.Matchday,Wed 09/01/19,Enppi SC,Talaea El Gaish,4:00 PM
-19.Matchday,Mon 14/01/19,El Dakhlia,Harras Hodoud,1:30 PM
-19.Matchday,Tue 15/01/19,El Makasa,El Mokawloon,1:30 PM
-19.Matchday,Tue 15/01/19,Entag El Harby,Pyramids FC,4:00 PM
-19.Matchday,Tue 15/01/19,Nogoom FC,Smouha,7:00 PM
-19.Matchday,Thu 24/01/19,Petrojet,Ismaily,1:30 PM
-19.Matchday,Thu 25/04/19,Ahly SC,El Masry,8:00 PM
-20.Matchday,Sat 19/01/19,El Mokawloon,Nogoom FC,2:00 PM
-20.Matchday,Sat 19/01/19,Pyramids FC,Talaea El Gaish,5:00 PM
-20.Matchday,Wed 23/01/19,Harras Hodoud,El Gouna,2:00 PM
-20.Matchday,Wed 23/01/19,Smouha,Enppi SC,4:30 PM
-20.Matchday,Wed 23/01/19,Entag El Harby,El Dakhlia,7:00 PM
-20.Matchday,Mon 28/01/19,Ismaily,Ittihad Alex,4:00 PM
-20.Matchday,Mon 28/01/19,Wadi Degla,Ahly SC,7:00 PM
-20.Matchday,Tue 29/01/19,Zamalek,El Makasa,7:00 PM
-20.Matchday,Wed 30/01/19,El Masry,Petrojet,3:00 PM
-21.Matchday,Wed 30/01/19,Enppi SC,El Mokawloon,6:00 PM
-21.Matchday,Sun 03/02/19,Talaea El Gaish,Smouha,5:00 PM
-21.Matchday,Mon 04/02/19,Ittihad Alex,El Masry,4:00 PM
-21.Matchday,Mon 04/02/19,El Dakhlia,Pyramids FC,6:30 PM
-21.Matchday,Tue 05/02/19,Petrojet,Wadi Degla,2:00 PM
-21.Matchday,Thu 07/02/19,El Gouna,Entag El Harby,3:00 PM
-21.Matchday,Thu 07/02/19,El Makasa,Ismaily,6:00 PM
-21.Matchday,Fri 08/02/19,Ahly SC,Harras Hodoud,5:00 PM
-21.Matchday,Sat 09/02/19,Nogoom FC,Zamalek,5:00 PM
-22.Matchday,Sun 10/02/19,Wadi Degla,Ittihad Alex,5:00 PM
-22.Matchday,Thu 14/02/19,El Dakhlia,El Gouna,1:30 PM
-22.Matchday,Thu 14/02/19,El Masry,El Makasa,4:00 PM
-22.Matchday,Thu 14/02/19,Pyramids FC,Smouha,6:30 PM
-22.Matchday,Fri 15/02/19,Harras Hodoud,Petrojet,3:00 PM
-22.Matchday,Fri 15/02/19,El Mokawloon,Talaea El Gaish,6:00 PM
-22.Matchday,Sat 16/02/19,Ismaily,Nogoom FC,3:00 PM
-22.Matchday,Sat 16/02/19,Entag El Harby,Ahly SC,6:00 PM
-22.Matchday,Sun 17/02/19,Zamalek,Enppi SC,5:00 PM
-23.Matchday,Mon 18/02/19,El Makasa,Wadi Degla,6:00 PM
-23.Matchday,Tue 19/02/19,El Gouna,Pyramids FC,3:00 PM
-23.Matchday,Wed 20/02/19,Smouha,El Mokawloon,2:00 PM
-23.Matchday,Wed 20/02/19,Talaea El Gaish,Zamalek,4:30 PM
-23.Matchday,Wed 20/02/19,Ahly SC,El Dakhlia,7:00 PM
-23.Matchday,Thu 21/02/19,Petrojet,Entag El Harby,2:00 PM
-23.Matchday,Fri 22/02/19,Nogoom FC,El Masry,5:00 PM
-23.Matchday,Sun 17/03/19,Ittihad Alex,Harras Hodoud,5:00 PM
-23.Matchday,Fri 29/03/19,Enppi SC,Ismaily,6:00 PM
-24.Matchday,Fri 22/02/19,Harras Hodoud,El Makasa,2:00 PM
-24.Matchday,Sun 24/02/19,El Gouna,Ahly SC,3:00 PM
-24.Matchday,Sun 24/02/19,Pyramids FC,El Mokawloon,6:00 PM
-24.Matchday,Mon 25/02/19,El Dakhlia,Petrojet,2:30 PM
-24.Matchday,Tue 26/02/19,Ismaily,Talaea El Gaish,2:00 PM
-24.Matchday,Tue 26/02/19,El Masry,Enppi SC,4:30 PM
-24.Matchday,Tue 26/02/19,Wadi Degla,Nogoom FC,7:00 PM
-24.Matchday,Thu 07/03/19,Entag El Harby,Ittihad Alex,6:00 PM
-24.Matchday,Wed 03/04/19,Zamalek,Smouha,7:00 PM
-25.Matchday,Thu 28/02/19,El Gouna,Petrojet,3:00 PM
-25.Matchday,Sat 02/03/19,Nogoom FC,Harras Hodoud,2:00 PM
-25.Matchday,Sat 02/03/19,Ittihad Alex,El Dakhlia,4:30 PM
-25.Matchday,Sun 03/03/19,Entag El Harby,El Makasa,3:00 PM
-25.Matchday,Sun 03/03/19,Talaea El Gaish,El Masry,Pending
-25.Matchday,Sun 03/03/19,Enppi SC,Wadi Degla,6:00 PM
-25.Matchday,Tue 12/03/19,Smouha,Ismaily,4:30 PM
-25.Matchday,Wed 20/03/19,El Mokawloon,Zamalek,6:00 PM
-25.Matchday,Thu 18/04/19,Ahly SC,Pyramids FC,8:00 PM
-26.Matchday,Mon 04/03/19,Ahly SC,Petrojet,6:00 PM
-26.Matchday,Mon 11/03/19,El Dakhlia,El Makasa,2:00 PM
-26.Matchday,Mon 11/03/19,Harras Hodoud,Enppi SC,4:30 PM
-26.Matchday,Mon 11/03/19,Wadi Degla,Talaea El Gaish,7:00 PM
-26.Matchday,Tue 12/03/19,El Gouna,Ittihad Alex,2:00 PM
-26.Matchday,Fri 15/03/19,Entag El Harby,Nogoom FC,5:00 PM
-26.Matchday,Sat 16/03/19,El Masry,Smouha,5:00 PM
-26.Matchday,Tue 02/04/19,Ismaily,El Mokawloon,5:00 PM
-26.Matchday,Tue 23/04/19,Pyramids FC,Zamalek,8:00 PM
-27.Matchday,Fri 29/03/19,El Mokawloon,El Masry,3:30 PM
-27.Matchday,Fri 29/03/19,Smouha,Wadi Degla,6:00 PM
-27.Matchday,Sun 31/03/19,Nogoom FC,El Dakhlia,5:00 PM
-27.Matchday,Sun 31/03/19,El Makasa,El Gouna,7:30 PM
-27.Matchday,Mon 01/04/19,Talaea El Gaish,Harras Hodoud,5:00 PM
-27.Matchday,Mon 01/04/19,Petrojet,Pyramids FC,7:30 PM
-27.Matchday,Tue 02/04/19,Enppi SC,Entag El Harby,5:00 PM
-27.Matchday,Tue 02/04/19,Ittihad Alex,Ahly SC,7:30 PM
-27.Matchday,Wed 24/07/19,Zamalek,Ismaily,8:00 PM
-28.Matchday,Sat 06/04/19,Entag El Harby,Talaea El Gaish,3:00 PM
-28.Matchday,Sat 06/04/19,El Gouna,Nogoom FC,5:30 PM
-28.Matchday,Sat 06/04/19,Wadi Degla,El Mokawloon,Pending
-28.Matchday,Sat 06/04/19,Pyramids FC,Ismaily,8:00 PM
-28.Matchday,Sun 07/04/19,El Dakhlia,Enppi SC,5:30 PM
-28.Matchday,Sun 07/04/19,Petrojet,Ittihad Alex,Pending
-28.Matchday,Sun 07/04/19,Harras Hodoud,Smouha,8:00 PM
-28.Matchday,Wed 10/04/19,Ahly SC,El Makasa,8:00 PM
-28.Matchday,Thu 11/04/19,El Masry,Zamalek,5:30 PM
-29.Matchday,Thu 11/04/19,Talaea El Gaish,El Dakhlia,5:30 PM
-29.Matchday,Thu 11/04/19,El Mokawloon,Harras Hodoud,8:00 PM
-29.Matchday,Thu 11/04/19,Ittihad Alex,Pyramids FC,Pending
-29.Matchday,Fri 12/04/19,Smouha,Entag El Harby,5:30 PM
-29.Matchday,Sun 14/04/19,El Masry,Ismaily,5:30 PM
-29.Matchday,Mon 15/04/19,El Makasa,Petrojet,5:30 PM
-29.Matchday,Mon 15/04/19,Enppi SC,El Gouna,8:00 PM
-29.Matchday,Sun 05/05/19,Nogoom FC,Ahly SC,7:00 PM
-29.Matchday,Thu 09/05/19,Zamalek,Wadi Degla,10:00 PM
-30.Matchday,Fri 19/04/19,Ittihad Alex,El Makasa,5:30 PM
-30.Matchday,Fri 19/04/19,Entag El Harby,El Mokawloon,Pending
-30.Matchday,Fri 19/04/19,El Gouna,Talaea El Gaish,8:00 PM
-30.Matchday,Fri 19/04/19,El Dakhlia,Smouha,Pending
-30.Matchday,Sat 20/04/19,Petrojet,Nogoom FC,5:30 PM
-30.Matchday,Thu 25/04/19,Wadi Degla,Ismaily,5:00 PM
-30.Matchday,Sun 05/05/19,Pyramids FC,El Masry,5:30 PM
-30.Matchday,Thu 16/05/19,Ahly SC,Enppi SC,10:00 PM
-30.Matchday,Mon 03/06/19,Harras Hodoud,Zamalek,10:00 PM
-31.Matchday,Tue 30/04/19,Nogoom FC,Ittihad Alex,5:30 PM
-31.Matchday,Tue 30/04/19,Ismaily,Harras Hodoud,Pending
-31.Matchday,Tue 30/04/19,Smouha,El Gouna,Pending
-31.Matchday,Tue 30/04/19,El Makasa,Pyramids FC,8:00 PM
-31.Matchday,Tue 30/04/19,El Masry,Wadi Degla,Pending
-31.Matchday,Wed 01/05/19,El Mokawloon,El Dakhlia,4:30 PM
-31.Matchday,Wed 01/05/19,Talaea El Gaish,Ahly SC,6:45 PM
-31.Matchday,Thu 02/05/19,Enppi SC,Petrojet,7:00 PM
-31.Matchday,Thu 30/05/19,Zamalek,Entag El Harby,10:00 PM
-32.Matchday,Fri 10/05/19,El Makasa,Nogoom FC,10:00 PM
-32.Matchday,Fri 10/05/19,Ittihad Alex,Enppi SC,Pending
-32.Matchday,Fri 10/05/19,El Gouna,El Mokawloon,Pending
-32.Matchday,Fri 10/05/19,Entag El Harby,Ismaily,Pending
-32.Matchday,Fri 10/05/19,El Masry,Harras Hodoud,Pending
-32.Matchday,Sat 11/05/19,Petrojet,Talaea El Gaish,10:00 PM
-32.Matchday,Sat 11/05/19,Ahly SC,Smouha,Pending
-32.Matchday,Sun 12/05/19,El Dakhlia,Zamalek,10:00 PM
-32.Matchday,Tue 14/05/19,Pyramids FC,Wadi Degla,10:00 PM
-33.Matchday,Fri 17/05/19,Ismaily,El Dakhlia,10:00 PM
-33.Matchday,Tue 21/05/19,El Masry,Entag El Harby,10:00 PM
-33.Matchday,Tue 21/05/19,Smouha,Petrojet,Pending
-33.Matchday,Tue 21/05/19,Talaea El Gaish,Ittihad Alex,Pending
-33.Matchday,Tue 21/05/19,Wadi Degla,Harras Hodoud,Pending
-33.Matchday,Tue 21/05/19,Enppi SC,El Makasa,Pending
-33.Matchday,Wed 22/05/19,Pyramids FC,Nogoom FC,10:00 PM
-33.Matchday,Sun 21/07/19,El Gouna,Zamalek,8:00 PM
-33.Matchday,Wed 24/07/19,El Mokawloon,Ahly SC,8:00 PM
-34.Matchday,Mon 27/05/19,El Dakhlia,El Masry,10:00 PM
-34.Matchday,Mon 27/05/19,Nogoom FC,Enppi SC,Pending
-34.Matchday,Mon 27/05/19,El Makasa,Talaea El Gaish,Pending
-34.Matchday,Mon 27/05/19,El Gouna,Ismaily,Pending
-34.Matchday,Thu 30/05/19,Harras Hodoud,Pyramids FC,10:00 PM
-34.Matchday,Mon 03/06/19,Petrojet,El Mokawloon,10:00 PM
-34.Matchday,Mon 03/06/19,Entag El Harby,Wadi Degla,Pending
-34.Matchday,Mon 03/06/19,Ittihad Alex,Smouha,Pending
-34.Matchday,Sun 28/07/19,Ahly SC,Zamalek,8:00 PM
+Matchday,Date,Home Team,Away Team,Time,Stadium
+1.Matchday,Tue 31/07/18,ITH,MOK,6:00 PM,ALEX_STADIUM
+1.Matchday,Tue 31/07/18,PET,ZAM,9:00 PM,PETRO_SPORT
+1.Matchday,Wed 01/08/18,DAK,DEG,4:00 PM,PETRO_SPORT
+1.Matchday,Wed 01/08/18,ENT,HAR,6:15 PM,AL_SALAM
+1.Matchday,Wed 01/08/18,NOG,TLG,9:00 PM,PETRO_SPORT
+1.Matchday,Thu 02/08/18,GOU,MAS,6:00 PM,EL_GOUNA
+1.Matchday,Thu 02/08/18,AHL,ISM,9:00 PM,CAIRO_INTL
+1.Matchday,Fri 03/08/18,MAK,SMO,6:00 PM,CAIRO_INTL
+1.Matchday,Fri 03/08/18,ENP,PYR,9:00 PM,PETRO_SPORT
+2.Matchday,Sat 04/08/18,ZAM,ITH,8:00 PM,CAIRO_INTL
+2.Matchday,Mon 06/08/18,HAR,DAK,4:30 PM,HARAS
+2.Matchday,Mon 06/08/18,ISM,PET,6:45 PM,ISMAILIA_ST
+2.Matchday,Mon 06/08/18,DEG,GOU,9:00 PM,PETRO_SPORT
+2.Matchday,Tue 07/08/18,MAS,AHL,8:00 PM,SUEZ_ST
+2.Matchday,Wed 08/08/18,PYR,ENT,4:30 PM,30_JUNE
+2.Matchday,Wed 08/08/18,MOK,MAK,6:45 PM,ARAB_CONT
+2.Matchday,Wed 08/08/18,SMO,NOG,Pending,BORG_ARAB
+2.Matchday,Wed 08/08/18,TLG,ENP,9:00 PM,GEHAZ_REYADA
+3.Matchday,Tue 14/08/18,DAK,ENT,4:00 PM,PETRO_SPORT
+3.Matchday,Tue 14/08/18,GOU,HAR,6:15 PM,EL_GOUNA
+3.Matchday,Tue 14/08/18,ENP,SMO,Pending,PETRO_SPORT
+3.Matchday,Tue 14/08/18,PET,MAS,Pending,PETRO_SPORT
+3.Matchday,Tue 14/08/18,TLG,PYR,9:00 PM,GEHAZ_REYADA
+3.Matchday,Wed 15/08/18,NOG,MOK,8:00 PM,PETRO_SPORT
+3.Matchday,Thu 16/08/18,MAK,ZAM,9:00 PM,CAIRO_INTL
+3.Matchday,Fri 17/08/18,ITH,ISM,6:00 PM,ALEX_STADIUM
+3.Matchday,Tue 21/08/18,AHL,DEG,8:00 PM,CAIRO_INTL
+4.Matchday,Fri 10/08/18,DEG,PET,8:00 PM,PETRO_SPORT
+4.Matchday,Fri 24/08/18,MOK,ENP,4:00 PM,ARAB_CONT
+4.Matchday,Fri 24/08/18,ISM,MAK,6:15 PM,ISMAILIA_ST
+4.Matchday,Fri 24/08/18,HAR,AHL,9:00 PM,HARAS
+4.Matchday,Sat 25/08/18,MAS,ITH,5:30 PM,SUEZ_ST
+4.Matchday,Sun 26/08/18,SMO,TLG,4:00 PM,BORG_ARAB
+4.Matchday,Sun 26/08/18,PYR,DAK,6:15 PM,30_JUNE
+4.Matchday,Sun 26/08/18,ENT,GOU,9:00 PM,AL_SALAM
+4.Matchday,Mon 27/08/18,ZAM,NOG,8:00 PM,CAIRO_INTL
+5.Matchday,Fri 31/08/18,PET,HAR,6:00 PM,PETRO_SPORT
+5.Matchday,Fri 31/08/18,NOG,ISM,Pending,PETRO_SPORT
+5.Matchday,Fri 31/08/18,GOU,DAK,9:00 PM,EL_GOUNA
+5.Matchday,Fri 31/08/18,TLG,MOK,Pending,GEHAZ_REYADA
+5.Matchday,Sat 01/09/18,ENP,ZAM,9:00 PM,PETRO_SPORT
+5.Matchday,Sun 02/09/18,SMO,PYR,6:00 PM,BORG_ARAB
+5.Matchday,Sun 02/09/18,AHL,ENT,9:00 PM,CAIRO_INTL
+5.Matchday,Mon 03/09/18,MAK,MAS,8:00 PM,CAIRO_INTL
+5.Matchday,Fri 28/09/18,ITH,DEG,5:00 PM,ALEX_STADIUM
+6.Matchday,Tue 11/09/18,MAS,NOG,6:00 PM,SUEZ_ST
+6.Matchday,Wed 12/09/18,ENT,PET,3:30 PM,AL_SALAM
+6.Matchday,Wed 12/09/18,HAR,ITH,Pending,HARAS
+6.Matchday,Wed 12/09/18,MOK,SMO,6:00 PM,ARAB_CONT
+6.Matchday,Wed 12/09/18,PYR,GOU,9:00 PM,30_JUNE
+6.Matchday,Wed 12/09/18,DEG,MAK,Pending,PETRO_SPORT
+6.Matchday,Thu 13/09/18,ISM,ENP,6:00 PM,ISMAILIA_ST
+6.Matchday,Thu 13/09/18,ZAM,TLG,9:00 PM,CAIRO_INTL
+6.Matchday,Sat 29/12/18,DAK,AHL,5:00 PM,PETRO_SPORT
+7.Matchday,Mon 17/09/18,PET,DAK,6:00 PM,PETRO_SPORT
+7.Matchday,Mon 17/09/18,ITH,ENT,Pending,ALEX_STADIUM
+7.Matchday,Mon 17/09/18,MOK,PYR,9:00 PM,ARAB_CONT
+7.Matchday,Mon 17/09/18,MAK,HAR,Pending,CAIRO_INTL
+7.Matchday,Tue 18/09/18,TLG,ISM,3:30 PM,GEHAZ_REYADA
+7.Matchday,Tue 18/09/18,SMO,ZAM,6:00 PM,BORG_ARAB
+7.Matchday,Wed 19/09/18,NOG,DEG,9:00 PM,PETRO_SPORT
+7.Matchday,Thu 29/11/18,ENP,MAS,6:00 PM,PETRO_SPORT
+7.Matchday,Wed 05/12/18,AHL,GOU,7:00 PM,CAIRO_INTL
+8.Matchday,Fri 21/09/18,DAK,ITH,3:30 PM,PETRO_SPORT
+8.Matchday,Fri 21/09/18,ENT,MAK,6:00 PM,AL_SALAM
+8.Matchday,Sat 22/09/18,PET,GOU,3:30 PM,PETRO_SPORT
+8.Matchday,Sat 22/09/18,ISM,SMO,6:00 PM,ISMAILIA_ST
+8.Matchday,Sun 23/09/18,HAR,NOG,3:30 PM,HARAS
+8.Matchday,Sun 23/09/18,ZAM,MOK,9:00 PM,CAIRO_INTL
+8.Matchday,Mon 24/09/18,DEG,ENP,6:00 PM,PETRO_SPORT
+8.Matchday,Fri 28/09/18,MAS,TLG,7:00 PM,SUEZ_ST
+8.Matchday,Fri 04/01/19,PYR,AHL,5:00 PM,30_JUNE
+9.Matchday,Sun 30/09/18,NOG,ENT,6:00 PM,PETRO_SPORT
+9.Matchday,Sun 30/09/18,MAK,DAK,9:00 PM,CAIRO_INTL
+9.Matchday,Mon 01/10/18,ENP,HAR,6:00 PM,PETRO_SPORT
+9.Matchday,Tue 02/10/18,ITH,GOU,5:30 PM,ALEX_STADIUM
+9.Matchday,Wed 03/10/18,TLG,DEG,9:00 PM,GEHAZ_REYADA
+9.Matchday,Sat 01/12/18,PET,AHL,5:00 PM,PETRO_SPORT
+9.Matchday,Sun 30/12/18,SMO,MAS,3:00 PM,BORG_ARAB
+9.Matchday,Wed 02/01/19,MOK,ISM,5:00 PM,ARAB_CONT
+9.Matchday,Thu 24/01/19,ZAM,PYR,7:00 PM,CAIRO_INTL
+10.Matchday,Wed 03/10/18,PYR,PET,6:00 PM,30_JUNE
+10.Matchday,Fri 05/10/18,DAK,NOG,3:00 PM,PETRO_SPORT
+10.Matchday,Fri 05/10/18,ENT,ENP,6:00 PM,AL_SALAM
+10.Matchday,Sat 06/10/18,GOU,MAK,6:00 PM,EL_GOUNA
+10.Matchday,Sun 07/10/18,HAR,TLG,3:00 PM,HARAS
+10.Matchday,Sun 07/10/18,DEG,SMO,6:00 PM,PETRO_SPORT
+10.Matchday,Sun 07/10/18,AHL,ITH,9:00 PM,CAIRO_INTL
+10.Matchday,Fri 25/01/19,MAS,MOK,4:00 PM,SUEZ_ST
+10.Matchday,Thu 18/04/19,ISM,ZAM,5:00 PM,ISMAILIA_ST
+11.Matchday,Thu 18/10/18,TLG,ENT,3:00 PM,GEHAZ_REYADA
+11.Matchday,Thu 18/10/18,NOG,GOU,6:00 PM,PETRO_SPORT
+11.Matchday,Thu 18/10/18,MOK,DEG,9:00 PM,ARAB_CONT
+11.Matchday,Fri 19/10/18,SMO,HAR,3:00 PM,BORG_ARAB
+11.Matchday,Fri 19/10/18,ISM,PYR,6:00 PM,ISMAILIA_ST
+11.Matchday,Fri 19/10/18,ENP,DAK,9:00 PM,PETRO_SPORT
+11.Matchday,Sat 20/10/18,ITH,PET,7:00 PM,ALEX_STADIUM
+11.Matchday,Thu 06/12/18,ZAM,MAS,6:00 PM,CAIRO_INTL
+11.Matchday,Thu 24/01/19,MAK,AHL,4:00 PM,CAIRO_INTL
+12.Matchday,Thu 01/11/18,HAR,MOK,2:00 PM,HARAS
+12.Matchday,Thu 01/11/18,PET,MAK,4:30 PM,PETRO_SPORT
+12.Matchday,Thu 01/11/18,DEG,ZAM,7:30 PM,PETRO_SPORT
+12.Matchday,Fri 02/11/18,DAK,TLG,1:45 PM,PETRO_SPORT
+12.Matchday,Fri 02/11/18,GOU,ENP,2:30 PM,EL_GOUNA
+12.Matchday,Fri 02/11/18,ENT,SMO,4:30 PM,AL_SALAM
+12.Matchday,Fri 02/11/18,PYR,ITH,Pending,30_JUNE
+12.Matchday,Sat 03/11/18,ISM,MAS,4:00 PM,ISMAILIA_ST
+12.Matchday,Mon 17/12/18,AHL,NOG,6:00 PM,CAIRO_INTL
+13.Matchday,Mon 05/11/18,ZAM,HAR,6:00 PM,CAIRO_INTL
+13.Matchday,Tue 06/11/18,NOG,PET,1:45 PM,PETRO_SPORT
+13.Matchday,Tue 06/11/18,TLG,GOU,4:00 PM,GEHAZ_REYADA
+13.Matchday,Tue 06/11/18,SMO,DAK,Pending,BORG_ARAB
+13.Matchday,Tue 06/11/18,MOK,ENT,7:00 PM,ARAB_CONT
+13.Matchday,Wed 07/11/18,ISM,DEG,6:30 PM,ISMAILIA_ST
+13.Matchday,Thu 08/11/18,MAK,ITH,6:00 PM,CAIRO_INTL
+13.Matchday,Tue 08/01/19,MAS,PYR,6:30 PM,SUEZ_ST
+13.Matchday,Tue 05/02/19,ENP,AHL,5:00 PM,PETRO_SPORT
+14.Matchday,Sat 10/11/18,ENT,ZAM,5:00 PM,AL_SALAM
+14.Matchday,Sat 10/11/18,GOU,SMO,7:30 PM,EL_GOUNA
+14.Matchday,Sun 11/11/18,HAR,ISM,1:45 PM,HARAS
+14.Matchday,Sun 11/11/18,PET,ENP,4:00 PM,PETRO_SPORT
+14.Matchday,Sun 11/11/18,DEG,MAS,6:30 PM,PETRO_SPORT
+14.Matchday,Mon 12/11/18,DAK,MOK,1:45 PM,PETRO_SPORT
+14.Matchday,Mon 12/11/18,ITH,NOG,4:00 PM,ALEX_STADIUM
+14.Matchday,Mon 12/11/18,PYR,MAK,7:00 PM,30_JUNE
+14.Matchday,Sun 09/12/18,AHL,TLG,6:00 PM,CAIRO_INTL
+15.Matchday,Tue 20/11/18,MOK,GOU,1:45 PM,ARAB_CONT
+15.Matchday,Tue 20/11/18,ENP,ITH,5:00 PM,PETRO_SPORT
+15.Matchday,Wed 21/11/18,NOG,MAK,1:45 PM,PETRO_SPORT
+15.Matchday,Wed 21/11/18,TLG,PET,4:15 PM,GEHAZ_REYADA
+15.Matchday,Wed 21/11/18,HAR,MAS,Pending,HARAS
+15.Matchday,Wed 21/11/18,ISM,ENT,7:00 PM,ISMAILIA_ST
+15.Matchday,Wed 21/11/18,DEG,PYR,Pending,PETRO_SPORT
+15.Matchday,Thu 22/11/18,ZAM,DAK,6:00 PM,CAIRO_INTL
+15.Matchday,Tue 08/01/19,SMO,AHL,4:00 PM,BORG_ARAB
+16.Matchday,Sun 25/11/18,MAK,ENP,2:15 PM,CAIRO_INTL
+16.Matchday,Sun 25/11/18,ITH,TLG,4:30 PM,ALEX_STADIUM
+16.Matchday,Sun 25/11/18,ENT,MAS,7:00 PM,AL_SALAM
+16.Matchday,Mon 26/11/18,HAR,DEG,1:45 PM,HARAS
+16.Matchday,Mon 26/11/18,PET,SMO,4:15 PM,PETRO_SPORT
+16.Matchday,Mon 26/11/18,ZAM,GOU,7:00 PM,CAIRO_INTL
+16.Matchday,Tue 27/11/18,AHL,MOK,6:00 PM,CAIRO_INTL
+16.Matchday,Wed 28/11/18,NOG,PYR,6:00 PM,PETRO_SPORT
+16.Matchday,Sat 05/01/19,DAK,ISM,1:30 PM,PETRO_SPORT
+17.Matchday,Mon 10/12/18,MOK,PET,1:45 PM,ARAB_CONT
+17.Matchday,Mon 10/12/18,MAS,DAK,4:00 PM,SUEZ_ST
+17.Matchday,Mon 10/12/18,PYR,HAR,6:30 PM,30_JUNE
+17.Matchday,Tue 11/12/18,DEG,ENT,4:00 PM,PETRO_SPORT
+17.Matchday,Wed 12/12/18,SMO,ITH,4:00 PM,BORG_ARAB
+17.Matchday,Wed 12/12/18,ENP,NOG,6:30 PM,PETRO_SPORT
+17.Matchday,Thu 13/12/18,TLG,MAK,6:00 PM,GEHAZ_REYADA
+17.Matchday,Sat 30/03/19,ZAM,AHL,6:00 PM,CAIRO_INTL
+17.Matchday,Wed 10/04/19,ISM,GOU,5:30 PM,ISMAILIA_ST
+18.Matchday,Thu 20/12/18,DEG,DAK,6:00 PM,PETRO_SPORT
+18.Matchday,Fri 21/12/18,MOK,ITH,6:00 PM,ARAB_CONT
+18.Matchday,Sat 22/12/18,SMO,MAK,4:00 PM,BORG_ARAB
+18.Matchday,Sat 22/12/18,PYR,ENP,6:30 PM,30_JUNE
+18.Matchday,Sun 23/12/18,HAR,ENT,4:00 PM,HARAS
+18.Matchday,Sun 23/12/18,TLG,NOG,6:30 PM,GEHAZ_REYADA
+18.Matchday,Fri 28/12/18,ZAM,PET,6:00 PM,CAIRO_INTL
+18.Matchday,Thu 03/01/19,MAS,GOU,6:00 PM,SUEZ_ST
+18.Matchday,Wed 22/05/19,ISM,AHL,10:00 PM,ISMAILIA_ST
+19.Matchday,Wed 26/12/18,GOU,DEG,4:00 PM,EL_GOUNA
+19.Matchday,Sat 05/01/19,ITH,ZAM,5:00 PM,ALEX_STADIUM
+19.Matchday,Wed 09/01/19,ENP,TLG,4:00 PM,PETRO_SPORT
+19.Matchday,Mon 14/01/19,DAK,HAR,1:30 PM,PETRO_SPORT
+19.Matchday,Tue 15/01/19,MAK,MOK,1:30 PM,CAIRO_INTL
+19.Matchday,Tue 15/01/19,ENT,PYR,4:00 PM,AL_SALAM
+19.Matchday,Tue 15/01/19,NOG,SMO,7:00 PM,PETRO_SPORT
+19.Matchday,Thu 24/01/19,PET,ISM,1:30 PM,PETRO_SPORT
+19.Matchday,Thu 25/04/19,AHL,MAS,8:00 PM,CAIRO_INTL
+20.Matchday,Sat 19/01/19,MOK,NOG,2:00 PM,ARAB_CONT
+20.Matchday,Sat 19/01/19,PYR,TLG,5:00 PM,30_JUNE
+20.Matchday,Wed 23/01/19,HAR,GOU,2:00 PM,HARAS
+20.Matchday,Wed 23/01/19,SMO,ENP,4:30 PM,BORG_ARAB
+20.Matchday,Wed 23/01/19,ENT,DAK,7:00 PM,AL_SALAM
+20.Matchday,Mon 28/01/19,ISM,ITH,4:00 PM,ISMAILIA_ST
+20.Matchday,Mon 28/01/19,DEG,AHL,7:00 PM,PETRO_SPORT
+20.Matchday,Tue 29/01/19,ZAM,MAK,7:00 PM,CAIRO_INTL
+20.Matchday,Wed 30/01/19,MAS,PET,3:00 PM,SUEZ_ST
+21.Matchday,Wed 30/01/19,ENP,MOK,6:00 PM,PETRO_SPORT
+21.Matchday,Sun 03/02/19,TLG,SMO,5:00 PM,GEHAZ_REYADA
+21.Matchday,Mon 04/02/19,ITH,MAS,4:00 PM,ALEX_STADIUM
+21.Matchday,Mon 04/02/19,DAK,PYR,6:30 PM,PETRO_SPORT
+21.Matchday,Tue 05/02/19,PET,DEG,2:00 PM,PETRO_SPORT
+21.Matchday,Thu 07/02/19,GOU,ENT,3:00 PM,EL_GOUNA
+21.Matchday,Thu 07/02/19,MAK,ISM,6:00 PM,CAIRO_INTL
+21.Matchday,Fri 08/02/19,AHL,HAR,5:00 PM,CAIRO_INTL
+21.Matchday,Sat 09/02/19,NOG,ZAM,5:00 PM,PETRO_SPORT
+22.Matchday,Sun 10/02/19,DEG,ITH,5:00 PM,PETRO_SPORT
+22.Matchday,Thu 14/02/19,DAK,GOU,1:30 PM,PETRO_SPORT
+22.Matchday,Thu 14/02/19,MAS,MAK,4:00 PM,SUEZ_ST
+22.Matchday,Thu 14/02/19,PYR,SMO,6:30 PM,30_JUNE
+22.Matchday,Fri 15/02/19,HAR,PET,3:00 PM,HARAS
+22.Matchday,Fri 15/02/19,MOK,TLG,6:00 PM,ARAB_CONT
+22.Matchday,Sat 16/02/19,ISM,NOG,3:00 PM,ISMAILIA_ST
+22.Matchday,Sat 16/02/19,ENT,AHL,6:00 PM,AL_SALAM
+22.Matchday,Sun 17/02/19,ZAM,ENP,5:00 PM,CAIRO_INTL
+23.Matchday,Mon 18/02/19,MAK,DEG,6:00 PM,CAIRO_INTL
+23.Matchday,Tue 19/02/19,GOU,PYR,3:00 PM,EL_GOUNA
+23.Matchday,Wed 20/02/19,SMO,MOK,2:00 PM,BORG_ARAB
+23.Matchday,Wed 20/02/19,TLG,ZAM,4:30 PM,GEHAZ_REYADA
+23.Matchday,Wed 20/02/19,AHL,DAK,7:00 PM,CAIRO_INTL
+23.Matchday,Thu 21/02/19,PET,ENT,2:00 PM,PETRO_SPORT
+23.Matchday,Fri 22/02/19,NOG,MAS,5:00 PM,PETRO_SPORT
+23.Matchday,Sun 17/03/19,ITH,HAR,5:00 PM,ALEX_STADIUM
+23.Matchday,Fri 29/03/19,ENP,ISM,6:00 PM,PETRO_SPORT
+24.Matchday,Fri 22/02/19,HAR,MAK,2:00 PM,HARAS
+24.Matchday,Sun 24/02/19,GOU,AHL,3:00 PM,EL_GOUNA
+24.Matchday,Sun 24/02/19,PYR,MOK,6:00 PM,30_JUNE
+24.Matchday,Mon 25/02/19,DAK,PET,2:30 PM,PETRO_SPORT
+24.Matchday,Tue 26/02/19,ISM,TLG,2:00 PM,ISMAILIA_ST
+24.Matchday,Tue 26/02/19,MAS,ENP,4:30 PM,SUEZ_ST
+24.Matchday,Tue 26/02/19,DEG,NOG,7:00 PM,PETRO_SPORT
+24.Matchday,Thu 07/03/19,ENT,ITH,6:00 PM,AL_SALAM
+24.Matchday,Wed 03/04/19,ZAM,SMO,7:00 PM,CAIRO_INTL
+25.Matchday,Thu 28/02/19,GOU,PET,3:00 PM,EL_GOUNA
+25.Matchday,Sat 02/03/19,NOG,HAR,2:00 PM,PETRO_SPORT
+25.Matchday,Sat 02/03/19,ITH,DAK,4:30 PM,ALEX_STADIUM
+25.Matchday,Sun 03/03/19,ENT,MAK,3:00 PM,AL_SALAM
+25.Matchday,Sun 03/03/19,TLG,MAS,Pending,GEHAZ_REYADA
+25.Matchday,Sun 03/03/19,ENP,DEG,6:00 PM,PETRO_SPORT
+25.Matchday,Tue 12/03/19,SMO,ISM,4:30 PM,BORG_ARAB
+25.Matchday,Wed 20/03/19,MOK,ZAM,6:00 PM,ARAB_CONT
+25.Matchday,Thu 18/04/19,AHL,PYR,8:00 PM,CAIRO_INTL
+26.Matchday,Mon 04/03/19,AHL,PET,6:00 PM,CAIRO_INTL
+26.Matchday,Mon 11/03/19,DAK,MAK,2:00 PM,PETRO_SPORT
+26.Matchday,Mon 11/03/19,HAR,ENP,4:30 PM,HARAS
+26.Matchday,Mon 11/03/19,DEG,TLG,7:00 PM,PETRO_SPORT
+26.Matchday,Tue 12/03/19,GOU,ITH,2:00 PM,EL_GOUNA
+26.Matchday,Fri 15/03/19,ENT,NOG,5:00 PM,AL_SALAM
+26.Matchday,Sat 16/03/19,MAS,SMO,5:00 PM,SUEZ_ST
+26.Matchday,Tue 02/04/19,ISM,MOK,5:00 PM,ISMAILIA_ST
+26.Matchday,Tue 23/04/19,PYR,ZAM,8:00 PM,30_JUNE
+27.Matchday,Fri 29/03/19,MOK,MAS,3:30 PM,ARAB_CONT
+27.Matchday,Fri 29/03/19,SMO,DEG,6:00 PM,BORG_ARAB
+27.Matchday,Sun 31/03/19,NOG,DAK,5:00 PM,PETRO_SPORT
+27.Matchday,Sun 31/03/19,MAK,GOU,7:30 PM,CAIRO_INTL
+27.Matchday,Mon 01/04/19,TLG,HAR,5:00 PM,GEHAZ_REYADA
+27.Matchday,Mon 01/04/19,PET,PYR,7:30 PM,PETRO_SPORT
+27.Matchday,Tue 02/04/19,ENP,ENT,5:00 PM,PETRO_SPORT
+27.Matchday,Tue 02/04/19,ITH,AHL,7:30 PM,ALEX_STADIUM
+27.Matchday,Wed 24/07/19,ZAM,ISM,8:00 PM,CAIRO_INTL
+28.Matchday,Sat 06/04/19,ENT,TLG,3:00 PM,AL_SALAM
+28.Matchday,Sat 06/04/19,GOU,NOG,5:30 PM,EL_GOUNA
+28.Matchday,Sat 06/04/19,DEG,MOK,Pending,PETRO_SPORT
+28.Matchday,Sat 06/04/19,PYR,ISM,8:00 PM,30_JUNE
+28.Matchday,Sun 07/04/19,DAK,ENP,5:30 PM,PETRO_SPORT
+28.Matchday,Sun 07/04/19,PET,ITH,Pending,PETRO_SPORT
+28.Matchday,Sun 07/04/19,HAR,SMO,8:00 PM,HARAS
+28.Matchday,Wed 10/04/19,AHL,MAK,8:00 PM,CAIRO_INTL
+28.Matchday,Thu 11/04/19,MAS,ZAM,5:30 PM,SUEZ_ST
+29.Matchday,Thu 11/04/19,TLG,DAK,5:30 PM,GEHAZ_REYADA
+29.Matchday,Thu 11/04/19,MOK,HAR,8:00 PM,ARAB_CONT
+29.Matchday,Thu 11/04/19,ITH,PYR,Pending,ALEX_STADIUM
+29.Matchday,Fri 12/04/19,SMO,ENT,5:30 PM,BORG_ARAB
+29.Matchday,Sun 14/04/19,MAS,ISM,5:30 PM,SUEZ_ST
+29.Matchday,Mon 15/04/19,MAK,PET,5:30 PM,CAIRO_INTL
+29.Matchday,Mon 15/04/19,ENP,GOU,8:00 PM,PETRO_SPORT
+29.Matchday,Sun 05/05/19,NOG,AHL,7:00 PM,PETRO_SPORT
+29.Matchday,Thu 09/05/19,ZAM,DEG,10:00 PM,CAIRO_INTL
+30.Matchday,Fri 19/04/19,ITH,MAK,5:30 PM,ALEX_STADIUM
+30.Matchday,Fri 19/04/19,ENT,MOK,Pending,AL_SALAM
+30.Matchday,Fri 19/04/19,GOU,TLG,8:00 PM,EL_GOUNA
+30.Matchday,Fri 19/04/19,DAK,SMO,Pending,PETRO_SPORT
+30.Matchday,Sat 20/04/19,PET,NOG,5:30 PM,PETRO_SPORT
+30.Matchday,Thu 25/04/19,DEG,ISM,5:00 PM,PETRO_SPORT
+30.Matchday,Sun 05/05/19,PYR,MAS,5:30 PM,30_JUNE
+30.Matchday,Thu 16/05/19,AHL,ENP,10:00 PM,CAIRO_INTL
+30.Matchday,Mon 03/06/19,HAR,ZAM,10:00 PM,HARAS
+31.Matchday,Tue 30/04/19,NOG,ITH,5:30 PM,PETRO_SPORT
+31.Matchday,Tue 30/04/19,ISM,HAR,Pending,ISMAILIA_ST
+31.Matchday,Tue 30/04/19,SMO,GOU,Pending,BORG_ARAB
+31.Matchday,Tue 30/04/19,MAK,PYR,8:00 PM,CAIRO_INTL
+31.Matchday,Tue 30/04/19,MAS,DEG,Pending,SUEZ_ST
+31.Matchday,Wed 01/05/19,MOK,DAK,4:30 PM,ARAB_CONT
+31.Matchday,Wed 01/05/19,TLG,AHL,6:45 PM,GEHAZ_REYADA
+31.Matchday,Thu 02/05/19,ENP,PET,7:00 PM,PETRO_SPORT
+31.Matchday,Thu 30/05/19,ZAM,ENT,10:00 PM,CAIRO_INTL
+32.Matchday,Fri 10/05/19,MAK,NOG,10:00 PM,CAIRO_INTL
+32.Matchday,Fri 10/05/19,ITH,ENP,Pending,ALEX_STADIUM
+32.Matchday,Fri 10/05/19,GOU,MOK,Pending,EL_GOUNA
+32.Matchday,Fri 10/05/19,ENT,ISM,Pending,AL_SALAM
+32.Matchday,Fri 10/05/19,MAS,HAR,Pending,SUEZ_ST
+32.Matchday,Sat 11/05/19,PET,TLG,10:00 PM,PETRO_SPORT
+32.Matchday,Sat 11/05/19,AHL,SMO,Pending,CAIRO_INTL
+32.Matchday,Sun 12/05/19,DAK,ZAM,10:00 PM,PETRO_SPORT
+32.Matchday,Tue 14/05/19,PYR,DEG,10:00 PM,30_JUNE
+33.Matchday,Fri 17/05/19,ISM,DAK,10:00 PM,ISMAILIA_ST
+33.Matchday,Tue 21/05/19,MAS,ENT,10:00 PM,SUEZ_ST
+33.Matchday,Tue 21/05/19,SMO,PET,Pending,BORG_ARAB
+33.Matchday,Tue 21/05/19,TLG,ITH,Pending,GEHAZ_REYADA
+33.Matchday,Tue 21/05/19,DEG,HAR,Pending,PETRO_SPORT
+33.Matchday,Tue 21/05/19,ENP,MAK,Pending,PETRO_SPORT
+33.Matchday,Wed 22/05/19,PYR,NOG,10:00 PM,30_JUNE
+33.Matchday,Sun 21/07/19,GOU,ZAM,8:00 PM,EL_GOUNA
+33.Matchday,Wed 24/07/19,MOK,AHL,8:00 PM,ARAB_CONT
+34.Matchday,Mon 27/05/19,DAK,MAS,10:00 PM,PETRO_SPORT
+34.Matchday,Mon 27/05/19,NOG,ENP,Pending,PETRO_SPORT
+34.Matchday,Mon 27/05/19,MAK,TLG,Pending,CAIRO_INTL
+34.Matchday,Mon 27/05/19,GOU,ISM,Pending,EL_GOUNA
+34.Matchday,Thu 30/05/19,HAR,PYR,10:00 PM,HARAS
+34.Matchday,Mon 03/06/19,PET,MOK,10:00 PM,PETRO_SPORT
+34.Matchday,Mon 03/06/19,ENT,DEG,Pending,AL_SALAM
+34.Matchday,Mon 03/06/19,ITH,SMO,Pending,ALEX_STADIUM
+34.Matchday,Sun 28/07/19,AHL,ZAM,8:00 PM,CAIRO_INTL
