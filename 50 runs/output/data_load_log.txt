@@ -1,0 +1,17 @@
+=== Data Load Log ===
+
+Data_Model.xlsx: data/Data_Model.xlsx
+  team_data:   18 rows
+  Stadiums:    22 rows
+  dist_Matrix: 22 origins
+  Sec_Matrix:  8 rules
+
+expanded_calendar.xlsx: data/expanded_calendar.xlsx
+  Total slots:    981 rows
+  FIFA dates:     45
+  Usable slots:   837 (after FIFA removal)
+  CAF blockers:   56 rows
+  CAF teams:      ['PYR', 'ZAM', 'AHL', 'MAS']
+  Unique CAF dates: 30
+
+Validation: PASSED

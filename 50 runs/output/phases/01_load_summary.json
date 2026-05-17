@@ -1,0 +1,19 @@
+{
+  "data_model_path": "data/Data_Model.xlsx",
+  "expanded_calendar_path": "data/expanded_calendar.xlsx",
+  "team_count": 18,
+  "stadium_count": 22,
+  "dist_matrix_origins": 22,
+  "sec_rules_count": 8,
+  "total_slot_count": 981,
+  "fifa_date_count": 45,
+  "usable_slot_count": 837,
+  "caf_blocker_count": 56,
+  "caf_teams": [
+    "PYR",
+    "ZAM",
+    "AHL",
+    "MAS"
+  ],
+  "unique_caf_date_count": 30
+}

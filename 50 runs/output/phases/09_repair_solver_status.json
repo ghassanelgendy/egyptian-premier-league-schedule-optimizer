@@ -1,0 +1,8 @@
+{
+  "skipped": true,
+  "reason": "No CAF violations found by audit.",
+  "repaired_count": 0,
+  "unresolved_count": 0,
+  "elapsed_s": 0.0,
+  "stadium_service_gap_days": 0
+}
