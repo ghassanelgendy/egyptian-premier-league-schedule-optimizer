@@ -14,3 +14,4 @@ update_all_historical_fifa.py
 update_fifa_18_19.py
 update_fifa_20_21.py
 update_fifa_19_20.py
+generate_all_historical_fifa.py
