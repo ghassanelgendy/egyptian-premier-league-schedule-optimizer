@@ -16,18 +16,23 @@ from src.constants import (
     ALT_STADIUM_RELIEF_PENALTY,
     BASELINE_SOLVER_TIME_LIMIT_S,
     ENFORCE_FINAL_ROUND_SINGLE_DAY,
+    ENFORCE_FINAL_ROUND_SINGLE_SLOT,
     FINAL_ROUND_MAX_MATCHES_PER_DAY,
     FINAL_ROUND_MAX_MATCHES_PER_SLOT,
     HARD_MAX_MATCHES_PER_WEEK,
+    MATCHES_PER_ROUND,
     MAX_MATCHES_PER_DAY,
     MAX_MATCHES_PER_SLOT,
     MIN_DAYS_BETWEEN_ROUNDS,
+    MIN_REST_DAYS_CAF,
     MIN_REST_DAYS_LOCAL,
     MIN_STADIUM_SERVICE_GAP_DAYS,
     NUM_ROUNDS,
+    OTHER_STADIUM_RELIEF_PENALTY,
     PHASES_DIR,
     SOFT_MAX_MATCHES_PER_WEEK,
     SOFT_MIN_MATCHES_PER_WEEK,
+    W_HOME_VENUE_DISPLACEMENT,
     W_ROUND_ORDER,
     W_STADIUM_MAINTENANCE_OVERLAP,
     W_TIER_MISMATCH,
@@ -39,10 +44,17 @@ from src.constants import (
 # May be patched by UI
 NUM_WORKERS = 4
 from src.data_loader import LeagueData
-from src.final_round import collect_final_round_matches
+from src.final_round import collect_final_round_matches, is_final_round
 from src.fixture_generator import Match
+from src.slot_domain import build_round_windows
 from src.tiers import compute_slot_tiers
-from src.venue_rules import build_team_lookup, get_venue_options
+from src.venue_rules import (
+    VenueCandidate,
+    build_team_lookup,
+    get_ranked_venue_candidates,
+    get_venue_options,
+    stadium_distance,
+)
 
 
 @dataclass
@@ -66,22 +78,287 @@ class ScheduledMatch:
     is_forced_venue: bool = False
 
 
+@dataclass
+class _FixedScheduleState:
+    """Occupied state for the non-final schedule used by the rescue model."""
+
+    team_dates: Dict[str, List[date]]
+    venue_slots: Dict[str, set[int]]
+    venue_non_forced_dates: Dict[str, List[date]]
+    week_load: Dict[int, int]
+    date_load: Dict[date, int]
+    slot_usage: Dict[int, int]
+    latest_round_dates: Dict[int, date]
+
+
+TIER_WEIGHTS = {1: 10, 2: 5, 3: 2, 4: 1}
+
+FINAL_ROUND_RESCUE_FORCED_VENUE_BREAK_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 8
+FINAL_ROUND_RESCUE_TIER1_SLOT_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 4
+FINAL_ROUND_RESCUE_LOCAL_REST_SHORTFALL_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 10
+FINAL_ROUND_RESCUE_CAF_SHORTFALL_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 12
+FINAL_ROUND_RESCUE_ROUND_GAP_SHORTFALL_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 8
+FINAL_ROUND_RESCUE_WEEK_OVERFLOW_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 6
+
+
 def solve_baseline(
     data: LeagueData,
     matches: List[Match],
     domains: Dict[int, List[int]],
 ) -> Optional[List[ScheduledMatch]]:
-    """Build and solve the baseline model.
+    """Build and solve the baseline model."""
+    if ENFORCE_FINAL_ROUND_SINGLE_SLOT or MIN_STADIUM_SERVICE_GAP_DAYS > 0:
+        try:
+            baseline = _solve_baseline_with_venue_flex(data, matches, domains)
+        except RuntimeError as exc:
+            if not collect_final_round_matches(matches):
+                raise
+            strict_status = _read_baseline_status()
+            print(
+                "[baseline] Strict final-round model raised a recoverable error: "
+                f"{exc}"
+            )
+            rescued = _solve_baseline_with_final_round_rescue(data, matches, domains)
+            _attach_rescue_attempt_metadata(strict_status, rescued is not None)
+            return rescued
+        if baseline is not None or not collect_final_round_matches(matches):
+            return baseline
 
-    Legacy behavior is preserved exactly when MIN_STADIUM_SERVICE_GAP_DAYS == 0:
-    the solver uses the precomputed fixed venue on each Match. When the gap is
-    positive, venue choice is lifted into the CP model for non-forced matches so
-    the alternate stadium can relieve the primary home stadium.
-    """
+        strict_status = _read_baseline_status()
+        print(
+            "[baseline] Strict final-round model is infeasible. Retrying with a "
+            "dedicated Round 34 rescue model."
+        )
+        rescued = _solve_baseline_with_final_round_rescue(data, matches, domains)
+        _attach_rescue_attempt_metadata(strict_status, rescued is not None)
+        return rescued
+    return _solve_baseline_legacy(data, matches, domains)
 
-    if MIN_STADIUM_SERVICE_GAP_DAYS <= 0:
-        return _solve_baseline_legacy(data, matches, domains)
-    return _solve_baseline_with_stadium_gap(data, matches, domains)
+
+def _baseline_status_path() -> str:
+    return os.path.join(PHASES_DIR, "06_baseline_solver_status.json")
+
+
+def _read_baseline_status() -> dict:
+    path = _baseline_status_path()
+    if not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _write_baseline_status(
+    status: int,
+    status_name: str,
+    wall_time_s: float,
+    objective: float | None,
+    *,
+    extra: Optional[dict] = None,
+) -> None:
+    payload = {
+        "status": int(status),
+        "status_name": status_name,
+        "wall_time_s": round(wall_time_s, 2),
+        "objective": objective,
+        "stadium_service_gap_days": MIN_STADIUM_SERVICE_GAP_DAYS,
+    }
+    if extra:
+        payload.update(extra)
+
+    os.makedirs(PHASES_DIR, exist_ok=True)
+    with open(_baseline_status_path(), "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def _attach_rescue_attempt_metadata(
+    strict_status: dict,
+    rescue_used: bool,
+) -> None:
+    status = _read_baseline_status()
+    status["final_round_rescue_attempted"] = True
+    status["final_round_rescue_used"] = rescue_used
+    if strict_status:
+        status["strict_attempt"] = {
+            "status": strict_status.get("status"),
+            "status_name": strict_status.get("status_name"),
+            "wall_time_s": strict_status.get("wall_time_s"),
+            "objective": strict_status.get("objective"),
+            "solver_mode": strict_status.get("solver_mode"),
+        }
+    os.makedirs(PHASES_DIR, exist_ok=True)
+    with open(_baseline_status_path(), "w", encoding="utf-8") as f:
+        json.dump(status, f, indent=2)
+
+
+def _build_venue_candidates_by_match(
+    data: LeagueData,
+    matches: List[Match],
+    teams_dict: Dict[str, dict],
+) -> Dict[int, List[VenueCandidate]]:
+    stadium_ids = sorted(data.stadiums["Stadium_ID"].astype(str).str.strip().str.upper().tolist())
+    candidates_by_match: Dict[int, List[VenueCandidate]] = {}
+
+    for match in matches:
+        options = get_venue_options(
+            match.home_team,
+            match.away_team,
+            teams_dict,
+            data.sec_rules,
+        )
+
+        if options.is_forced_only:
+            candidates_by_match[match.match_idx] = get_ranked_venue_candidates(
+                match.home_team,
+                match.away_team,
+                teams_dict,
+                data.sec_rules,
+                stadium_ids,
+                data.dist_matrix,
+                allow_other_stadiums=False,
+            )
+            continue
+
+        if is_final_round(match.round_num):
+            candidates_by_match[match.match_idx] = get_ranked_venue_candidates(
+                match.home_team,
+                match.away_team,
+                teams_dict,
+                data.sec_rules,
+                stadium_ids,
+                data.dist_matrix,
+                allow_other_stadiums=True,
+            )
+            continue
+
+        if MIN_STADIUM_SERVICE_GAP_DAYS > 0:
+            candidates_by_match[match.match_idx] = get_ranked_venue_candidates(
+                match.home_team,
+                match.away_team,
+                teams_dict,
+                data.sec_rules,
+                stadium_ids,
+                data.dist_matrix,
+                allow_other_stadiums=False,
+            )
+            continue
+
+        candidates_by_match[match.match_idx] = [
+            VenueCandidate(
+                venue=match.venue,
+                is_forced=False,
+                is_primary=True,
+                is_alt=False,
+                is_other=False,
+                home_displacement_km=0.0,
+            )
+        ]
+
+    return candidates_by_match
+
+
+def _build_final_round_rescue_candidates(
+    match: Match,
+    data: LeagueData,
+    teams_dict: Dict[str, dict],
+    stadium_ids: List[str],
+) -> tuple[List[VenueCandidate], str]:
+    """Return Round 34 rescue venue choices with banned venues kept hard."""
+    options = get_venue_options(
+        match.home_team,
+        match.away_team,
+        teams_dict,
+        data.sec_rules,
+    )
+    primary = options.primary_venue
+    alt = options.alt_venue
+    forced = (
+        ""
+        if options.forced_venue in options.banned_venues
+        else options.forced_venue
+    )
+
+    candidates: List[VenueCandidate] = []
+    seen: set[str] = set()
+
+    def add_candidate(
+        venue: str,
+        *,
+        is_forced: bool,
+        is_primary: bool,
+        is_alt: bool,
+        is_other: bool,
+    ) -> None:
+        normalized = str(venue or "").strip().upper()
+        if (
+            not normalized
+            or normalized in seen
+            or normalized in options.banned_venues
+        ):
+            return
+        candidates.append(
+            VenueCandidate(
+                venue=normalized,
+                is_forced=is_forced,
+                is_primary=is_primary,
+                is_alt=is_alt,
+                is_other=is_other,
+                home_displacement_km=stadium_distance(
+                    data.dist_matrix,
+                    primary,
+                    normalized,
+                ),
+            )
+        )
+        seen.add(normalized)
+
+    add_candidate(
+        forced,
+        is_forced=True,
+        is_primary=forced == primary,
+        is_alt=forced == alt,
+        is_other=forced not in {"", primary, alt},
+    )
+    add_candidate(
+        primary,
+        is_forced=False,
+        is_primary=True,
+        is_alt=False,
+        is_other=False,
+    )
+    add_candidate(
+        alt,
+        is_forced=False,
+        is_primary=False,
+        is_alt=True,
+        is_other=False,
+    )
+
+    other_venues = []
+    for venue in stadium_ids:
+        normalized = str(venue or "").strip().upper()
+        if (
+            not normalized
+            or normalized in seen
+            or normalized in options.banned_venues
+        ):
+            continue
+        other_venues.append(normalized)
+    other_venues.sort(
+        key=lambda venue: (
+            stadium_distance(data.dist_matrix, primary, venue),
+            venue,
+        )
+    )
+    for venue in other_venues:
+        add_candidate(
+            venue,
+            is_forced=False,
+            is_primary=False,
+            is_alt=False,
+            is_other=True,
+        )
+
+    return candidates, forced
 
 
 def _build_slot_context(data: LeagueData) -> dict:
@@ -158,6 +435,85 @@ def _build_match_context(
     return teams_dict, tier1_teams, matches_by_team, matches_by_round
 
 
+def _build_fixed_schedule_state(matches: List[ScheduledMatch]) -> _FixedScheduleState:
+    team_dates: Dict[str, List[date]] = defaultdict(list)
+    venue_slots: Dict[str, set[int]] = defaultdict(set)
+    venue_non_forced_dates: Dict[str, List[date]] = defaultdict(list)
+    week_load: Dict[int, int] = defaultdict(int)
+    date_load: Dict[date, int] = defaultdict(int)
+    slot_usage: Dict[int, int] = defaultdict(int)
+    latest_round_dates: Dict[int, date] = {}
+
+    for match in matches:
+        team_dates[match.home_team].append(match.date)
+        team_dates[match.away_team].append(match.date)
+        venue_slots[match.venue].add(match.slot_idx)
+        if not match.is_forced_venue:
+            venue_non_forced_dates[match.venue].append(match.date)
+        week_load[match.week_num] += 1
+        date_load[match.date] += 1
+        slot_usage[match.slot_idx] += 1
+        latest_round_dates[match.round_num] = max(
+            latest_round_dates.get(match.round_num, match.date),
+            match.date,
+        )
+
+    for team_id in team_dates:
+        team_dates[team_id].sort()
+    for venue in venue_non_forced_dates:
+        venue_non_forced_dates[venue].sort()
+
+    return _FixedScheduleState(
+        team_dates=dict(team_dates),
+        venue_slots=dict(venue_slots),
+        venue_non_forced_dates=dict(venue_non_forced_dates),
+        week_load=dict(week_load),
+        date_load=dict(date_load),
+        slot_usage=dict(slot_usage),
+        latest_round_dates=latest_round_dates,
+    )
+
+
+def _has_same_day_team_conflict(
+    match: Match,
+    candidate_date: date,
+    state: _FixedScheduleState,
+) -> bool:
+    return (
+        candidate_date in state.team_dates.get(match.home_team, [])
+        or candidate_date in state.team_dates.get(match.away_team, [])
+    )
+
+
+def _required_gap_shortfall(
+    existing_dates: List[date],
+    candidate_date: date,
+    required_gap_days: int,
+) -> int:
+    if not existing_dates:
+        return 0
+    return max(
+        (
+            max(0, required_gap_days - abs((candidate_date - existing_date).days))
+            for existing_date in existing_dates
+        ),
+        default=0,
+    )
+
+
+def _round_gap_shortfall(
+    state: _FixedScheduleState,
+    candidate_date: date,
+) -> int:
+    previous_round_end = state.latest_round_dates.get(NUM_ROUNDS - 1)
+    if previous_round_end is None:
+        return 0
+    return max(
+        0,
+        MIN_DAYS_BETWEEN_ROUNDS - (candidate_date - previous_round_end).days,
+    )
+
+
 def _build_match_day_vars(
     model: cp_model.CpModel,
     matches: List[Match],
@@ -178,55 +534,68 @@ def _build_match_day_vars(
     return match_day
 
 
-def _build_final_round_shared_date_vars(
+def _build_final_round_shared_slot_vars(
     model: cp_model.CpModel,
     matches: List[Match],
     assignment_vars_by_match_slot: Dict[int, Dict[int, List[cp_model.IntVar]]],
     slot_dates: List[date],
-) -> Dict[date, cp_model.IntVar]:
-    """Force every final-round match onto one shared calendar date."""
-    if not ENFORCE_FINAL_ROUND_SINGLE_DAY:
+) -> Dict[int, cp_model.IntVar]:
+    """Force every final-round match onto one shared kickoff slot."""
+    if not ENFORCE_FINAL_ROUND_SINGLE_SLOT:
         return {}
 
     final_round_matches = collect_final_round_matches(matches)
     if not final_round_matches:
         return {}
 
-    candidate_dates = sorted({
-        slot_dates[slot_idx]
+    candidate_slots = sorted({
+        slot_idx
         for match in final_round_matches
         for slot_idx in assignment_vars_by_match_slot[match.match_idx]
-        if slot_dates[slot_idx] is not None
     })
-    if not candidate_dates:
-        raise RuntimeError("Final round has no candidate dates in its domain")
+    if not candidate_slots:
+        raise RuntimeError("Final round has no candidate slots in its domain")
 
-    chosen_date_vars: Dict[date, cp_model.IntVar] = {}
-    for candidate_date in candidate_dates:
-        label = candidate_date.strftime("%Y%m%d")
-        chosen_date_vars[candidate_date] = model.NewBoolVar(
-            f"final_round_date_{label}"
+    chosen_slot_vars: Dict[int, cp_model.IntVar] = {}
+    for candidate_slot in candidate_slots:
+        slot_date = slot_dates[candidate_slot]
+        label = f"{slot_date:%Y%m%d}_{candidate_slot}" if slot_date is not None else str(candidate_slot)
+        chosen_slot_vars[candidate_slot] = model.NewBoolVar(
+            f"final_round_slot_{label}"
         )
 
-    model.Add(sum(chosen_date_vars.values()) == 1)
+    model.Add(sum(chosen_slot_vars.values()) == 1)
 
     for match in final_round_matches:
-        vars_by_date: Dict[date, List[cp_model.IntVar]] = defaultdict(list)
-        for slot_idx, vars_for_slot in assignment_vars_by_match_slot[match.match_idx].items():
-            slot_date = slot_dates[slot_idx]
-            if slot_date is not None:
-                vars_by_date[slot_date].extend(vars_for_slot)
+        for candidate_slot, chosen_var in chosen_slot_vars.items():
+            model.Add(
+                sum(assignment_vars_by_match_slot[match.match_idx].get(candidate_slot, []))
+                == chosen_var
+            )
 
-        for candidate_date, chosen_var in chosen_date_vars.items():
-            model.Add(sum(vars_by_date.get(candidate_date, [])) == chosen_var)
+    return chosen_slot_vars
 
-    return chosen_date_vars
+
+def _build_final_round_shared_date_vars(
+    final_round_slot_vars: Dict[int, cp_model.IntVar],
+    slot_dates: List[date],
+) -> Dict[date, cp_model.LinearExpr]:
+    """Aggregate chosen final-round slot indicators into chosen-date indicators."""
+    chosen_date_vars: Dict[date, List[cp_model.IntVar]] = defaultdict(list)
+    for slot_idx, chosen_var in final_round_slot_vars.items():
+        slot_date = slot_dates[slot_idx]
+        if slot_date is not None:
+            chosen_date_vars[slot_date].append(chosen_var)
+    return {
+        slot_date: sum(vars_on_date)
+        for slot_date, vars_on_date in chosen_date_vars.items()
+    }
 
 
 def _add_daily_capacity_constraints(
     model: cp_model.CpModel,
     all_vars_by_date: Dict[date, List[cp_model.IntVar]],
-    final_round_date_vars: Dict[date, cp_model.IntVar],
+    final_round_date_vars: Dict[date, cp_model.LinearExpr],
 ) -> None:
     extra_capacity = FINAL_ROUND_MAX_MATCHES_PER_DAY - MAX_MATCHES_PER_DAY
     for slot_date, vars_on_date in all_vars_by_date.items():
@@ -248,16 +617,14 @@ def _add_daily_capacity_constraints(
 def _add_slot_capacity_constraints(
     model: cp_model.CpModel,
     all_vars_by_slot: Dict[int, List[cp_model.IntVar]],
-    slot_dates: List[date],
-    final_round_date_vars: Dict[date, cp_model.IntVar],
+    final_round_slot_vars: Dict[int, cp_model.IntVar],
 ) -> None:
     extra_capacity = FINAL_ROUND_MAX_MATCHES_PER_SLOT - MAX_MATCHES_PER_SLOT
     for slot_idx, vars_in_slot in all_vars_by_slot.items():
         if not vars_in_slot:
             continue
 
-        slot_date = slot_dates[slot_idx]
-        chosen_var = final_round_date_vars.get(slot_date)
+        chosen_var = final_round_slot_vars.get(slot_idx)
         if chosen_var is None or extra_capacity <= 0:
             if len(vars_in_slot) > MAX_MATCHES_PER_SLOT:
                 model.Add(sum(vars_in_slot) <= MAX_MATCHES_PER_SLOT)
@@ -279,7 +646,13 @@ def _add_round_gap_constraints(
     round_end_day: Dict[int, cp_model.IntVar] = {}
 
     for round_num in range(1, NUM_ROUNDS + 1):
-        vars_in_round = [match_day[match_idx] for match_idx in matches_by_round[round_num]]
+        vars_in_round = [
+            match_day[match_idx]
+            for match_idx in matches_by_round.get(round_num, [])
+            if match_idx in match_day
+        ]
+        if not vars_in_round:
+            continue
         start_var = model.NewIntVar(0, max_slot_day, f"round_{round_num}_start_day")
         end_var = model.NewIntVar(0, max_slot_day, f"round_{round_num}_end_day")
         model.AddMinEquality(start_var, vars_in_round)
@@ -288,10 +661,428 @@ def _add_round_gap_constraints(
         round_end_day[round_num] = end_var
 
     for round_num in range(1, NUM_ROUNDS):
+        if round_num not in round_end_day or (round_num + 1) not in round_start_day:
+            continue
         model.Add(
             round_end_day[round_num] + MIN_DAYS_BETWEEN_ROUNDS
             <= round_start_day[round_num + 1]
         )
+
+
+def _solve_baseline_with_final_round_rescue(
+    data: LeagueData,
+    matches: List[Match],
+    domains: Dict[int, List[int]],
+) -> Optional[List[ScheduledMatch]]:
+    final_round_matches = collect_final_round_matches(matches)
+    if not final_round_matches:
+        return None
+
+    print("[baseline] Solving Rounds 1-33 subproblem for final-round rescue...")
+    regular_matches = [match for match in matches if not is_final_round(match.round_num)]
+    regular_domains = {
+        match.match_idx: domains[match.match_idx]
+        for match in regular_matches
+    }
+    regular_schedule = _solve_baseline_with_venue_flex(
+        data,
+        regular_matches,
+        regular_domains,
+        write_status=False,
+        solve_label="Rounds 1-33 subproblem",
+    )
+    if regular_schedule is None:
+        _write_baseline_status(
+            cp_model.INFEASIBLE,
+            "INFEASIBLE",
+            0.0,
+            None,
+            extra={
+                "solver_mode": "final_round_rescue",
+                "final_round_rescue_mode": True,
+                "final_round_rescue_candidate_slot_count": 0,
+                "reason": "Rounds 1-33 subproblem is infeasible under the current domain policy.",
+            },
+        )
+        return None
+
+    print("[baseline] Building dedicated Round 34 rescue model...")
+    t0 = time.time()
+
+    slot_ctx = _build_slot_context(data)
+    slot_dates = slot_ctx["slot_dates"]
+    slot_weeks = slot_ctx["slot_weeks"]
+    slot_day_names = slot_ctx["slot_day_names"]
+    slot_tiers = slot_ctx["slot_tiers"]
+    slot_day_ids = slot_ctx["slot_day_ids"]
+    slot_datetimes = slot_ctx["slot_datetimes"]
+    nominal_week = slot_ctx["nominal_week"]
+
+    teams_dict, tier1_teams, _matches_by_team, _matches_by_round = _build_match_context(
+        data, matches
+    )
+    state = _build_fixed_schedule_state(regular_schedule)
+    stadium_ids = sorted(
+        data.stadiums["Stadium_ID"].astype(str).str.strip().str.upper().tolist()
+    )
+
+    round_windows = build_round_windows(data)
+    final_round_window = next(
+        (
+            round_window
+            for round_window in round_windows
+            if round_window.round_num == NUM_ROUNDS
+        ),
+        None,
+    )
+    if final_round_window is None:
+        _write_baseline_status(
+            cp_model.INFEASIBLE,
+            "INFEASIBLE",
+            0.0,
+            None,
+            extra={
+                "solver_mode": "final_round_rescue",
+                "final_round_rescue_mode": True,
+                "final_round_rescue_candidate_slot_count": 0,
+                "reason": "Round 34 tail window could not be reconstructed for rescue.",
+            },
+        )
+        return None
+
+    candidate_slots = sorted(final_round_window.slot_indices)
+    if not candidate_slots:
+        _write_baseline_status(
+            cp_model.INFEASIBLE,
+            "INFEASIBLE",
+            0.0,
+            None,
+            extra={
+                "solver_mode": "final_round_rescue",
+                "final_round_rescue_mode": True,
+                "final_round_rescue_candidate_slot_count": 0,
+                "reason": "Round 34 tail window has no usable slots.",
+            },
+        )
+        return None
+
+    required_local_gap = MIN_REST_DAYS_LOCAL + 1
+    required_caf_gap = MIN_REST_DAYS_CAF + 1
+
+    model = cp_model.CpModel()
+    objective_terms = []
+
+    chosen_slot_vars: Dict[int, cp_model.IntVar] = {}
+    y: Dict[Tuple[int, int, str], cp_model.IntVar] = {}
+    assignment_vars_by_match_slot: Dict[int, Dict[int, List[cp_model.IntVar]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    venue_slot_vars: Dict[Tuple[str, int], List[cp_model.IntVar]] = defaultdict(list)
+
+    for slot_idx in candidate_slots:
+        slot_date = slot_dates[slot_idx]
+        label = f"{slot_date:%Y%m%d}_{slot_idx}" if slot_date is not None else str(slot_idx)
+        chosen_slot_vars[slot_idx] = model.NewBoolVar(f"final_round_rescue_slot_{label}")
+
+    model.Add(sum(chosen_slot_vars.values()) == 1)
+
+    for match in final_round_matches:
+        venue_candidates, forced_venue = _build_final_round_rescue_candidates(
+            match,
+            data,
+            teams_dict,
+            stadium_ids,
+        )
+        home_tier = int(teams_dict.get(match.home_team, {}).get("Tier", 4))
+        tier_weight = TIER_WEIGHTS.get(home_tier, 1)
+        for slot_idx in candidate_slots:
+            slot_date = slot_dates[slot_idx]
+            if slot_date is None:
+                continue
+            if _has_same_day_team_conflict(match, slot_date, state):
+                continue
+            if (
+                state.date_load.get(slot_date, 0) + MATCHES_PER_ROUND
+                > FINAL_ROUND_MAX_MATCHES_PER_DAY
+            ):
+                continue
+            if (
+                state.slot_usage.get(slot_idx, 0) + MATCHES_PER_ROUND
+                > FINAL_ROUND_MAX_MATCHES_PER_SLOT
+            ):
+                continue
+
+            slot_local_rest_shortfall = (
+                _required_gap_shortfall(
+                    state.team_dates.get(match.home_team, []),
+                    slot_date,
+                    required_local_gap,
+                )
+                + _required_gap_shortfall(
+                    state.team_dates.get(match.away_team, []),
+                    slot_date,
+                    required_local_gap,
+                )
+            )
+            slot_caf_shortfall = (
+                _required_gap_shortfall(
+                    data.caf_dates_by_team.get(match.home_team, []),
+                    slot_date,
+                    required_caf_gap,
+                )
+                + _required_gap_shortfall(
+                    data.caf_dates_by_team.get(match.away_team, []),
+                    slot_date,
+                    required_caf_gap,
+                )
+            )
+            slot_round_gap_shortfall = _round_gap_shortfall(state, slot_date)
+            slot_week_overflow = max(
+                0,
+                state.week_load.get(slot_weeks[slot_idx], 0) + MATCHES_PER_ROUND
+                - HARD_MAX_MATCHES_PER_WEEK,
+            )
+            misses_tier1_slot = int(
+                match.home_team in tier1_teams
+                and match.away_team in tier1_teams
+                and slot_tiers[slot_idx] != 1
+            )
+
+            nominal = nominal_week[match.round_num]
+            week_diff = abs(slot_weeks[slot_idx] - nominal)
+            tier_diff = abs(match.match_tier - slot_tiers[slot_idx])
+
+            for candidate in venue_candidates:
+                venue = candidate.venue
+                if slot_idx in state.venue_slots.get(venue, set()):
+                    continue
+
+                key = (match.match_idx, slot_idx, venue)
+                y[key] = model.NewBoolVar(f"fr_rescue_{match.match_idx}_{slot_idx}_{venue}")
+                assignment_vars_by_match_slot[match.match_idx][slot_idx].append(y[key])
+                venue_slot_vars[(venue, slot_idx)].append(y[key])
+
+                away_home_stadium = teams_dict.get(match.away_team, {}).get(
+                    "Home_Stadium_ID",
+                    "",
+                )
+                away_travel = stadium_distance(data.dist_matrix, away_home_stadium, venue)
+
+                if week_diff > 0:
+                    objective_terms.append(y[key] * (W_ROUND_ORDER * week_diff))
+                if tier_diff > 0:
+                    objective_terms.append(y[key] * (W_TIER_MISMATCH * tier_diff))
+
+                away_travel_cost = int(away_travel * W_TRAVEL)
+                if away_travel_cost > 0:
+                    objective_terms.append(y[key] * away_travel_cost)
+
+                if candidate.is_alt:
+                    objective_terms.append(
+                        y[key] * (ALT_STADIUM_RELIEF_PENALTY * tier_weight)
+                    )
+                elif candidate.is_other:
+                    objective_terms.append(
+                        y[key] * (OTHER_STADIUM_RELIEF_PENALTY * tier_weight)
+                    )
+
+                home_displacement_cost = int(
+                    candidate.home_displacement_km * W_HOME_VENUE_DISPLACEMENT
+                )
+                if home_displacement_cost > 0:
+                    objective_terms.append(y[key] * home_displacement_cost)
+
+                if forced_venue and venue != forced_venue:
+                    objective_terms.append(
+                        y[key]
+                        * (FINAL_ROUND_RESCUE_FORCED_VENUE_BREAK_PENALTY * tier_weight)
+                    )
+                if misses_tier1_slot:
+                    objective_terms.append(
+                        y[key] * FINAL_ROUND_RESCUE_TIER1_SLOT_PENALTY
+                    )
+                if slot_local_rest_shortfall > 0:
+                    objective_terms.append(
+                        y[key]
+                        * (
+                            FINAL_ROUND_RESCUE_LOCAL_REST_SHORTFALL_PENALTY
+                            * slot_local_rest_shortfall
+                        )
+                    )
+                if slot_caf_shortfall > 0:
+                    objective_terms.append(
+                        y[key]
+                        * (
+                            FINAL_ROUND_RESCUE_CAF_SHORTFALL_PENALTY
+                            * slot_caf_shortfall
+                        )
+                    )
+                if slot_round_gap_shortfall > 0:
+                    objective_terms.append(
+                        y[key]
+                        * (
+                            FINAL_ROUND_RESCUE_ROUND_GAP_SHORTFALL_PENALTY
+                            * slot_round_gap_shortfall
+                        )
+                    )
+                if slot_week_overflow > 0:
+                    objective_terms.append(
+                        y[key]
+                        * (
+                            FINAL_ROUND_RESCUE_WEEK_OVERFLOW_PENALTY
+                            * slot_week_overflow
+                        )
+                    )
+                if (
+                    MIN_STADIUM_SERVICE_GAP_DAYS > 0
+                    and not candidate.is_forced
+                    and _required_gap_shortfall(
+                        state.venue_non_forced_dates.get(venue, []),
+                        slot_date,
+                        MIN_STADIUM_SERVICE_GAP_DAYS + 1,
+                    )
+                    > 0
+                ):
+                    objective_terms.append(y[key] * W_STADIUM_MAINTENANCE_OVERLAP)
+
+        if match.match_idx not in assignment_vars_by_match_slot:
+            assignment_vars_by_match_slot[match.match_idx] = defaultdict(list)
+
+    for match in final_round_matches:
+        match_slot_vars = assignment_vars_by_match_slot.get(match.match_idx, {})
+        flat_vars = [
+            var
+            for vars_at_slot in match_slot_vars.values()
+            for var in vars_at_slot
+        ]
+        if not flat_vars:
+            _write_baseline_status(
+                cp_model.INFEASIBLE,
+                "INFEASIBLE",
+                0.0,
+                None,
+                extra={
+                    "solver_mode": "final_round_rescue",
+                    "final_round_rescue_mode": True,
+                    "final_round_rescue_candidate_slot_count": len(candidate_slots),
+                    "reason": (
+                        "At least one Round 34 match has no non-banned rescue "
+                        "assignment in the shared-slot tail window."
+                    ),
+                },
+            )
+            return None
+
+        model.Add(sum(flat_vars) == 1)
+        for slot_idx, chosen_var in chosen_slot_vars.items():
+            model.Add(sum(match_slot_vars.get(slot_idx, [])) == chosen_var)
+
+    for vars_in_slot in venue_slot_vars.values():
+        if len(vars_in_slot) > 1:
+            model.Add(sum(vars_in_slot) <= 1)
+
+    if objective_terms:
+        model.Minimize(sum(objective_terms))
+
+    print(f"[baseline] Rescue model built in {time.time() - t0:.1f}s. Solving...")
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = BASELINE_SOLVER_TIME_LIMIT_S
+    solver.parameters.num_workers = NUM_WORKERS
+    solver.parameters.log_search_progress = True
+
+    status = solver.Solve(model)
+    status_name = solver.StatusName(status)
+    wall_time = solver.WallTime()
+    objective = (
+        solver.ObjectiveValue()
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+        else None
+    )
+    print(f"[baseline] Rescue solver status: {status_name} ({wall_time:.1f}s)")
+
+    _write_baseline_status(
+        status,
+        status_name,
+        wall_time,
+        objective,
+        extra={
+            "solver_mode": "final_round_rescue",
+            "final_round_rescue_mode": True,
+            "final_round_rescue_candidate_slot_count": len(candidate_slots),
+            "final_round_rescue_relaxations": [
+                "forced_venue",
+                "tier1_slot",
+                "local_rest",
+                "caf_buffer",
+                "round_gap",
+                "week_cap",
+                "stadium_service_gap",
+            ],
+            "regular_round_match_count": len(regular_schedule),
+        },
+    )
+
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        print("[baseline] Final-round rescue still infeasible.")
+        return None
+
+    rescued_matches: List[ScheduledMatch] = []
+    for match in final_round_matches:
+        for slot_idx in candidate_slots:
+            for candidate in _build_final_round_rescue_candidates(
+                match,
+                data,
+                teams_dict,
+                stadium_ids,
+            )[0]:
+                venue = candidate.venue
+                var = y.get((match.match_idx, slot_idx, venue))
+                if var is None or solver.Value(var) != 1:
+                    continue
+
+                away_home_stadium = teams_dict.get(match.away_team, {}).get(
+                    "Home_Stadium_ID",
+                    "",
+                )
+                rescued_matches.append(
+                    ScheduledMatch(
+                        match_idx=match.match_idx,
+                        round_num=match.round_num,
+                        home_team=match.home_team,
+                        away_team=match.away_team,
+                        venue=venue,
+                        match_tier=match.match_tier,
+                        slot_idx=slot_idx,
+                        day_id=slot_day_ids[slot_idx],
+                        date=slot_dates[slot_idx],
+                        date_time=slot_datetimes[slot_idx],
+                        week_num=slot_weeks[slot_idx],
+                        day_name=slot_day_names[slot_idx],
+                        slot_tier=slot_tiers[slot_idx],
+                        travel_km=stadium_distance(
+                            data.dist_matrix,
+                            away_home_stadium,
+                            venue,
+                        ),
+                        is_forced_venue=candidate.is_forced,
+                    )
+                )
+                break
+            else:
+                continue
+            break
+
+    result = sorted(
+        regular_schedule + rescued_matches,
+        key=lambda scheduled: (
+            scheduled.date,
+            str(scheduled.date_time),
+            scheduled.round_num,
+            scheduled.match_idx,
+        ),
+    )
+    print(f"[baseline] Final-round rescue scheduled {len(rescued_matches)} matches.")
+    return result
 
 
 def _solve_baseline_legacy(
@@ -370,10 +1161,14 @@ def _solve_baseline_legacy(
         }
         for match in matches
     }
-    final_round_date_vars = _build_final_round_shared_date_vars(
+    final_round_slot_vars = _build_final_round_shared_slot_vars(
         model,
         matches,
         assignment_vars_by_match_slot,
+        slot_dates,
+    )
+    final_round_date_vars = _build_final_round_shared_date_vars(
+        final_round_slot_vars,
         slot_dates,
     )
 
@@ -388,6 +1183,25 @@ def _solve_baseline_legacy(
                 if slot_tiers[slot_idx] == 1
             ]
             if not tier1_slot_vars:
+                if is_final_round(match.round_num):
+                    _write_baseline_status(
+                        cp_model.INFEASIBLE,
+                        "INFEASIBLE",
+                        0.0,
+                        None,
+                        extra={
+                            "solver_mode": "legacy",
+                            "reason": (
+                                "Round 34 strict tier-1 slot requirement has no "
+                                "candidate slot and must fall back to rescue."
+                            ),
+                        },
+                    )
+                    print(
+                        "[baseline] Strict final-round tier-1 slot rule has no "
+                        "candidate slot."
+                    )
+                    return None
                 raise RuntimeError(
                     "No tier-1 slots available in domain for tier-1 derby: "
                     f"{match.home_team} vs {match.away_team} "
@@ -430,8 +1244,7 @@ def _solve_baseline_legacy(
     _add_slot_capacity_constraints(
         model,
         all_vars_by_slot,
-        slot_dates,
-        final_round_date_vars,
+        final_round_slot_vars,
     )
 
     rest_gap = MIN_REST_DAYS_LOCAL
@@ -518,7 +1331,7 @@ def _solve_baseline_legacy(
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = BASELINE_SOLVER_TIME_LIMIT_S
-    solver.parameters.num_workers = 4
+    solver.parameters.num_workers = NUM_WORKERS
     solver.parameters.log_search_progress = True
 
     status = solver.Solve(model)
@@ -527,23 +1340,21 @@ def _solve_baseline_legacy(
 
     print(f"[baseline] Solver status: {status_name} ({wall_time:.1f}s)")
 
-    os.makedirs(PHASES_DIR, exist_ok=True)
-    with open(os.path.join(PHASES_DIR, "06_baseline_solver_status.json"), "w") as f:
-        json.dump(
-            {
-                "status": int(status),
-                "status_name": status_name,
-                "wall_time_s": round(wall_time, 2),
-                "objective": (
-                    solver.ObjectiveValue()
-                    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
-                    else None
-                ),
-                "stadium_service_gap_days": MIN_STADIUM_SERVICE_GAP_DAYS,
-            },
-            f,
-            indent=2,
-        )
+    _write_baseline_status(
+        status,
+        status_name,
+        wall_time,
+        (
+            solver.ObjectiveValue()
+            if status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+            else None
+        ),
+        extra={
+            "solver_mode": "legacy",
+            "final_round_rescue_attempted": False,
+            "final_round_rescue_used": False,
+        },
+    )
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         print("[baseline] INFEASIBLE - no schedule produced.")
@@ -579,15 +1390,15 @@ def _solve_baseline_legacy(
     return result
 
 
-def _solve_baseline_with_stadium_gap(
+def _solve_baseline_with_venue_flex(
     data: LeagueData,
     matches: List[Match],
     domains: Dict[int, List[int]],
+    *,
+    write_status: bool = True,
+    solve_label: str = "flexible venue assignment",
 ) -> Optional[List[ScheduledMatch]]:
-    print(
-        "[baseline] Building CP-SAT model with stadium service gap "
-        f"({MIN_STADIUM_SERVICE_GAP_DAYS} days)..."
-    )
+    print(f"[baseline] Building CP-SAT model with {solve_label}...")
     t0 = time.time()
 
     slot_ctx = _build_slot_context(data)
@@ -610,16 +1421,11 @@ def _solve_baseline_with_stadium_gap(
         data, matches
     )
 
-    venue_options_by_match = {
-        match.match_idx: get_venue_options(
-            match.home_team, match.away_team, teams_dict, data.sec_rules
-        )
-        for match in matches
-    }
+    venue_candidates_by_match = _build_venue_candidates_by_match(data, matches, teams_dict)
 
     def get_travel(away_team: str, venue: str) -> float:
         away_home_stadium = teams_dict.get(away_team, {}).get("Home_Stadium_ID", "")
-        return data.dist_matrix.get(away_home_stadium, {}).get(venue, 0.0)
+        return stadium_distance(data.dist_matrix, away_home_stadium, venue)
 
     model = cp_model.CpModel()
     objective_terms = []
@@ -630,21 +1436,22 @@ def _solve_baseline_with_stadium_gap(
     venue_date_vars: Dict[Tuple[str, date], List[cp_model.IntVar]] = defaultdict(list)
 
     for match in matches:
-        options = venue_options_by_match[match.match_idx]
+        candidates = venue_candidates_by_match[match.match_idx]
         x[match.match_idx] = {}
         for slot_idx in domains[match.match_idx]:
-            for venue in options.allowed_venues:
+            for candidate in candidates:
+                venue = candidate.venue
                 key = (slot_idx, venue)
                 var = model.NewBoolVar(f"x_{match.match_idx}_{slot_idx}_{venue}")
                 x[match.match_idx][key] = var
 
-                is_forced = options.is_forced_only
-                is_alt = (not is_forced) and venue != options.primary_venue
                 travel = get_travel(match.away_team, venue)
 
                 assignment_meta[(match.match_idx, slot_idx, venue)] = {
-                    "is_forced": is_forced,
-                    "is_alt": is_alt,
+                    "is_forced": candidate.is_forced,
+                    "is_alt": candidate.is_alt,
+                    "is_other": candidate.is_other,
+                    "home_displacement_km": candidate.home_displacement_km,
                     "travel_km": travel,
                 }
                 venue_slot_vars[(venue, slot_idx)].append(var)
@@ -671,10 +1478,14 @@ def _solve_baseline_with_stadium_gap(
             grouped[slot_idx].append(var)
         assignment_vars_by_match_slot[match.match_idx] = dict(grouped)
 
-    final_round_date_vars = _build_final_round_shared_date_vars(
+    final_round_slot_vars = _build_final_round_shared_slot_vars(
         model,
         matches,
         assignment_vars_by_match_slot,
+        slot_dates,
+    )
+    final_round_date_vars = _build_final_round_shared_date_vars(
+        final_round_slot_vars,
         slot_dates,
     )
 
@@ -689,6 +1500,26 @@ def _solve_baseline_with_stadium_gap(
                 if slot_tiers[slot_idx] == 1
             ]
             if not tier1_slot_vars:
+                if is_final_round(match.round_num):
+                    if write_status:
+                        _write_baseline_status(
+                            cp_model.INFEASIBLE,
+                            "INFEASIBLE",
+                            0.0,
+                            None,
+                            extra={
+                                "solver_mode": "strict_flexible_venue",
+                                "reason": (
+                                    "Round 34 strict tier-1 slot requirement has no "
+                                    "candidate slot and must fall back to rescue."
+                                ),
+                            },
+                        )
+                    print(
+                        "[baseline] Strict final-round tier-1 slot rule has no "
+                        "candidate slot."
+                    )
+                    return None
                 raise RuntimeError(
                     "No tier-1 slots available in domain for tier-1 derby: "
                     f"{match.home_team} vs {match.away_team} "
@@ -701,7 +1532,8 @@ def _solve_baseline_with_stadium_gap(
             vars_on_date = []
             for match_idx in match_indices:
                 for slot_idx in slot_indices:
-                    for venue in venue_options_by_match[match_idx].allowed_venues:
+                    for candidate in venue_candidates_by_match[match_idx]:
+                        venue = candidate.venue
                         var = x[match_idx].get((slot_idx, venue))
                         if var is not None:
                             vars_on_date.append(var)
@@ -716,7 +1548,8 @@ def _solve_baseline_with_stadium_gap(
     for slot_date, slot_indices in slots_by_date.items():
         for match in matches:
             for slot_idx in slot_indices:
-                for venue in venue_options_by_match[match.match_idx].allowed_venues:
+                for candidate in venue_candidates_by_match[match.match_idx]:
+                    venue = candidate.venue
                     var = x[match.match_idx].get((slot_idx, venue))
                     if var is not None:
                         all_vars_by_date[slot_date].append(var)
@@ -725,15 +1558,15 @@ def _solve_baseline_with_stadium_gap(
     all_vars_by_slot: Dict[int, List[cp_model.IntVar]] = defaultdict(list)
     for slot_idx in range(n_slots):
         for match in matches:
-            for venue in venue_options_by_match[match.match_idx].allowed_venues:
+            for candidate in venue_candidates_by_match[match.match_idx]:
+                venue = candidate.venue
                 var = x[match.match_idx].get((slot_idx, venue))
                 if var is not None:
                     all_vars_by_slot[slot_idx].append(var)
     _add_slot_capacity_constraints(
         model,
         all_vars_by_slot,
-        slot_dates,
-        final_round_date_vars,
+        final_round_slot_vars,
     )
 
     rest_gap = MIN_REST_DAYS_LOCAL
@@ -752,7 +1585,8 @@ def _solve_baseline_with_stadium_gap(
             vars_in_window = []
             for match_idx in match_indices:
                 for slot_idx in window_slots:
-                    for venue in venue_options_by_match[match_idx].allowed_venues:
+                    for candidate in venue_candidates_by_match[match_idx]:
+                        venue = candidate.venue
                         var = x[match_idx].get((slot_idx, venue))
                         if var is not None:
                             vars_in_window.append(var)
@@ -789,19 +1623,17 @@ def _solve_baseline_with_stadium_gap(
 
     print("[baseline] Hard constraints added.")
 
-    # Same-day stadium penalty (MASSIVE)
-    # We create a new set of overlap variables strictly for same-day clashes.
-    for venue, dates in venue_to_dates.items():
-        for d in dates:
-            same_day_vars = venue_date_vars.get((venue, d), [])
-            if len(same_day_vars) > 1:
-                sd_overlap = model.NewBoolVar(f"sd_overlap_{venue}_{d}")
-                model.Add(sum(same_day_vars) > 1).OnlyEnforceIf(sd_overlap)
-                model.Add(sum(same_day_vars) <= 1).OnlyEnforceIf(sd_overlap.Not())
-                # 50 million penalty for matches on the exact same day
-                objective_terms.append(sd_overlap * 50_000_000)
-
-    TIER_WEIGHTS = {1: 10, 2: 5, 3: 2, 4: 1}
+    if service_gap > 0:
+        # Same-day venue reuse remains a strong soft discouragement when
+        # stadium-service logic is active.
+        for venue, dates in venue_to_dates.items():
+            for d in dates:
+                same_day_vars = venue_date_vars.get((venue, d), [])
+                if len(same_day_vars) > 1:
+                    sd_overlap = model.NewBoolVar(f"sd_overlap_{venue}_{d}")
+                    model.Add(sum(same_day_vars) > 1).OnlyEnforceIf(sd_overlap)
+                    model.Add(sum(same_day_vars) <= 1).OnlyEnforceIf(sd_overlap.Not())
+                    objective_terms.append(sd_overlap * 50_000_000)
 
     for match in matches:
         home_tier = int(teams_dict.get(match.home_team, {}).get("Tier", 4))
@@ -825,6 +1657,14 @@ def _solve_baseline_with_stadium_gap(
 
             if meta["is_alt"]:
                 objective_terms.append(var * (ALT_STADIUM_RELIEF_PENALTY * tier_weight))
+            elif meta["is_other"]:
+                objective_terms.append(var * (OTHER_STADIUM_RELIEF_PENALTY * tier_weight))
+
+            home_displacement_cost = int(
+                meta["home_displacement_km"] * W_HOME_VENUE_DISPLACEMENT
+            )
+            if home_displacement_cost > 0:
+                objective_terms.append(var * home_displacement_cost)
 
     for week_num in all_weeks:
         week_slots = slots_by_week.get(week_num, [])
@@ -834,7 +1674,8 @@ def _solve_baseline_with_stadium_gap(
         load_vars = []
         for match in matches:
             for slot_idx in week_slots:
-                for venue in venue_options_by_match[match.match_idx].allowed_venues:
+                for candidate in venue_candidates_by_match[match.match_idx]:
+                    venue = candidate.venue
                     var = x[match.match_idx].get((slot_idx, venue))
                     if var is not None:
                         load_vars.append(var)
@@ -863,7 +1704,7 @@ def _solve_baseline_with_stadium_gap(
 
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = BASELINE_SOLVER_TIME_LIMIT_S
-    solver.parameters.num_workers = 4
+    solver.parameters.num_workers = NUM_WORKERS
     solver.parameters.log_search_progress = True
 
     status = solver.Solve(model)
@@ -872,22 +1713,21 @@ def _solve_baseline_with_stadium_gap(
 
     print(f"[baseline] Solver status: {status_name} ({wall_time:.1f}s)")
 
-    os.makedirs(PHASES_DIR, exist_ok=True)
-    with open(os.path.join(PHASES_DIR, "06_baseline_solver_status.json"), "w") as f:
-        json.dump(
-            {
-                "status": int(status),
-                "status_name": status_name,
-                "wall_time_s": round(wall_time, 2),
-                "objective": (
-                    solver.ObjectiveValue()
-                    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
-                    else None
-                ),
-                "stadium_service_gap_days": MIN_STADIUM_SERVICE_GAP_DAYS,
+    if write_status:
+        _write_baseline_status(
+            status,
+            status_name,
+            wall_time,
+            (
+                solver.ObjectiveValue()
+                if status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+                else None
+            ),
+            extra={
+                "solver_mode": "strict_flexible_venue",
+                "final_round_rescue_attempted": False,
+                "final_round_rescue_used": False,
             },
-            f,
-            indent=2,
         )
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):

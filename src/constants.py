@@ -50,7 +50,9 @@ NON_FINAL_ROUND_MIN_FEASIBLE_SLOTS_PER_MATCH = MATCHES_PER_ROUND
 # ---------------------------------------------------------------------------
 FINAL_ROUND_NUM = NUM_ROUNDS
 ENFORCE_FINAL_ROUND_SINGLE_DAY = True
+ENFORCE_FINAL_ROUND_SINGLE_SLOT = True
 FINAL_ROUND_SHARED_DATE_IN_FINAL_SCHEDULE = True
+FINAL_ROUND_SHARED_SLOT_IN_FINAL_SCHEDULE = True
 FINAL_ROUND_MAX_MATCHES_PER_DAY = MATCHES_PER_ROUND
 FINAL_ROUND_MAX_MATCHES_PER_SLOT = MATCHES_PER_ROUND
 
@@ -66,6 +68,8 @@ W_CAF_PREFERRED = 10      # bonus for achieving 6-day CAF gap instead of 5
 
 W_STADIUM_MAINTENANCE_OVERLAP = 5_000_000  # penalty for back-to-back stadium use
 ALT_STADIUM_RELIEF_PENALTY = 1_000_000     # base penalty for using alternate stadium
+OTHER_STADIUM_RELIEF_PENALTY = 3_000_000   # base penalty for using a non-home, non-alt fallback venue
+W_HOME_VENUE_DISPLACEMENT = 1              # per-km penalty for moving a home team away from its primary stadium
 
 # ---------------------------------------------------------------------------
 # Solver limits

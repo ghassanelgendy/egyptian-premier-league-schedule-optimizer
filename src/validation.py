@@ -27,6 +27,7 @@ from src.final_round import (
     allowed_matches_in_slot,
     allowed_matches_on_date,
     get_valid_final_round_shared_date,
+    get_valid_final_round_shared_slot,
 )
 
 
@@ -51,10 +52,11 @@ def write_validation_reports(
 
     _validate_completeness(all_matches, unresolved, issues)
     _validate_fifa(all_matches, data, issues)
-    _validate_final_round_same_day(all_matches, issues)
+    _validate_final_round_same_slot(all_matches, issues)
     valid_final_round_date = get_valid_final_round_shared_date(all_matches)
+    valid_final_round_slot = get_valid_final_round_shared_slot(all_matches)
     _validate_daily_load(all_matches, issues, valid_final_round_date)
-    _validate_slot_load(all_matches, issues, valid_final_round_date)
+    _validate_slot_load(all_matches, issues, valid_final_round_slot)
     _validate_venue_slots(all_matches, issues)
     _validate_stadium_service_gap(all_matches, issues)
     _validate_global_round_order(accepted, issues)
@@ -306,7 +308,7 @@ def _validate_daily_load(
 def _validate_slot_load(
     matches: List[ScheduledMatch],
     issues: List[Dict[str, object]],
-    valid_final_round_date: date | None,
+    valid_final_round_slot: int | None,
 ) -> None:
     by_slot: Dict[int, List[ScheduledMatch]] = defaultdict(list)
     for sm in matches:
@@ -314,7 +316,7 @@ def _validate_slot_load(
 
     for slot_idx, group in by_slot.items():
         slot_date = group[0].date
-        allowed = allowed_matches_in_slot(slot_date, valid_final_round_date)
+        allowed = allowed_matches_in_slot(slot_idx, valid_final_round_slot)
         if len(group) > allowed:
             _add_issue(
                 issues,
@@ -330,7 +332,7 @@ def _validate_slot_load(
             )
 
 
-def _validate_final_round_same_day(
+def _validate_final_round_same_slot(
     matches: List[ScheduledMatch],
     issues: List[Dict[str, object]],
 ) -> None:
@@ -341,8 +343,13 @@ def _validate_final_round_same_day(
     if not final_round_matches:
         return
 
+    final_round_slots = sorted({sm.slot_idx for sm in final_round_matches})
     final_round_dates = sorted({sm.date for sm in final_round_matches})
-    if len(final_round_matches) == MATCHES_PER_ROUND and len(final_round_dates) == 1:
+    if (
+        len(final_round_matches) == MATCHES_PER_ROUND
+        and len(final_round_dates) == 1
+        and len(final_round_slots) == 1
+    ):
         return
 
     if not final_round_dates:
@@ -351,7 +358,7 @@ def _validate_final_round_same_day(
     else:
         detail = (
             f"Round 34 has {len(final_round_matches)} scheduled matches across "
-            f"{len(final_round_dates)} date(s): "
+            f"{len(final_round_dates)} date(s) and {len(final_round_slots)} slot(s): "
             + ", ".join(str(d) for d in final_round_dates)
         )
         error_date = final_round_dates[0]
@@ -359,7 +366,7 @@ def _validate_final_round_same_day(
     _add_issue(
         issues,
         "ERROR",
-        "FINAL_ROUND_SINGLE_DAY",
+        "FINAL_ROUND_SINGLE_SLOT",
         "",
         FINAL_ROUND_NUM,
         error_date,

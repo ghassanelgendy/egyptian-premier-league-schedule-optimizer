@@ -21,6 +21,16 @@ class VenueOptions:
         return bool(self.forced_venue)
 
 
+@dataclass(frozen=True)
+class VenueCandidate:
+    venue: str
+    is_forced: bool
+    is_primary: bool
+    is_alt: bool
+    is_other: bool
+    home_displacement_km: float
+
+
 def build_team_lookup(data: LeagueData) -> Dict[str, dict]:
     """Build a normalized team lookup used by the solvers."""
     teams_dict: Dict[str, dict] = {}
@@ -113,3 +123,98 @@ def get_venue_options(
         banned_venues=banned,
         allowed_venues=allowed,
     )
+
+
+def stadium_distance(
+    dist_matrix: Dict[str, Dict[str, float]],
+    origin: str,
+    dest: str,
+) -> float:
+    origin = str(origin or "").strip().upper()
+    dest = str(dest or "").strip().upper()
+    if not origin or not dest or origin == dest:
+        return 0.0
+    if origin in dist_matrix and dest in dist_matrix[origin]:
+        return float(dist_matrix[origin][dest])
+    if dest in dist_matrix and origin in dist_matrix[dest]:
+        return float(dist_matrix[dest][origin])
+    return 1_000_000.0
+
+
+def get_ranked_venue_candidates(
+    home: str,
+    away: str,
+    teams_dict: Dict[str, dict],
+    sec_rules: List[SecRule],
+    stadium_ids: List[str],
+    dist_matrix: Dict[str, Dict[str, float]],
+    *,
+    allow_other_stadiums: bool,
+) -> List[VenueCandidate]:
+    """Return ordered venue candidates for one home/away pairing.
+
+    Ordering:
+    1. forced venue when defined
+    2. primary home venue
+    3. alternate home venue
+    4. other stadiums sorted by proximity to the primary home venue
+    """
+    options = get_venue_options(home, away, teams_dict, sec_rules)
+    primary = options.primary_venue
+    alt = options.alt_venue
+
+    if options.is_forced_only:
+        return [
+            VenueCandidate(
+                venue=options.forced_venue,
+                is_forced=True,
+                is_primary=options.forced_venue == primary,
+                is_alt=options.forced_venue == alt,
+                is_other=options.forced_venue not in {primary, alt},
+                home_displacement_km=stadium_distance(
+                    dist_matrix,
+                    primary,
+                    options.forced_venue,
+                ),
+            )
+        ]
+
+    candidates: List[VenueCandidate] = []
+    seen: Set[str] = set()
+
+    def add_candidate(venue: str, *, is_primary: bool, is_alt: bool, is_other: bool) -> None:
+        normalized = str(venue or "").strip().upper()
+        if not normalized or normalized in seen or normalized in options.banned_venues:
+            return
+        candidates.append(
+            VenueCandidate(
+                venue=normalized,
+                is_forced=False,
+                is_primary=is_primary,
+                is_alt=is_alt,
+                is_other=is_other,
+                home_displacement_km=stadium_distance(dist_matrix, primary, normalized),
+            )
+        )
+        seen.add(normalized)
+
+    add_candidate(primary, is_primary=True, is_alt=False, is_other=False)
+    add_candidate(alt, is_primary=False, is_alt=True, is_other=False)
+
+    if allow_other_stadiums:
+        others = []
+        for venue in stadium_ids:
+            normalized = str(venue or "").strip().upper()
+            if not normalized or normalized in seen or normalized in options.banned_venues:
+                continue
+            others.append(normalized)
+        others.sort(
+            key=lambda venue: (
+                stadium_distance(dist_matrix, primary, venue),
+                venue,
+            )
+        )
+        for venue in others:
+            add_candidate(venue, is_primary=False, is_alt=False, is_other=True)
+
+    return candidates

@@ -5,75 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import time
-from typing import Any, Optional
+from typing import Any
 
+from src.baseline_retry import solve_baseline_with_domain_fallbacks
 from src.constants import DEFAULT_SEED, PHASES_DIR
 from src.data_loader import LeagueData, load_data
 from src.multi_run import calculate_run_metrics, run_monte_carlo
-
-
-def _annotate_baseline_status(
-    domain_policy: str,
-    attempt_num: int,
-    attempt_count: int,
-) -> None:
-    """Attach the domain-policy attempt metadata to the baseline status file."""
-    status_path = os.path.join(PHASES_DIR, "06_baseline_solver_status.json")
-    if not os.path.exists(status_path):
-        return
-
-    with open(status_path, "r", encoding="utf-8") as f:
-        status = json.load(f)
-
-    status["domain_policy"] = domain_policy
-    status["domain_attempt"] = attempt_num
-    status["domain_attempt_count"] = attempt_count
-    status["domain_fallback_used"] = attempt_num > 1
-
-    with open(status_path, "w", encoding="utf-8") as f:
-        json.dump(status, f, indent=2)
-
-
-def _solve_baseline_with_domain_fallbacks(
-    data: LeagueData,
-    matches: list[Any],
-    is_batch: bool,
-) -> tuple[Any, str | None]:
-    """Retry the baseline with progressively looser EPL-style pre-final domains."""
-    from src.baseline_solver import solve_baseline
-    from src.slot_domain import build_domains
-
-    attempts = [
-        ("compact", "compact round windows"),
-        ("epl_relaxed", "extended EPL spillover windows"),
-        ("epl_full", "full EPL spillover tails"),
-    ]
-
-    for attempt_num, (domain_policy, label) in enumerate(attempts, start=1):
-        if not is_batch:
-            print(
-                f"[baseline] Domain policy {attempt_num}/{len(attempts)}: {label}."
-            )
-
-        domains = build_domains(
-            data,
-            matches,
-            non_final_policy=domain_policy,
-        )
-        baseline = solve_baseline(data, matches, domains)
-        _annotate_baseline_status(domain_policy, attempt_num, len(attempts))
-        if baseline is not None:
-            return baseline, domain_policy
-
-        if not is_batch and attempt_num < len(attempts):
-            print(
-                "[baseline] Infeasible under that policy. Retrying with a looser "
-                "EPL-style spillover domain."
-            )
-
-    return None, None
 
 
 def run_pipeline(data: LeagueData, seed: int, is_batch: bool = False) -> Any:
@@ -94,10 +32,10 @@ def run_pipeline(data: LeagueData, seed: int, is_batch: bool = False) -> Any:
         print("=" * 60)
         print("Phase 3: Building slot domains and solving baseline...")
         print("=" * 60)
-    baseline, _domain_policy = _solve_baseline_with_domain_fallbacks(
+    baseline, _domain_policy = solve_baseline_with_domain_fallbacks(
         data,
         matches,
-        is_batch,
+        is_batch=is_batch,
     )
     if baseline is None:
         if not is_batch:

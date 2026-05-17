@@ -44,6 +44,7 @@ from src.constants import (
     MIN_STADIUM_SERVICE_GAP_DAYS,
     NUM_ROUNDS,
     NUM_TEAMS,
+    OTHER_STADIUM_RELIEF_PENALTY,
     OUTPUT_DIR,
     PHASES_DIR,
     PREFERRED_REST_DAYS_CAF,
@@ -51,6 +52,7 @@ from src.constants import (
     SOFT_MAX_MATCHES_PER_WEEK,
     SOFT_MIN_MATCHES_PER_WEEK,
     W_CAF_PREFERRED,
+    W_HOME_VENUE_DISPLACEMENT,
     W_ROUND_ORDER,
     W_TIER_MISMATCH,
     W_TRAVEL,
@@ -95,6 +97,8 @@ PALETTE = {
     "accent": "#75409f",
     "soft": "#ab97ba",
 }
+
+PHASE_POLL_INTERVAL_S = 0.2
 
 
 MODEL_CONTROL_GROUPS = [
@@ -237,7 +241,7 @@ MODEL_CONTROL_GROUPS = [
                 0,
                 14,
                 1,
-                "If positive, non-forced matches may use alt stadiums to give home stadiums rest. Zero keeps the current fixed-venue behavior.",
+                "If positive, non-forced matches may use alternate venues to give home stadiums rest. Zero keeps non-final rounds fixed-venue, but Round 34 still uses the simultaneous-slot fallback logic.",
             ),
         ],
     ),
@@ -262,7 +266,25 @@ MODEL_CONTROL_GROUPS = [
                 1000000,
                 "Base penalty for using alt stadium (scaled by team tier).",
             ),
+            (
+                "OTHER_STADIUM_RELIEF_PENALTY",
+                "Other stadium base weight",
+                OTHER_STADIUM_RELIEF_PENALTY,
+                0,
+                50000000,
+                1000000,
+                "Base penalty for using a non-home, non-alt fallback venue (scaled by team tier).",
+            ),
             ("W_ROUND_ORDER", "Round order weight", W_ROUND_ORDER, 0, 10000, 1, "Chronological round pressure."),
+            (
+                "W_HOME_VENUE_DISPLACEMENT",
+                "Home venue displacement weight",
+                W_HOME_VENUE_DISPLACEMENT,
+                0,
+                1000,
+                1,
+                "Per-kilometer penalty for moving a home team away from its primary stadium.",
+            ),
             (
                 "W_WEEK_UNDERLOAD",
                 "Week underload weight",
@@ -779,7 +801,8 @@ def _run_phase(
     thread = threading.Thread(target=_thread_target)
     thread.start()
 
-    # Main thread loop: yields to handle keepalive pings
+    # Main thread loop: yield often enough to keep timings accurate while
+    # still giving Streamlit regular chances to process websocket traffic.
     last_log_len = 0
     show_logs = st.session_state.get("ui::show_live_logs", False)
     
@@ -795,10 +818,10 @@ def _run_phase(
             except Exception:
                 # Ignore UI update errors if websocket is struggling
                 pass
-        
-        # Aggressive yield for cloud stability (5 seconds)
-        # This keeps the main thread idle most of the time to process pings
-        time.sleep(5.0)
+
+        # A timed join wakes immediately if the worker finishes, so short
+        # phases no longer get rounded up to the full poll interval.
+        thread.join(timeout=PHASE_POLL_INTERVAL_S)
 
     thread.join()
 
@@ -1008,6 +1031,8 @@ def _validation_issue_family(check: object) -> str:
         return "Daily load"
     if normalized in {"VENUE_SLOT_CONFLICT", "STADIUM_SERVICE_GAP"}:
         return "Venue / stadium"
+    if normalized == "FINAL_ROUND_SINGLE_SLOT":
+        return "Final round"
     return "Other"
 
 
@@ -1840,6 +1865,18 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
     row2[3].metric("Unresolved matches", f"{unresolved_count:,}")
     row2[4].metric("Postponed matches", f"{postponed_count:,}")
     row2[5].metric("Rounds > 1 week", f"{round_span_summary['multi_week_rounds']:,}")
+
+    if baseline_status and baseline_status.get("final_round_rescue_attempted"):
+        rescue_outcome = (
+            "used"
+            if baseline_status.get("final_round_rescue_used")
+            else "attempted but still infeasible"
+        )
+        st.caption(
+            "Round 34 rescue "
+            + rescue_outcome
+            + f"; solver mode: {baseline_status.get('solver_mode', 'n/a')}"
+        )
 
     if repair_status and repair_status.get("skipped"):
         st.caption("CAF repair skipped reason: " + str(repair_status.get("reason") or "n/a"))
@@ -3715,8 +3752,8 @@ def main() -> None:
             # We treat "not started" as a complete state with a "(waiting)" label.
             status_load = st.status("Phase 1: Load data (waiting)", state="complete")
             status_fixtures = st.status("Phase 2: Generate fixtures (waiting)", state="complete")
-            status_domain = st.status("Phase 3a: Build domains (waiting)", state="complete")
-            status_baseline = st.status("Phase 3b: Solve baseline (waiting)", state="complete")
+            status_domain = st.status("Phase 3a: Build initial compact domains (waiting)", state="complete")
+            status_baseline = st.status("Phase 3b: Solve baseline with EPL fallback (waiting)", state="complete")
             status_audit = st.status("Phase 4: CAF audit (waiting)", state="complete")
             status_write = st.status("Phase 6: Write outputs (waiting)", state="complete")
 
@@ -3736,7 +3773,7 @@ def main() -> None:
             from src.data_loader import load_data
             from src.fixture_generator import generate_drr
             from src.slot_domain import build_domains
-            from src.baseline_solver import solve_baseline
+            from src.baseline_retry import solve_baseline_with_domain_fallbacks
             from src.caf_audit import caf_audit
             from src.caf_repair_solver import caf_repair, write_repair_skipped_status
             from src.output_writer import (
@@ -3765,17 +3802,23 @@ def main() -> None:
                 st.session_state["stdout_log"] = log_buffer.getvalue()
 
                 domains = _run_phase(
-                    "Phase 3a: Build slot domains",
-                    lambda: build_domains(data, matches),
+                    "Phase 3a: Build initial compact domains",
+                    lambda: build_domains(data, matches, non_final_policy="compact"),
                     status_domain,
                     log_box,
                     log_buffer,
                 )
                 st.session_state["stdout_log"] = log_buffer.getvalue()
 
-                baseline = _run_phase(
-                    "Phase 3b: Solve baseline",
-                    lambda: solve_baseline(data, matches, domains),
+                baseline, domain_policy = _run_phase(
+                    "Phase 3b: Solve baseline with EPL fallback",
+                    lambda: solve_baseline_with_domain_fallbacks(
+                        data,
+                        matches,
+                        is_batch=False,
+                        initial_domains=domains,
+                        initial_policy="compact",
+                    ),
                     status_baseline,
                     log_box,
                     log_buffer,
@@ -3783,9 +3826,21 @@ def main() -> None:
                 st.session_state["stdout_log"] = log_buffer.getvalue()
 
                 if baseline is None:
-                    status_baseline.update(label="Phase 3b: Solve baseline (INFEASIBLE)", state="error")
-                    st.error("Baseline solver returned infeasible. Check `output/phases/06_baseline_solver_status.json`.")
+                    status_baseline.update(
+                        label="Phase 3b: Solve baseline with EPL fallback (INFEASIBLE)",
+                        state="error",
+                    )
+                    st.error(
+                        "Baseline solver returned infeasible after EPL fallback retries. "
+                        "Check `output/phases/06_baseline_solver_status.json`."
+                    )
                     return
+
+                if domain_policy and domain_policy != "compact":
+                    st.info(
+                        f"Baseline solved after falling back to the `{domain_policy}` "
+                        "non-final-round domain policy."
+                    )
 
                 _run_phase(
                     "Write baseline schedule (pre-CAF)",
