@@ -1856,7 +1856,6 @@ def _render_historical_tab() -> None:
     st.info("💡 **Insight:** Your optimizer reduces the historical 'Waste Gap' from ~45 days down to 5 days, effectively saving 10 weeks of the calendar.")
 
 
-@st.cache_data(show_spinner=False)
 def _load_dashboard_subset(keys: List[str]) -> Dict[str, Any]:
     """Helper to load only the required dataframes for a specific tab."""
     full_data = _load_validation_dashboard_inputs()
@@ -3968,6 +3967,10 @@ def main() -> None:
 
                 _run_phase("Phase 6: Write final outputs", _write_all, status_write, log_box, log_buffer)
                 st.session_state["stdout_log"] = log_buffer.getvalue()
+
+                # Clear file-read caches so Validate & Insights picks up fresh data
+                _read_csv_cached.clear()
+                _read_json_cached.clear()
 
                 elapsed = time.time() - t0
                 st.success(
