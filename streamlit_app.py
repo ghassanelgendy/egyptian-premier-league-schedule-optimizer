@@ -1640,13 +1640,14 @@ def _render_validation_dashboard() -> None:
         "Read-only validation dashboard. Data is loaded on-demand for each tab to ensure cloud stability."
     )
 
-    overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab, maintenance_tab, monte_carlo_tab, historical_tab = st.tabs(
+    overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab, travel_tab, maintenance_tab, monte_carlo_tab, historical_tab = st.tabs(
         [
             "Overview",
             "Constraint Compliance",
             "Feasibility & Solver Pressure",
             "CAF & Repair",
             "Fairness & Operational Insights",
+            "Travel Stats",
             "Maintenance & Venues",
             "Monte Carlo Analysis",
             "Historical Comparison",
@@ -1701,6 +1702,14 @@ def _render_validation_dashboard() -> None:
                 ["schedule", "week_round_map", "home_away_patterns", "team_sequence", "team_sequence_validation"]
             )
             _render_fairness_insights(subset)
+        else:
+            st.info("Schedule data not found.")
+
+    with travel_tab:
+        if available["schedule"]:
+            subset = _load_dashboard_subset(["schedule"])
+            data_inputs = _load_inputs_cached()
+            _render_travel_stats(subset["schedule"], data_inputs, "Final schedule")
         else:
             st.info("Schedule data not found.")
 
@@ -3390,8 +3399,8 @@ def _render_explore() -> None:
             )
 
     st.divider()
-    team_tab, h2h_tab, travel_tab, cal_tab, round_tab = st.tabs(
-        ["Team chooser", "Team vs Team", "Travel stats", "Calendar", "Round filter"]
+    team_tab, h2h_tab, cal_tab, round_tab = st.tabs(
+        ["Team chooser", "Team vs Team", "Calendar", "Round filter"]
     )
 
     with round_tab:
@@ -3561,9 +3570,6 @@ def _render_explore() -> None:
                     file_name=f"{schedule_source.lower().replace(' ', '_')}_h2h_{a}_vs_{b}.csv",
                     mime="text/csv",
                 )
-
-    with travel_tab:
-        _render_travel_stats(df_full, data, schedule_source)
 
     with cal_tab:
         st.markdown("### Calendar")
@@ -3855,8 +3861,7 @@ def main() -> None:
             status_fixtures = st.status("Phase 2: Generate fixtures (waiting)", state="complete")
             status_domain = st.status("Phase 3a: Build initial compact domains (waiting)", state="complete")
             status_baseline = st.status("Phase 3b: Solve baseline with EPL fallback (waiting)", state="complete")
-            status_audit = st.status("Phase 4: CAF audit (waiting)", state="complete")
-            status_write = st.status("Phase 6: Write outputs (waiting)", state="complete")
+            status_write = st.status("Phase 4: Write outputs (waiting)", state="complete")
 
         with col_b:
             st.markdown("**Live stdout**")
@@ -3955,7 +3960,7 @@ def main() -> None:
                 accepted, violations = _run_phase(
                     "Phase 4: CAF audit",
                     lambda: caf_audit(baseline, data),
-                    status_audit,
+                    st.status("Phase 4: CAF audit (waiting)", state="complete"),
                     log_box,
                     log_buffer,
                 )
