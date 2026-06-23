@@ -1635,20 +1635,17 @@ def _render_selected_detail_rows(
 
 
 def _render_validation_dashboard() -> None:
-    st.subheader("Validate & Insights")
+    st.subheader("Schedule Insights")
     st.caption(
-        "Read-only validation dashboard. Data is loaded on-demand for each tab to ensure cloud stability."
+        "Key metrics and analysis of the optimized schedule."
     )
 
-    overview_tab, compliance_tab, feasibility_tab, caf_tab, fairness_tab, travel_tab, maintenance_tab, monte_carlo_tab, historical_tab = st.tabs(
+    overview_tab, fairness_tab, travel_tab, maintenance_tab, monte_carlo_tab, historical_tab = st.tabs(
         [
             "Overview",
-            "Constraint Compliance",
-            "Feasibility & Solver Pressure",
-            "CAF & Repair",
-            "Fairness & Operational Insights",
+            "Schedule Fairness",
             "Travel Stats",
-            "Maintenance & Venues",
+            "Stadiums & Venues",
             "Monte Carlo Analysis",
             "Historical Comparison",
         ]
@@ -1658,43 +1655,16 @@ def _render_validation_dashboard() -> None:
     available = {key: os.path.exists(path) for key, path in VALIDATION_DASHBOARD_PATHS.items()}
     
     with overview_tab:
-        if available["schedule"] and available["final_validation"]:
-            # Overview needs specific files
+        if available["schedule"]:
             data_keys = [
                 "schedule",
-                "final_validation",
-                "baseline_solver_status",
-                "repair_solver_status",
                 "week_round_map",
                 "team_sequence",
-                "caf_unresolved",
-                "caf_rescheduled",
             ]
             subset = _load_dashboard_subset(data_keys)
             _render_validation_overview(subset)
         else:
             st.info("Run the pipeline to populate the overview dashboard.")
-
-    with compliance_tab:
-        if available["final_validation"]:
-            subset = _load_dashboard_subset(["final_validation", "team_sequence", "caf_audit"])
-            _render_constraint_compliance(subset)
-        else:
-            st.info("Final validation report not found.")
-
-    with feasibility_tab:
-        if available["baseline_feasible_slots"]:
-            subset = _load_dashboard_subset(["feasible_slots", "baseline_solver_status", "round_windows"])
-            _render_feasibility_pressure(subset)
-        else:
-            st.info("Feasibility data not found.")
-
-    with caf_tab:
-        if available["caf_audit"]:
-            subset = _load_dashboard_subset(["caf_audit", "caf_queue", "caf_rescheduled", "caf_unresolved", "repair_solver_status"])
-            _render_caf_repair_dashboard(subset)
-        else:
-            st.info("CAF audit data not found.")
 
     with fairness_tab:
         if available["schedule"]:
@@ -1728,13 +1698,13 @@ def _render_validation_dashboard() -> None:
 
 
 def _render_maintenance_dashboard(dashboard_data: Dict[str, Any]) -> None:
-    st.header("🏟️ Stadium Maintenance & Venues")
+    st.header("🏟️ Stadiums & Venues")
     schedule = dashboard_data.get("schedule")
     if schedule is None or schedule.empty:
         st.info("No schedule data available.")
         return
 
-    st.markdown("Track venue utilization and maintenance gaps across the season.")
+    st.markdown("Venue utilization and stadium turnaround analysis across the season.")
 
     venue_load = _build_venue_load_summary(schedule)
 
@@ -1761,8 +1731,8 @@ def _render_maintenance_dashboard(dashboard_data: Dict[str, Any]) -> None:
         st.altair_chart(chart, use_container_width=True)
 
     st.divider()
-    st.subheader("Service Gap Violations")
-    st.write(f"Current minimum service gap: **{MIN_STADIUM_SERVICE_GAP_DAYS} days**")
+    st.subheader("Stadium Service Gaps")
+    st.write(f"Configured minimum turnaround between matches at the same venue: **{MIN_STADIUM_SERVICE_GAP_DAYS} days**")
 
     # Calculate gaps
     maint_df = schedule.sort_values(["Venue_Stadium_ID", "_Date"]).copy()
@@ -1775,11 +1745,11 @@ def _render_maintenance_dashboard(dashboard_data: Dict[str, Any]) -> None:
 
     maint_df["Gap_Days"] = maint_df.apply(_calc_gap, axis=1)
 
-    violations = maint_df[maint_df["Gap_Days"] <= MIN_STADIUM_SERVICE_GAP_DAYS].copy()
-    if violations.empty:
-        st.success("No maintenance gap violations found.")
+    tight_turnarounds = maint_df[maint_df["Gap_Days"] <= MIN_STADIUM_SERVICE_GAP_DAYS].copy()
+    if tight_turnarounds.empty:
+        st.success("All venues have adequate rest between matches.")
     else:
-        st.warning(f"Found {len(violations)} match(es) violating the stadium service gap.")
+        st.info(f"{len(tight_turnarounds)} match(es) have a short turnaround at the same venue.")
         display_cols = [
             "Venue_Stadium_ID",
             "Round",
@@ -1789,7 +1759,7 @@ def _render_maintenance_dashboard(dashboard_data: Dict[str, Any]) -> None:
             "Home_Team_ID",
             "Away_Team_ID",
         ]
-        st.dataframe(violations[display_cols], hide_index=True, width="stretch")
+        st.dataframe(tight_turnarounds[display_cols], hide_index=True, width="stretch")
 
 
 def _render_historical_tab() -> None:
@@ -1895,35 +1865,17 @@ def _load_dashboard_subset(keys: List[str]) -> Dict[str, Any]:
 
 
 def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
-    required_keys = [
-        "schedule",
-        "final_validation",
-        "baseline_solver_status",
-        "repair_solver_status",
-        "week_round_map",
-    ]
-    missing = _missing_dashboard_files(dashboard_data["available"], required_keys)
-    if missing:
-        st.info("Overview is partially populated because some artifacts are missing: " + ", ".join(missing))
-
     schedule = dashboard_data["schedule"]
-    validation_df = dashboard_data["final_validation"]
-    baseline_status = dashboard_data["baseline_solver_status"]
-    repair_status = dashboard_data["repair_solver_status"]
-    unresolved_df = dashboard_data["caf_unresolved"]
     rest_gap_summary = _build_rest_gap_summary(dashboard_data["team_sequence"])
     round_span_summary = _build_round_span_summary(dashboard_data["week_round_map"])
     monthly_volume = _build_monthly_match_volume(schedule)
 
-    issue_rows = _validation_issue_rows(validation_df)
-    issue_count = 0 if issue_rows is None else len(issue_rows)
-    postponed_count = 0
     total_matches = 0
     team_count = 0
     round_count = 0
+    active_dates = 0
     season_dates: List[pydate] = []
     if schedule is not None:
-        postponed_count = int(schedule["Postponed"].sum()) if "Postponed" in schedule.columns else 0
         total_matches = len(schedule)
         if "Home_Team_ID" in schedule.columns and "Away_Team_ID" in schedule.columns:
             team_count = int(
@@ -1940,16 +1892,9 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
         if "Round" in schedule.columns:
             round_count = int(pd.to_numeric(schedule["Round"], errors="coerce").dropna().nunique())
         season_dates = sorted(d for d in schedule["_Date"].dropna().tolist() if isinstance(d, pydate))
+        active_dates = int(pd.to_datetime(schedule["_Date"], errors="coerce").dropna().nunique())
     season_start = season_dates[0] if season_dates else None
     season_end = season_dates[-1] if season_dates else None
-    repaired_count = len(dashboard_data["caf_rescheduled"]) if dashboard_data["caf_rescheduled"] is not None else 0
-    unresolved_count = len(unresolved_df) if unresolved_df is not None else 0
-    if validation_df is None:
-        validation_status = "Missing"
-    elif issue_count == 0:
-        validation_status = "PASS"
-    else:
-        validation_status = f"{issue_count} issues"
 
     row1 = st.columns(6)
     row1[0].metric("Total matches", f"{total_matches:,}")
@@ -1957,92 +1902,61 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
     row1[2].metric("Rounds", f"{round_count:,}")
     row1[3].metric("Season start", season_start.isoformat() if season_start else "n/a")
     row1[4].metric("Season end", season_end.isoformat() if season_end else "n/a")
-    row1[5].metric("Validation", validation_status)
+    row1[5].metric("Active match days", f"{active_dates:,}")
 
-    row2 = st.columns(6)
-    row2[0].metric("Baseline solver", _solver_status_label(baseline_status), _format_wall_time(baseline_status))
-    row2[1].metric("CAF repair", _solver_status_label(repair_status), _format_wall_time(repair_status))
-    row2[2].metric("Repaired matches", f"{repaired_count:,}")
-    row2[3].metric("Unresolved matches", f"{unresolved_count:,}")
-    row2[4].metric("Postponed matches", f"{postponed_count:,}")
-    row2[5].metric("Rounds > 1 week", f"{round_span_summary['multi_week_rounds']:,}")
-
-    if baseline_status and baseline_status.get("final_round_rescue_attempted"):
-        rescue_outcome = (
-            "used"
-            if baseline_status.get("final_round_rescue_used")
-            else "attempted but still infeasible"
-        )
-        st.caption(
-            "Round 34 rescue "
-            + rescue_outcome
-            + f"; solver mode: {baseline_status.get('solver_mode', 'n/a')}"
-        )
-
-    if repair_status and repair_status.get("skipped"):
-        st.caption("CAF repair skipped reason: " + str(repair_status.get("reason") or "n/a"))
+    row2 = st.columns(4)
+    row2[0].metric(
+        "Min rest gap",
+        "n/a" if rest_gap_summary["min_gap"] is None else f"{int(rest_gap_summary['min_gap'])} days",
+    )
+    row2[1].metric(
+        "Median rest gap",
+        "n/a" if rest_gap_summary["median_gap"] is None else f"{rest_gap_summary['median_gap']:.1f} days",
+    )
+    row2[2].metric(
+        "Max rest gap",
+        "n/a" if rest_gap_summary["max_gap"] is None else f"{int(rest_gap_summary['max_gap'])} days",
+    )
+    row2[3].metric(
+        "Rounds spanning 1 / 2 / 3+ weeks",
+        f"{round_span_summary['one_week_rounds']} / {round_span_summary['two_week_rounds']} / {round_span_summary['three_plus_rounds']}",
+    )
 
     st.divider()
-    chart_col, badge_col = st.columns([1.4, 1.0])
-    with chart_col:
-        st.markdown("**Season timeline density by month**")
-        if monthly_volume.empty:
-            st.info("No schedule dates were available for monthly density.")
-        else:
-            selected_months = _render_clickable_bar_chart(
-                monthly_volume,
-                x_field="Month",
-                y_field="Matches",
-                key="validation_overview_monthly_volume",
-                x_title="Month",
-                y_title="Matches",
-                tooltip_fields=["Month", "Matches"],
-                height=280,
-            )
-            if schedule is not None:
-                month_detail = schedule.copy()
-                month_detail["Month"] = pd.to_datetime(month_detail["_Date"], errors="coerce").dt.to_period("M").astype(str)
-                _render_selected_detail_rows(
-                    month_detail,
-                    filter_field="Month",
-                    selected_values=selected_months,
-                    empty_message="Click a month bar to see the exact scheduled matches in that month.",
-                    detail_name="Monthly schedule details",
-                    display_columns=[
-                        "Month",
-                        "Round",
-                        "Date",
-                        "Date_time",
-                        "Home_Team_ID",
-                        "Away_Team_ID",
-                        "Venue_Stadium_ID",
-                        "Postponed",
-                    ],
-                    height=220,
-                )
-
-    with badge_col:
-        st.markdown("**Validation badge table**")
-        badge_rows = _build_validation_badge_rows(validation_df, unresolved_count)
-        st.dataframe(badge_rows, width="stretch", hide_index=True)
-
-    if validation_df is None:
-        st.warning("Final validation report is missing, so hard-rule status cannot be confirmed here.")
-    elif issue_count == 0:
-        signals: List[str] = []
-        max_gap = rest_gap_summary["max_gap"]
-        if max_gap is not None and max_gap >= 14:
-            signals.append(f"longest team rest gap is {int(max_gap)} days")
-        if round_span_summary["multi_week_rounds"] > 0:
-            signals.append(
-                f"{round_span_summary['multi_week_rounds']} rounds span more than one week"
-            )
-        if signals:
-            st.info("Validation is clean, but the calendar still shows pressure: " + "; ".join(signals) + ".")
-        else:
-            st.success("Validation is clean and no major pressure signals surfaced in the overview.")
+    st.markdown("**Season timeline — matches per month**")
+    if monthly_volume.empty:
+        st.info("No schedule dates were available for monthly density.")
     else:
-        st.warning(f"Validation report contains {issue_count} finding(s). Use the compliance tab for detail.")
+        selected_months = _render_clickable_bar_chart(
+            monthly_volume,
+            x_field="Month",
+            y_field="Matches",
+            key="validation_overview_monthly_volume",
+            x_title="Month",
+            y_title="Matches",
+            tooltip_fields=["Month", "Matches"],
+            height=320,
+        )
+        if schedule is not None:
+            month_detail = schedule.copy()
+            month_detail["Month"] = pd.to_datetime(month_detail["_Date"], errors="coerce").dt.to_period("M").astype(str)
+            _render_selected_detail_rows(
+                month_detail,
+                filter_field="Month",
+                selected_values=selected_months,
+                empty_message="Click a month bar to see the scheduled matches in that month.",
+                detail_name="Monthly schedule details",
+                display_columns=[
+                    "Month",
+                    "Round",
+                    "Date",
+                    "Date_time",
+                    "Home_Team_ID",
+                    "Away_Team_ID",
+                    "Venue_Stadium_ID",
+                ],
+                height=260,
+            )
 
 
 def _render_constraint_compliance(dashboard_data: Dict[str, Any]) -> None:
@@ -2689,9 +2603,9 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
     travel_stats = None if schedule is None else _build_travel_stats(schedule, None)
     home_away_patterns = dashboard_data["home_away_patterns"]
 
-    st.info("These are optimization-quality signals, not hard-rule validation failures.")
+
     if schedule is None:
-        st.warning("Schedule-based fairness metrics are unavailable until `output/optimized_schedule.csv` exists.")
+        st.info("Schedule data is not yet available.")
 
     travel_range = None
     if travel_stats is not None and not travel_stats.empty:
@@ -2911,7 +2825,6 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                     "Away_Count",
                     "Max_Home_Streak",
                     "Max_Away_Streak",
-                    "Rolling5_Balance_Violations",
                 ]
                 if col in home_away_patterns.columns
             ]
@@ -3846,7 +3759,7 @@ def main() -> None:
         st.markdown("**Tip**: If you only want to browse outputs, don’t run — just use the tabs.")
 
     tab_explore, tab_run, tab_validate, tab_artifacts, tab_browse = st.tabs(
-        ["Explore", "Run & progress", "Validate & Insights", "Artifacts", "Browse files"]
+        ["Explore", "Run & progress", "Insights", "Artifacts", "Browse files"]
     )
 
     with tab_run:
