@@ -1566,6 +1566,7 @@ def _render_clickable_bar_chart(
     sort: Any = None,
     tooltip_fields: Optional[List[str]] = None,
     height: int = 320,
+    show_tips: bool = True,
 ) -> List[str]:
     if chart_df.empty:
         return []
@@ -1600,7 +1601,8 @@ def _render_clickable_bar_chart(
         on_select="rerun",
         selection_mode=selection_name,
     )
-    st.caption("Click a bar to inspect the underlying rows. Shift-click keeps multiple selections.")
+    if show_tips:
+        st.caption("Click a bar to inspect the underlying rows. Shift-click keeps multiple selections.")
     return _selected_values_from_altair_event(
         event,
         selection_name=selection_name,
@@ -1617,15 +1619,18 @@ def _render_selected_detail_rows(
     detail_name: str,
     display_columns: Optional[List[str]] = None,
     height: int = 260,
+    show_tips: bool = True,
 ) -> None:
     if not selected_values:
-        st.caption(empty_message)
+        if show_tips and empty_message:
+            st.caption(empty_message)
         return
 
     filtered = detail_df.loc[detail_df[filter_field].astype(str).isin(selected_values)].copy()
-    st.caption(
-        f"{detail_name}: showing {len(filtered)} row(s) for selection {', '.join(selected_values[:6])}."
-    )
+    if show_tips:
+        st.caption(
+            f"{detail_name}: showing {len(filtered)} row(s) for selection {', '.join(selected_values[:6])}."
+        )
     if filtered.empty:
         st.info("No source rows matched the current chart selection.")
         return
@@ -1839,10 +1844,10 @@ def _render_historical_tab() -> None:
         st.markdown("*Max Consecutive Home or Away Games*")
         st.bar_chart(h_df, x="Season", y="HA Streak", color="#FF3366")
         
-    st.subheader("Full Historical Audit Trail")
-    # Rename for clarity in the final table if desired, or just show Avg Travel
-    display_df = h_df.drop(columns=["Total Travel"], errors="ignore")
-    st.dataframe(display_df, width="stretch", hide_index=True)
+    with st.expander("Show full historical audit trail table"):
+        # Rename for clarity in the final table if desired, or just show Avg Travel
+        display_df = h_df.drop(columns=["Total Travel"], errors="ignore")
+        st.dataframe(display_df, width="stretch", hide_index=True)
     
     with st.expander("🔬 Methodology & Assumptions"):
         st.markdown("""
@@ -1936,6 +1941,7 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
             y_title="Matches",
             tooltip_fields=["Month", "Matches"],
             height=320,
+            show_tips=False,
         )
         if schedule is not None:
             month_detail = schedule.copy()
@@ -1944,7 +1950,7 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
                 month_detail,
                 filter_field="Month",
                 selected_values=selected_months,
-                empty_message="Click a month bar to see the scheduled matches in that month.",
+                empty_message="",
                 detail_name="Monthly schedule details",
                 display_columns=[
                     "Month",
@@ -1956,6 +1962,7 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
                     "Venue_Stadium_ID",
                 ],
                 height=260,
+                show_tips=False,
             )
 
 
@@ -2647,12 +2654,6 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                 sort="-y",
                 height=300,
             )
-            st.dataframe(
-                travel_stats[["Team_ID", "Total_km", "Away_trips", "Avg_km_per_away_trip", "Longest_trip_km"]],
-                width="stretch",
-                hide_index=True,
-                height=280,
-            )
             if schedule is not None:
                 away_detail = schedule.copy()
                 _render_selected_detail_rows(
@@ -2689,9 +2690,6 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                 sort="-y",
                 height=300,
             )
-            venue_table = venue_load.copy()
-            venue_table["Share"] = venue_table["Share"].map(lambda value: _format_pct(float(value)))
-            st.dataframe(venue_table, width="stretch", hide_index=True, height=280)
             if schedule is not None:
                 _render_selected_detail_rows(
                     schedule,
@@ -2732,7 +2730,6 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                 sort=alt.SortField(field="Round", order="ascending"),
                 height=300,
             )
-            st.dataframe(round_span_summary["details"], width="stretch", hide_index=True, height=280)
             round_schedule_detail = round_span_detail.copy()
             if schedule is not None:
                 round_matches = schedule.copy()
@@ -2777,7 +2774,6 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                 tooltip_fields=["Month", "Matches"],
                 height=300,
             )
-            st.dataframe(monthly_volume, width="stretch", hide_index=True, height=280)
             if schedule is not None:
                 month_detail = schedule.copy()
                 month_detail["Month"] = pd.to_datetime(month_detail["_Date"], errors="coerce").dt.to_period("M").astype(str)
@@ -3228,25 +3224,26 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
     display_stats = stats.copy()
     display_stats["Icon"] = display_stats["Team_ID"].apply(lambda tid: _team_icon_data_uri(str(tid)))
 
-    st.dataframe(
-        display_stats[
-            [
-                "Team_ID",
-                "Icon",
-                "Team",
-                "Total_km",
-                "Away_trips",
-                "Avg_km_per_away_trip",
-                "Longest_trip_km",
-            ]
-        ],
-        width="stretch",
-        hide_index=True,
-        height=520,
-        column_config={
-            "Icon": st.column_config.ImageColumn("Club", width="small"),
-        },
-    )
+    with st.expander("Show detailed travel stats table"):
+        st.dataframe(
+            display_stats[
+                [
+                    "Team_ID",
+                    "Icon",
+                    "Team",
+                    "Total_km",
+                    "Away_trips",
+                    "Avg_km_per_away_trip",
+                    "Longest_trip_km",
+                ]
+            ],
+            width="stretch",
+            hide_index=True,
+            height=400,
+            column_config={
+                "Icon": st.column_config.ImageColumn("Club", width="small"),
+            },
+        )
 
     csv_bytes = stats.to_csv(index=False).encode("utf-8")
     st.download_button(
@@ -3717,9 +3714,6 @@ def _render_monte_carlo_tab() -> None:
     st.markdown("**Travel km distribution**")
     st.bar_chart(df.set_index("seed")["total_travel_km"], color=PALETTE["muted"], width="stretch")
 
-    st.divider()
-    st.markdown("**Raw run data**")
-    st.dataframe(df, width="stretch", hide_index=True)
 
 
 def main() -> None:
