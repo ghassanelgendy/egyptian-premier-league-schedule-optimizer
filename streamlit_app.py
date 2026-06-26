@@ -750,6 +750,97 @@ input, textarea, [data-baseweb="select"] > div, [data-baseweb="input"] > div {{
   background: {PALETTE["surface"]};
   border: 1px solid rgba(210, 202, 217, 0.24);
 }}
+
+.match-card {{
+  background: rgba(104, 35, 158, 0.18);
+  border: 1px solid #8f67ad;
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+  word-break: break-word;
+}}
+.match-card:hover {{
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(104, 35, 158, 0.3);
+}}
+.match-card-meta {{
+  color: #ab97ba;
+  font-size: 0.8rem;
+  margin-bottom: 10px;
+}}
+.match-card-teams {{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 14px 0;
+}}
+.match-card-vs {{
+  color: #d2cad9;
+  font-weight: 800;
+  font-size: 1.1rem;
+}}
+.match-card-venue {{
+  color: #ab97ba;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}}
+/* Compact calendar variant */
+.match-card.cal-compact {{
+  padding: 6px 4px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}}
+.match-card.cal-compact .match-card-meta {{
+  font-size: 0.62rem;
+  margin-bottom: 4px;
+}}
+.match-card.cal-compact .match-card-teams {{
+  gap: 4px;
+  margin: 4px 0;
+}}
+.match-card.cal-compact .match-card-vs {{
+  font-size: 0.65rem;
+}}
+.match-card.cal-compact .match-card-venue {{
+  font-size: 0.58rem;
+}}
+.cal-day-hdr {{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}}
+.cal-badge {{
+  display: inline-block;
+  background: rgba(210, 202, 217, 0.18);
+  color: #f8f9f7;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 5px;
+  border-radius: 6px;
+  margin-left: 3px;
+}}
+.cal-badge-fifa {{ background: #8f67ad; }}
+.cal-badge-caf {{ background: #68239e; }}
+.cal-empty {{
+  color: #ab97ba;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  margin-top: 4px;
+}}
+.cal-weekday-hdr {{
+  color: #ab97ba;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  padding-bottom: 6px;
+}}
 </style>
 """,
         unsafe_allow_html=True,
@@ -3254,6 +3345,153 @@ def _render_travel_stats(df_full: pd.DataFrame, data: Any, schedule_source: str)
     )
 
 
+
+def _serialize_match_for_dialog(row) -> dict:
+    """Convert a DataFrame row to a JSON-serializable dict for the match detail dialog."""
+    d = row.to_dict() if hasattr(row, "to_dict") else dict(row)
+    result = {}
+    for k, v in d.items():
+        if k.startswith("_") and k not in ("_Date", "_Day_Name"):
+            continue
+        if isinstance(v, pydate):
+            result[k] = str(v)
+        elif hasattr(pd, "Timestamp") and isinstance(v, pd.Timestamp):
+            result[k] = str(v)
+        elif isinstance(v, (np.integer,)):
+            result[k] = int(v)
+        elif isinstance(v, (np.floating,)):
+            result[k] = float(v) if not np.isnan(v) else None
+        elif isinstance(v, (np.bool_,)):
+            result[k] = bool(v)
+        elif isinstance(v, float) and pd.isna(v):
+            result[k] = None
+        else:
+            result[k] = v
+    return result
+
+
+@st.dialog("Match Details", width="large")
+def _show_match_detail_dialog():
+    """Display full match details in a modal dialog."""
+    match = st.session_state.get("_detail_match_data")
+    if not match:
+        st.warning("No match data available.")
+        return
+
+    home_id = str(match.get("Home_Team_ID") or "TBD")
+    away_id = str(match.get("Away_Team_ID") or "TBD")
+
+    col_home, col_vs, col_away = st.columns([1, 0.3, 1])
+    with col_home:
+        _render_team_logo(home_id)
+        st.markdown(f"**{home_id}** (Home)")
+    with col_vs:
+        st.markdown(
+            "<div style='text-align:center;font-size:1.5rem;font-weight:800;"
+            "padding-top:30px;color:#d2cad9;'>vs</div>",
+            unsafe_allow_html=True,
+        )
+    with col_away:
+        _render_team_logo(away_id)
+        st.markdown(f"**{away_id}** (Away)")
+
+    st.divider()
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Round", match.get("Round", "N/A"))
+        st.metric("Date", match.get("Date", "N/A"))
+    with c2:
+        time_str = ""
+        dt_val = match.get("Date_time", "")
+        if dt_val:
+            parsed_dt = pd.to_datetime(dt_val, errors="coerce")
+            if pd.notna(parsed_dt):
+                time_str = parsed_dt.strftime("%H:%M")
+        st.metric("Kickoff", time_str or "N/A")
+        day_name = match.get("_Day_Name") or ""
+        if not day_name and match.get("Date"):
+            try:
+                day_name = pd.to_datetime(match["Date"]).strftime("%A")
+            except Exception:
+                pass
+        st.metric("Day", day_name or "N/A")
+    with c3:
+        st.metric("Venue", match.get("Venue_Stadium_ID", "N/A"))
+        travel = match.get("Travel_km")
+        travel_str = f"{float(travel):,.1f} km" if travel is not None else "N/A"
+        st.metric("Away Travel", travel_str)
+
+    st.divider()
+
+    d1, d2, d3, d4 = st.columns(4)
+    with d1:
+        st.metric("Slot Tier", match.get("Slot_tier", "N/A"))
+    with d2:
+        st.metric("Match Tier", match.get("Match_Tier", "N/A"))
+    with d3:
+        st.metric("Home Tier", match.get("Home_Tier") or "N/A")
+    with d4:
+        st.metric("Away Tier", match.get("Away_Tier") or "N/A")
+
+    cal_week = match.get("Calendar_Week_Num")
+    if cal_week is not None:
+        st.caption(f"Calendar Week: {cal_week}")
+
+    flags: list = []
+    is_fifa = match.get("Is_FIFA")
+    if is_fifa and str(is_fifa).strip().lower() not in ("false", "0", "", "none"):
+        flags.append("\u26bd FIFA Date")
+    is_caf = match.get("Is_CAF")
+    if is_caf and str(is_caf).strip().lower() not in ("false", "0", "", "none"):
+        flags.append("\U0001f3c6 CAF Date")
+    is_postponed = match.get("Postponed")
+    if is_postponed and str(is_postponed).strip().lower() not in ("false", "0", "", "none"):
+        reason = match.get("Postponement_Reason") or match.get("Postponement_Status") or ""
+        flags.append("\u23f3 Postponed" + (f" \u2014 {reason}" if reason else ""))
+    if flags:
+        st.divider()
+        for f in flags:
+            st.info(f)
+
+
+
+def _empty_day_reason(
+    pick,
+    load_inputs=False,
+    fifa_dates=None,
+    slot_dates=None,
+    slots_on_date_count=None,
+    caf_by_date=None,
+    selected_round=None,
+    all_schedule_counts=None,
+) -> str:
+    """Determine why a specific calendar day has no matches."""
+    fifa_dates = fifa_dates or set()
+    slot_dates = slot_dates or set()
+    slots_on_date_count = slots_on_date_count or {}
+    caf_by_date = caf_by_date or {}
+    all_schedule_counts = all_schedule_counts or {}
+
+    reasons = []
+    if load_inputs:
+        if pick in fifa_dates:
+            reasons.append("FIFA day")
+        if pick in caf_by_date:
+            reasons.append(f"CAF block: {', '.join(caf_by_date[pick][:2])}")
+        if slot_dates and pick not in slot_dates:
+            reasons.append("Outside slot universe")
+        if slot_dates and pick in slot_dates:
+            reasons.append(f"{int(slots_on_date_count.get(pick, 0))} slots available but unused")
+    
+    if selected_round is not None and int(all_schedule_counts.get(pick, 0)) > 0:
+        reasons.append(f"Matches exist, but not for Round {selected_round}")
+    
+    if not reasons:
+        reasons.append("No matches scheduled")
+        
+    return " \u2022 ".join(reasons)
+
 def _render_explore() -> None:
     st.subheader("Explore")
     st.caption(
@@ -3261,13 +3499,16 @@ def _render_explore() -> None:
         "`data/expanded_calendar.xlsx` for FIFA/slot context)."
     )
 
-    left, middle, right = st.columns([1, 1, 1])
+    left, right = st.columns([1, 1])
     with left:
         schedule_source = st.selectbox(
             "Schedule source",
             ["Final schedule", "Baseline (pre-CAF)", "Repaired matches"],
             index=0,
         )
+    with right:
+        load_inputs = st.toggle("Load authoritative inputs for explanations", value=True)
+
     df_full = _read_schedule(schedule_source)
     if df_full is None:
         st.warning(
@@ -3276,25 +3517,13 @@ def _render_explore() -> None:
         )
         return
 
-    round_options = _round_filter_options(df_full)
-    round_labels = [label for label, _ in round_options]
-    with middle:
-        round_label = st.selectbox("Round filter", round_labels, index=0)
-        selected_round = dict(round_options)[round_label]
-    with right:
-        load_inputs = st.toggle("Load authoritative inputs for explanations", value=True)
-
-    df = _filter_by_round(df_full, selected_round)
-    if selected_round is not None and "Round" not in df_full.columns:
-        st.warning("This schedule source has no `Round` column, so the round filter cannot be applied.")
-
-    st.caption(f"Showing {len(df)} of {len(df_full)} match rows from {schedule_source}.")
+    st.caption(f"Showing {len(df_full)} match rows from {schedule_source}.")
 
     data = None
-    fifa_dates = set()
-    slot_dates = set()
+    fifa_dates: set = set()
+    slot_dates: set = set()
     slots_on_date_count: Dict[pydate, int] = {}
-    unique_caf_dates = set()
+    unique_caf_dates: set = set()
     caf_by_date: Dict[pydate, List[str]] = {}
 
     if load_inputs:
@@ -3309,47 +3538,18 @@ def _render_explore() -> None:
             )
 
     st.divider()
-    team_tab, h2h_tab, cal_tab, round_tab = st.tabs(
-        ["Team chooser", "Team vs Team", "Calendar", "Round filter"]
+    team_tab, h2h_tab, cal_tab = st.tabs(
+        ["Team chooser", "Head\u2011to\u2011Head", "Calendar"]
     )
 
-    with round_tab:
-        st.markdown("### Round filter")
-        if selected_round is None:
-            st.caption("Pick a round above to isolate one of the 34 rounds.")
-            if "Round" in df_full.columns:
-                parsed = pd.to_numeric(df_full["Round"], errors="coerce")
-                round_counts = (
-                    df_full.assign(_Round_Num=parsed)
-                    .dropna(subset=["_Round_Num"])
-                    .groupby("_Round_Num")
-                    .size()
-                    .reset_index(name="Matches")
-                )
-                round_counts["_Round_Num"] = round_counts["_Round_Num"].astype(int)
-                round_counts.rename(columns={"_Round_Num": "Round"}, inplace=True)
-                st.dataframe(round_counts, width="stretch", hide_index=True, height=420)
-        elif df.empty:
-            st.warning(f"No matches found for Round {selected_round} in {schedule_source}.")
-        else:
-            sort_cols = [c for c in ["_Date", "Date_time"] if c in df.columns]
-            round_matches = (df.sort_values(by=sort_cols, na_position="last") if sort_cols else df).copy()
-            if "_Day_Name" in round_matches.columns:
-                round_matches.insert(0, "Day_Name", round_matches["_Day_Name"])
-            st.write(f"**Round {selected_round}**: {len(round_matches)} match(es)")
-            st.dataframe(
-                round_matches.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in round_matches.columns]),
-                width="stretch",
-                height=520,
-            )
-
+    # ── Team chooser ────────────────────────────────────────────
     with team_tab:
         st.markdown("### Team chooser")
 
         teams_df = None
         if data is not None:
             teams_df = data.teams.copy()
-            teams_df["label"] = teams_df["Team_ID"].astype(str) + " — " + teams_df["Team_Name"].astype(str)
+            teams_df["label"] = teams_df["Team_ID"].astype(str) + " \u2014 " + teams_df["Team_Name"].astype(str)
             options = teams_df["label"].tolist()
             label_to_id = dict(zip(options, teams_df["Team_ID"].tolist()))
             default_label = options[0] if options else None
@@ -3357,10 +3557,9 @@ def _render_explore() -> None:
             chosen_team = label_to_id.get(chosen_label, "")
             chosen_caption = chosen_label or str(chosen_team)
         else:
-            # Fallback to IDs seen in schedule only
             ids = sorted(
-                set(df.get("Home_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
-                | set(df.get("Away_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
+                set(df_full.get("Home_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
+                | set(df_full.get("Away_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
             )
             chosen_team = st.selectbox("Pick a team (ID)", options=ids, index=0 if ids else None)
             chosen_caption = str(chosen_team or "")
@@ -3369,74 +3568,129 @@ def _render_explore() -> None:
         with logo_col:
             _render_team_logo(chosen_team, chosen_caption)
 
-        c1, c2, c3 = st.columns([1, 1, 1])
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
         with c1:
             include_home = st.toggle("Include home", value=True)
         with c2:
             include_away = st.toggle("Include away", value=True)
         with c3:
             sort_by = st.selectbox("Sort by", ["Date", "Round"], index=0)
+        with c4:
+            tc_round_options = _round_filter_options(df_full)
+            tc_round_labels = [lbl for lbl, _ in tc_round_options]
+            tc_round_label = st.selectbox("Round", tc_round_labels, index=0, key="team_chooser_round")
+            tc_selected_round = dict(tc_round_options)[tc_round_label]
 
-        mask = pd.Series([False] * len(df))
-        if include_home and "Home_Team_ID" in df.columns:
-            mask = mask | (df["Home_Team_ID"].astype(str) == str(chosen_team))
-        if include_away and "Away_Team_ID" in df.columns:
-            mask = mask | (df["Away_Team_ID"].astype(str) == str(chosen_team))
-        team_matches = df.loc[mask].copy()
+        df_team = _filter_by_round(df_full, tc_selected_round)
+
+        mask = pd.Series([False] * len(df_team), index=df_team.index)
+        if include_home and "Home_Team_ID" in df_team.columns:
+            mask = mask | (df_team["Home_Team_ID"].astype(str) == str(chosen_team))
+        if include_away and "Away_Team_ID" in df_team.columns:
+            mask = mask | (df_team["Away_Team_ID"].astype(str) == str(chosen_team))
+        team_matches = df_team.loc[mask].copy()
 
         if sort_by == "Date":
             team_matches = team_matches.sort_values(by=["_Date"], na_position="last")
-        else:
-            if "Round" in team_matches.columns:
-                team_matches = team_matches.sort_values(by=["Round"], na_position="last")
-
-        # Ensure day name is visible in the per-team table
-        if "_Day_Name" in team_matches.columns:
-            team_matches.insert(
-                0,
-                "Day_Name",
-                team_matches["_Day_Name"],
-            )
+        elif "Round" in team_matches.columns:
+            team_matches = team_matches.sort_values(by=["Round"], na_position="last")
 
         st.write(f"**Matches for team `{chosen_team}`**: {len(team_matches)}")
-        st.dataframe(team_matches.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in team_matches.columns]),
-                     width="stretch", height=520)
 
-        csv_bytes = team_matches.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in team_matches.columns]).to_csv(index=False).encode("utf-8")
+        if not team_matches.empty:
+            display_df = team_matches.copy().reset_index(drop=True)
+            display_df["Home_Logo"] = display_df["Home_Team_ID"].apply(
+                lambda t: _team_icon_data_uri(str(t).strip().upper())
+            )
+            display_df["Away_Logo"] = display_df["Away_Team_ID"].apply(
+                lambda t: _team_icon_data_uri(str(t).strip().upper())
+            )
+            display_df["Time"] = pd.to_datetime(
+                display_df.get("Date_time", pd.Series(dtype=str)), errors="coerce"
+            ).dt.strftime("%H:%M").fillna("")
+            display_df["Day"] = display_df.get("_Day_Name", pd.Series("", index=display_df.index))
+
+            show_cols = [
+                "Round", "Date", "Day", "Time",
+                "Home_Logo", "Home_Team_ID",
+                "Away_Logo", "Away_Team_ID",
+                "Venue_Stadium_ID",
+            ]
+            if "Slot_tier" in display_df.columns:
+                show_cols.append("Slot_tier")
+            show_cols = [c for c in show_cols if c in display_df.columns]
+
+            st.caption("Click a row to view full match details.")
+            event = st.dataframe(
+                display_df[show_cols],
+                column_config={
+                    "Home_Logo": st.column_config.ImageColumn("\U0001f3e0", width="small"),
+                    "Away_Logo": st.column_config.ImageColumn("\u2708\ufe0f", width="small"),
+                    "Home_Team_ID": st.column_config.TextColumn("Home"),
+                    "Away_Team_ID": st.column_config.TextColumn("Away"),
+                    "Venue_Stadium_ID": st.column_config.TextColumn("Venue"),
+                },
+                on_select="rerun",
+                selection_mode="single-row",
+                hide_index=True,
+                use_container_width=True,
+                height=520,
+                key="team_chooser_table",
+            )
+
+            if event.selection.rows:
+                idx = event.selection.rows[0]
+                st.session_state["_detail_match_data"] = _serialize_match_for_dialog(
+                    team_matches.iloc[idx]
+                )
+                _show_match_detail_dialog()
+        else:
+            st.info("No matches found for this team with the current filters.")
+
+        export_df = team_matches.drop(
+            columns=[c for c in ["_Date", "_Day_Name", "_DateTime"] if c in team_matches.columns],
+            errors="ignore",
+        )
+        csv_bytes = export_df.to_csv(index=False).encode("utf-8")
         st.download_button(
             label="Download filtered matches (CSV)",
             data=csv_bytes,
             file_name=f"{schedule_source.lower().replace(' ', '_')}_{chosen_team}_matches.csv",
             mime="text/csv",
+            key="team_chooser_download",
         )
 
+    # ── Head-to-Head ────────────────────────────────────────────
     with h2h_tab:
-        st.markdown("### Team vs Team")
+        st.markdown("### Head\u2011to\u2011Head")
         st.caption("Shows all matches between two chosen teams (both directions).")
 
         if data is not None:
-            teams_df = data.teams.copy()
-            teams_df["label"] = teams_df["Team_ID"].astype(str) + " — " + teams_df["Team_Name"].astype(str)
-            options = teams_df["label"].tolist()
-            label_to_id = dict(zip(options, teams_df["Team_ID"].tolist()))
-
-            col1, col2 = st.columns(2)
-            with col1:
-                a_label = st.selectbox("Team A", options=options, index=0, key="h2h_team_a")
-            with col2:
-                b_label = st.selectbox("Team B", options=options, index=1 if len(options) > 1 else 0, key="h2h_team_b")
-            team_a = label_to_id.get(a_label, "")
-            team_b = label_to_id.get(b_label, "")
+            h2h_teams_df = data.teams.copy()
+            h2h_teams_df["label"] = h2h_teams_df["Team_ID"].astype(str) + " \u2014 " + h2h_teams_df["Team_Name"].astype(str)
+            h2h_options = h2h_teams_df["label"].tolist()
+            h2h_label_to_id = dict(zip(h2h_options, h2h_teams_df["Team_ID"].tolist()))
+            h2h_col1, h2h_col2 = st.columns(2)
+            with h2h_col1:
+                a_label = st.selectbox("Team A", options=h2h_options, index=0, key="h2h_team_a")
+            with h2h_col2:
+                b_label = st.selectbox(
+                    "Team B", options=h2h_options,
+                    index=1 if len(h2h_options) > 1 else 0,
+                    key="h2h_team_b",
+                )
+            team_a = h2h_label_to_id.get(a_label, "")
+            team_b = h2h_label_to_id.get(b_label, "")
         else:
-            ids = sorted(
-                set(df.get("Home_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
-                | set(df.get("Away_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
+            h2h_ids = sorted(
+                set(df_full.get("Home_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
+                | set(df_full.get("Away_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
             )
-            col1, col2 = st.columns(2)
-            with col1:
-                team_a = st.selectbox("Team A (ID)", options=ids, index=0 if ids else None, key="h2h_team_a_fallback")
-            with col2:
-                team_b = st.selectbox("Team B (ID)", options=ids, index=1 if len(ids) > 1 else 0, key="h2h_team_b_fallback")
+            h2h_col1, h2h_col2 = st.columns(2)
+            with h2h_col1:
+                team_a = st.selectbox("Team A (ID)", options=h2h_ids, index=0 if h2h_ids else None, key="h2h_team_a_fb")
+            with h2h_col2:
+                team_b = st.selectbox("Team B (ID)", options=h2h_ids, index=1 if len(h2h_ids) > 1 else 0, key="h2h_team_b_fb")
 
         badge_a, badge_b = st.columns(2)
         with badge_a:
@@ -3448,245 +3702,375 @@ def _render_explore() -> None:
             st.info("Pick two teams to view head-to-head matches.")
         elif str(team_a) == str(team_b):
             st.warning("Pick two different teams.")
+        elif "Home_Team_ID" not in df_full.columns or "Away_Team_ID" not in df_full.columns:
+            st.error("This schedule file is missing `Home_Team_ID` / `Away_Team_ID` columns.")
         else:
-            # Match either direction:
-            # (A home vs B away) OR (B home vs A away)
-            if "Home_Team_ID" not in df.columns or "Away_Team_ID" not in df.columns:
-                st.error("This schedule file is missing `Home_Team_ID` / `Away_Team_ID` columns.")
+            a = str(team_a)
+            b = str(team_b)
+            h2h_mask = (
+                ((df_full["Home_Team_ID"].astype(str) == a) & (df_full["Away_Team_ID"].astype(str) == b))
+                | ((df_full["Home_Team_ID"].astype(str) == b) & (df_full["Away_Team_ID"].astype(str) == a))
+            )
+            h2h = df_full.loc[h2h_mask].copy()
+            h2h = h2h.sort_values(by=["_Date"], na_position="last")
+
+            st.write(f"**Head\u2011to\u2011head `{a}` vs `{b}`**: {len(h2h)} match(es)")
+
+            if not h2h.empty:
+                h2h_reset = h2h.reset_index(drop=True)
+                card_cols = st.columns(min(len(h2h_reset), 4))
+                for i_card, (_, h2h_row) in enumerate(h2h_reset.iterrows()):
+                    with card_cols[i_card % len(card_cols)]:
+                        _home = str(h2h_row.get("Home_Team_ID", "TBD"))
+                        _away = str(h2h_row.get("Away_Team_ID", "TBD"))
+                        _round = h2h_row.get("Round", "")
+                        _date = str(h2h_row.get("Date", ""))
+                        _venue = str(h2h_row.get("Venue_Stadium_ID", ""))
+                        _time = ""
+                        _dt = h2h_row.get("Date_time")
+                        try:
+                            _parsed = pd.to_datetime(_dt, errors="coerce")
+                            if pd.notna(_parsed):
+                                _time = _parsed.strftime("%H:%M")
+                        except Exception:
+                            pass
+
+                        _time_str = f"{html.escape(_time)} \u00b7 " if _time else ""
+                        card_html = (
+                            '<div class="match-card">'
+                            f'<div class="match-card-meta">Round {html.escape(str(_round))} \u00b7 {html.escape(_date)}</div>'
+                            '<div class="match-card-teams">'
+                            f'{_team_badge_html(_home, size=36)}'
+                            '<span class="match-card-vs">vs</span>'
+                            f'{_team_badge_html(_away, size=36)}'
+                            '</div>'
+                            f'<div class="match-card-venue">'
+                            f'{_time_str}'
+                            f'\U0001f3df\ufe0f {html.escape(_venue)}'
+                            '</div>'
+                            '</div>'
+                        )
+                        st.markdown(card_html, unsafe_allow_html=True)
+                        if st.button(
+                            "View Details",
+                            key=f"h2h_detail_{i_card}",
+                            use_container_width=True,
+                        ):
+                            st.session_state["_detail_match_data"] = _serialize_match_for_dialog(h2h_row)
+                            _show_match_detail_dialog()
             else:
-                a = str(team_a)
-                b = str(team_b)
-                mask = (
-                    ((df["Home_Team_ID"].astype(str) == a) & (df["Away_Team_ID"].astype(str) == b))
-                    | ((df["Home_Team_ID"].astype(str) == b) & (df["Away_Team_ID"].astype(str) == a))
-                )
-                h2h = df.loc[mask].copy()
-                h2h = h2h.sort_values(by=["_Date"], na_position="last")
+                st.info("No head-to-head matches found.")
 
-                if "_Day_Name" in h2h.columns:
-                    h2h.insert(0, "Day_Name", h2h["_Day_Name"])
+            export_h2h = h2h.drop(
+                columns=[c for c in ["_Date", "_Day_Name", "_DateTime"] if c in h2h.columns],
+                errors="ignore",
+            )
+            h2h_csv = export_h2h.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="Download head-to-head (CSV)",
+                data=h2h_csv,
+                file_name=f"{schedule_source.lower().replace(' ', '_')}_h2h_{a}_vs_{b}.csv",
+                mime="text/csv",
+                key="h2h_download",
+            )
 
-                st.write(f"**Head-to-head `{a}` vs `{b}`**: {len(h2h)} match(es)")
-                st.dataframe(
-                    h2h.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in h2h.columns]),
-                    width="stretch",
-                    height=520,
-                )
-
-                csv_bytes = h2h.drop(columns=[c for c in ["_Date", "_Day_Name"] if c in h2h.columns]).to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="Download head-to-head (CSV)",
-                    data=csv_bytes,
-                    file_name=f"{schedule_source.lower().replace(' ', '_')}_h2h_{a}_vs_{b}.csv",
-                    mime="text/csv",
-                )
-
+    # ── Calendar ────────────────────────────────────────────────
     with cal_tab:
         st.markdown("### Calendar")
 
-        # Determine overall date range from schedule (and slots if loaded).
-        filtered_schedule_dates = sorted(d for d in df["_Date"].dropna().tolist() if isinstance(d, pydate))
-        all_schedule_dates = sorted(d for d in df_full["_Date"].dropna().tolist() if isinstance(d, pydate))
-        schedule_dates = filtered_schedule_dates or all_schedule_dates
-        min_d = schedule_dates[0] if schedule_dates else pydate.today()
-        max_d = schedule_dates[-1] if schedule_dates else pydate.today()
+        # Filters
+        cal_f1, cal_f2 = st.columns(2)
+        with cal_f1:
+            cal_team_list = ["All teams"]
+            if data is not None:
+                cal_team_list += data.teams["Team_ID"].astype(str).tolist()
+            else:
+                cal_team_list += sorted(
+                    set(df_full.get("Home_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
+                    | set(df_full.get("Away_Team_ID", pd.Series([], dtype=str)).dropna().astype(str))
+                )
+            cal_team_choice = st.selectbox("Filter by team", cal_team_list, index=0, key="cal_team_filter")
+
+        with cal_f2:
+            cal_round_options = _round_filter_options(df_full)
+            cal_round_labels = [lbl for lbl, _ in cal_round_options]
+            cal_round_label = st.selectbox("Filter by round", cal_round_labels, index=0, key="cal_round_filter")
+            cal_selected_round = dict(cal_round_options)[cal_round_label]
+
+        cal_df = _filter_by_round(df_full, cal_selected_round)
+        if cal_team_choice != "All teams":
+            _tm = (
+                (cal_df["Home_Team_ID"].astype(str) == cal_team_choice)
+                | (cal_df["Away_Team_ID"].astype(str) == cal_team_choice)
+            )
+            cal_df = cal_df.loc[_tm].copy()
+
+        # Date range
+        _filt_dates = sorted(d for d in cal_df["_Date"].dropna().tolist() if isinstance(d, pydate))
+        _all_dates = sorted(d for d in df_full["_Date"].dropna().tolist() if isinstance(d, pydate))
+        _cal_dates = _filt_dates or _all_dates
+        min_d = _cal_dates[0] if _cal_dates else pydate.today()
+        max_d = _cal_dates[-1] if _cal_dates else pydate.today()
         if load_inputs and slot_dates:
             min_d = min(min_d, min(slot_dates))
             max_d = max(max_d, max(slot_dates))
 
-        if "calendar_year" not in st.session_state or "calendar_month" not in st.session_state:
-            st.session_state["calendar_year"] = min_d.year
-            st.session_state["calendar_month"] = min_d.month
+        # Build month list with year labels
+        available_months: List[Tuple[str, int, int]] = []
+        _cursor = pydate(min_d.year, min_d.month, 1)
+        _end_m = pydate(max_d.year, max_d.month, 1)
+        while _cursor <= _end_m:
+            _lbl = f"{calendar.month_abbr[_cursor.month]} {_cursor.year}"
+            available_months.append((_lbl, _cursor.year, _cursor.month))
+            if _cursor.month == 12:
+                _cursor = pydate(_cursor.year + 1, 1, 1)
+            else:
+                _cursor = pydate(_cursor.year, _cursor.month + 1, 1)
+        if not available_months:
+            _today = pydate.today()
+            available_months = [(f"{calendar.month_abbr[_today.month]} {_today.year}", _today.year, _today.month)]
 
-        nav_left, nav_title, nav_right = st.columns([1, 2, 1])
-        with nav_left:
-            if st.button("< Previous month", width="stretch"):
-                current = pydate(int(st.session_state["calendar_year"]), int(st.session_state["calendar_month"]), 1)
-                prev_month_end = current - pd.Timedelta(days=1)
-                st.session_state["calendar_year"] = prev_month_end.year
-                st.session_state["calendar_month"] = prev_month_end.month
-        with nav_right:
-            if st.button("Next month >", width="stretch"):
-                current = pydate(int(st.session_state["calendar_year"]), int(st.session_state["calendar_month"]), 1)
-                next_month_start = current + pd.DateOffset(months=1)
-                st.session_state["calendar_year"] = next_month_start.year
-                st.session_state["calendar_month"] = next_month_start.month
+        if "calendar_year" not in st.session_state:
+            st.session_state["calendar_year"] = available_months[0][1]
+        if "calendar_month" not in st.session_state:
+            st.session_state["calendar_month"] = available_months[0][2]
 
         current_year = int(st.session_state["calendar_year"])
         current_month = int(st.session_state["calendar_month"])
-        with nav_title:
-            st.markdown(
-                f"#### {calendar.month_name[current_month]} {current_year}"
-                + (f" - Round {selected_round}" if selected_round is not None else "")
+
+        current_idx = 0
+        for _i, (_, _y, _m) in enumerate(available_months):
+            if _y == current_year and _m == current_month:
+                current_idx = _i
+                break
+
+        _month_labels = [l for l, _, _ in available_months]
+
+        nav_left, nav_center, nav_right = st.columns([1, 2, 1])
+        with nav_left:
+            if st.button("\u25c0 Previous month", use_container_width=True, key="cal_nav_prev"):
+                _ni = max(0, current_idx - 1)
+                _, _ny, _nm = available_months[_ni]
+                st.session_state["calendar_year"] = _ny
+                st.session_state["calendar_month"] = _nm
+                st.session_state["cal_month_sel"] = available_months[_ni][0]
+                st.rerun()
+        with nav_right:
+            if st.button("Next month \u25b6", use_container_width=True, key="cal_nav_next"):
+                _ni = min(len(available_months) - 1, current_idx + 1)
+                _, _ny, _nm = available_months[_ni]
+                st.session_state["calendar_year"] = _ny
+                st.session_state["calendar_month"] = _nm
+                st.session_state["cal_month_sel"] = available_months[_ni][0]
+                st.rerun()
+        with nav_center:
+            _chosen_m = st.selectbox(
+                "Month",
+                _month_labels,
+                index=current_idx,
+                key="cal_month_sel",
+                label_visibility="collapsed",
             )
+            for _lbl, _y, _m in available_months:
+                if _lbl == _chosen_m:
+                    if _y != current_year or _m != current_month:
+                        st.session_state["calendar_year"] = _y
+                        st.session_state["calendar_month"] = _m
+                        current_year, current_month = _y, _m
+                    break
 
-        default_pick = pydate(current_year, current_month, 1)
-        if default_pick < min_d:
-            default_pick = min_d
-        elif default_pick > max_d:
-            default_pick = max_d
+        _title_parts = [f"#### {calendar.month_name[current_month]} {current_year}"]
+        if cal_selected_round is not None:
+            _title_parts.append(f"Round {cal_selected_round}")
+        if cal_team_choice != "All teams":
+            _title_parts.append(cal_team_choice)
+        st.markdown(" \u2014 ".join(_title_parts))
 
-        pick = st.date_input("Inspect day", value=default_pick, min_value=min_d, max_value=max_d)
+        # Build matches by date
+        _matches_by_date: Dict[pydate, List[pd.Series]] = {}
+        _sort_cols = [c for c in ["_Date", "Date_time"] if c in cal_df.columns]
+        _src = cal_df.sort_values(by=_sort_cols, na_position="last") if _sort_cols else cal_df
+        for _, _row in _src.iterrows():
+            _d = _row.get("_Date")
+            if isinstance(_d, pydate):
+                _matches_by_date.setdefault(_d, []).append(_row)
 
-        day_matches = df[df["_Date"] == pick].copy()
-        if not day_matches.empty:
-            st.success(f"{len(day_matches)} match(es) scheduled on {pick}.")
-            st.dataframe(day_matches.drop(columns=["_Date"]), width="stretch", height=420)
-        else:
-            reasons: List[str] = []
-            if load_inputs:
-                if pick in fifa_dates:
-                    reasons.append("This is a **FIFA day** → league matches are forbidden.")
-                if pick in caf_by_date:
-                    reasons.append("This date is **CAF blocked** for: " + ", ".join(caf_by_date[pick][:6]))
-                if slot_dates and pick not in slot_dates:
-                    reasons.append("No playable slots exist on this date in `expanded_calendar.xlsx` (outside slot universe).")
-                if slot_dates and pick in slot_dates:
-                    reasons.append(
-                        f"There are **{int(slots_on_date_count.get(pick, 0))} slot row(s)** on this date, "
-                        "but none are scheduled in this selected schedule."
+        _all_sched_counts = df_full["_Date"].value_counts(dropna=True).to_dict()
+        _cal_obj = calendar.Calendar(firstweekday=0)
+        _weeks = _cal_obj.monthdatescalendar(current_year, current_month)
+
+        # Weekday headers
+        _hdr_cols = st.columns(7)
+        for _i, _name in enumerate(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]):
+            with _hdr_cols[_i]:
+                st.markdown(
+                    f'<div class="cal-weekday-hdr">{_name}</div>',
+                    unsafe_allow_html=True,
+                )
+
+        # Calendar grid (Streamlit-native)
+        for _wi, _week in enumerate(_weeks):
+            _wcols = st.columns(7)
+            for _di, _d in enumerate(_week):
+                with _wcols[_di]:
+                  with st.container(border=True):
+                    _day_matches = _matches_by_date.get(_d, [])
+                    _is_outside = _d.month != current_month
+
+                    # Badges HTML
+                    _badges = ""
+                    if _day_matches:
+                        _badges += f'<span class="cal-badge">{len(_day_matches)}</span>'
+                    if load_inputs and _d in fifa_dates:
+                        _badges += '<span class="cal-badge cal-badge-fifa">FIFA</span>'
+                    if load_inputs and _d in caf_by_date:
+                        _badges += '<span class="cal-badge cal-badge-caf">CAF</span>'
+
+                    _nc = "#8f67ad" if _is_outside else "#f8f9f7"
+                    st.markdown(
+                        f'<div class="cal-day-hdr">'
+                        f'<span style="font-weight:800;color:{_nc};">{_d.day}</span>'
+                        f'<span>{_badges}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
                     )
-            if selected_round is not None and int(df_full["_Date"].value_counts(dropna=True).to_dict().get(pick, 0)) > 0:
-                reasons.append(f"Other rounds have matches on this date, but Round {selected_round} does not.")
-            if not reasons:
-                reasons.append("No matches are scheduled on this date in this selected schedule.")
 
-            st.info("No matches on this day.")
-            for r in reasons:
-                st.write("- " + r)
+                    for _j, _mrow in enumerate(_day_matches):
+                        _mh = str(_mrow.get("Home_Team_ID", ""))
+                        _ma = str(_mrow.get("Away_Team_ID", ""))
+                        _mr = _mrow.get("Round", "")
+                        _mt = ""
+                        try:
+                            _mp = pd.to_datetime(_mrow.get("Date_time"), errors="coerce")
+                            if pd.notna(_mp):
+                                _mt = _mp.strftime("%H:%M")
+                        except Exception:
+                            pass
 
-        st.divider()
-        st.markdown("**Month view**")
-        month = st.selectbox(
-            "Jump to month",
-            options=list(range(1, 13)),
-            index=current_month - 1,
-            format_func=lambda m: calendar.month_name[int(m)],
-        )
-        year = st.number_input("Year", min_value=2000, max_value=2100, value=current_year, step=1)
-        if int(month) != current_month or int(year) != current_year:
-            st.session_state["calendar_month"] = int(month)
-            st.session_state["calendar_year"] = int(year)
+                        _venue = str(_mrow.get("Venue_Stadium_ID", ""))
+                        _time_label = f"{html.escape(_mt)} " if _mt else ""
+                        _cal_card = (
+                            '<div class="match-card cal-compact">'
+                            f'<div class="match-card-meta">R{html.escape(str(_mr))}</div>'
+                            '<div class="match-card-teams">'
+                            f'{_team_badge_html(_mh, size=18)}'
+                            '<span class="match-card-vs">v</span>'
+                            f'{_team_badge_html(_ma, size=18)}'
+                            '</div>'
+                            f'<div class="match-card-venue">{_time_label}{html.escape(_venue)}</div>'
+                            '</div>'
+                        )
+                        st.markdown(_cal_card, unsafe_allow_html=True)
+                        if st.button(
+                            "Details",
+                            key=f"cal_{current_year}{current_month:02d}_w{_wi}d{_di}m{_j}",
+                            use_container_width=True,
+                        ):
+                            st.session_state["_detail_match_data"] = _serialize_match_for_dialog(_mrow)
+                            _show_match_detail_dialog()
 
-        # Count matches per date
-        counts = df["_Date"].value_counts(dropna=True).to_dict()
+                    if not _day_matches and not _is_outside:
+                        _reason = _empty_day_reason(
+                            _d,
+                            load_inputs=load_inputs,
+                            fifa_dates=fifa_dates,
+                            slot_dates=slot_dates,
+                            slots_on_date_count=slots_on_date_count,
+                            caf_by_date=caf_by_date,
+                            selected_round=cal_selected_round,
+                            all_schedule_counts=_all_sched_counts,
+                        )
+                        st.markdown(
+                            f'<div class="cal-empty">{html.escape(_reason)}</div>',
+                            unsafe_allow_html=True,
+                        )
 
-        _render_month_grid(
-            df,
-            df_full,
-            year=int(year),
-            month=int(month),
-            load_inputs=load_inputs,
-            fifa_dates=fifa_dates,
-            slot_dates=slot_dates,
-            slots_on_date_count=slots_on_date_count,
-            caf_by_date=caf_by_date,
-            selected_round=selected_round,
-        )
+                    # Ensure uniform minimum height for all day cells
+                    if not _day_matches:
+                        st.markdown(
+                            '<div style="min-height:70px;"></div>',
+                            unsafe_allow_html=True,
+                        )
 
-        st.markdown("**Compact count table**")
-        cal = calendar.Calendar(firstweekday=0)  # Monday
-        weeks = cal.monthdatescalendar(int(year), int(month))
-        rows: List[Dict[str, str]] = []
-        for w in weeks:
-            row: Dict[str, str] = {}
-            for d in w:
-                label = ""
-                if d.month != int(month):
-                    label = ""
-                else:
-                    n = int(counts.get(d, 0))
-                    label = f"{d.day}"
-                    if load_inputs and d in fifa_dates:
-                        label += " (FIFA)"
-                    if load_inputs and d in caf_by_date:
-                        label += " (CAF)"
-                    if n:
-                        label += f" • {n}"
-                row[d.strftime("%a")] = label
-            rows.append(row)
-
-        cal_df = pd.DataFrame(rows, columns=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
-        st.dataframe(cal_df, width="stretch", hide_index=True)
-
+        # ── Month summary (kept) ────────────────────────────────
         st.divider()
         st.markdown("**Month summary**")
 
-        month_start = pydate(int(year), int(month), 1)
-        month_end = pydate(int(year), int(month), calendar.monthrange(int(year), int(month))[1])
+        _month_start = pydate(current_year, current_month, 1)
+        _month_end = pydate(current_year, current_month, calendar.monthrange(current_year, current_month)[1])
 
-        # Daily match counts for the chosen month
-        month_counts = {d: int(n) for d, n in counts.items() if isinstance(d, pydate) and month_start <= d <= month_end}
-        total_matches = int(sum(month_counts.values()))
-        match_days = int(sum(1 for n in month_counts.values() if n > 0))
+        _counts = cal_df["_Date"].value_counts(dropna=True).to_dict()
+        _month_counts: Dict[pydate, int] = {
+            d: int(n)
+            for d, n in _counts.items()
+            if isinstance(d, pydate) and _month_start <= d <= _month_end
+        }
+        _total_matches = int(sum(_month_counts.values()))
+        _match_days = int(sum(1 for n in _month_counts.values() if n > 0))
 
-        fifa_in_month = []
-        caf_in_month = []
+        _fifa_in_month: list = []
+        _caf_in_month: list = []
         if load_inputs:
-            fifa_in_month = [d for d in fifa_dates if month_start <= d <= month_end]
-            caf_in_month = [d for d in unique_caf_dates if month_start <= d <= month_end]
+            _fifa_in_month = [d for d in fifa_dates if _month_start <= d <= _month_end]
+            _caf_in_month = [d for d in unique_caf_dates if _month_start <= d <= _month_end]
 
-        slot_days_in_month = []
-        slot_rows_in_month = 0
-        slot_days_with_no_matches = 0
+        _slot_days_no_match = 0
         if load_inputs and slot_dates:
-            slot_days_in_month = sorted(d for d in slot_dates if month_start <= d <= month_end)
-            slot_rows_in_month = int(
-                sum(int(slots_on_date_count.get(d, 0)) for d in slot_days_in_month)
-            )
-            slot_days_with_no_matches = int(
-                sum(1 for d in slot_days_in_month if int(month_counts.get(d, 0)) == 0)
+            _slot_days_in = sorted(d for d in slot_dates if _month_start <= d <= _month_end)
+            _slot_days_no_match = int(
+                sum(1 for d in _slot_days_in if int(_month_counts.get(d, 0)) == 0)
             )
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Total matches", total_matches)
-        c2.metric("Match-days", match_days)
-        c3.metric("FIFA days", len(fifa_in_month) if load_inputs else 0)
-        c4.metric("CAF dates", len(caf_in_month) if load_inputs else 0)
-        c5.metric("Slot-days w/ no matches", slot_days_with_no_matches if load_inputs and slot_dates else 0)
+        sc1, sc2, sc3, sc4, sc5 = st.columns(5)
+        sc1.metric("Total matches", _total_matches)
+        sc2.metric("Match-days", _match_days)
+        sc3.metric("FIFA days", len(_fifa_in_month) if load_inputs else 0)
+        sc4.metric("CAF dates", len(_caf_in_month) if load_inputs else 0)
+        sc5.metric("Slot-days w/ no matches", _slot_days_no_match if load_inputs and slot_dates else 0)
 
-        busiest = sorted(month_counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
-        if busiest:
+        _busiest = sorted(_month_counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
+        if _busiest:
             st.markdown("**Busiest dates**")
             st.dataframe(
                 pd.DataFrame(
-                    [{"Date": d, "Day": d.strftime("%A"), "Matches": n} for d, n in busiest]
+                    [{"Date": d, "Day": d.strftime("%A"), "Matches": n} for d, n in _busiest]
                 ),
                 width="stretch",
                 hide_index=True,
             )
 
-        # Weekday distribution
-        if month_counts:
-            weekday_dist: Dict[str, int] = {}
-            for d, n in month_counts.items():
-                weekday_dist[d.strftime("%A")] = weekday_dist.get(d.strftime("%A"), 0) + int(n)
+        if _month_counts:
+            _wd: Dict[str, int] = {}
+            for d, n in _month_counts.items():
+                _wd[d.strftime("%A")] = _wd.get(d.strftime("%A"), 0) + int(n)
             st.markdown("**Matches by weekday**")
-            dist_df = pd.DataFrame(
-                [{"Weekday": k, "Matches": v} for k, v in weekday_dist.items()]
+            _wdf = pd.DataFrame(
+                [{"Weekday": k, "Matches": v} for k, v in _wd.items()]
             ).sort_values("Matches", ascending=False)
-            st.bar_chart(dist_df.set_index("Weekday")["Matches"], color=PALETTE["primary"])
+            st.bar_chart(_wdf.set_index("Weekday")["Matches"], color=PALETTE["primary"])
 
-        # Optional detailed day-status table (good for "why empty" debugging)
         with st.expander("Daily status table"):
-            days = [month_start + pd.Timedelta(days=i) for i in range((month_end - month_start).days + 1)]
-            day_rows = []
-            for d_ts in days:
-                d = d_ts.date() if hasattr(d_ts, "date") else d_ts  # robustness
-                mcount = int(month_counts.get(d, 0))
-                row = {
-                    "Date": d,
-                    "Day": d.strftime("%A"),
-                    "Matches": mcount,
+            _days_list = [
+                _month_start + pd.Timedelta(days=i)
+                for i in range((_month_end - _month_start).days + 1)
+            ]
+            _day_rows: list = []
+            for _dts in _days_list:
+                _dd = _dts.date() if hasattr(_dts, "date") else _dts
+                _mc = int(_month_counts.get(_dd, 0))
+                _dr: Dict[str, Any] = {
+                    "Date": _dd,
+                    "Day": _dd.strftime("%A"),
+                    "Matches": _mc,
                 }
                 if load_inputs:
-                    row["Is_FIFA"] = d in fifa_dates
-                    row["Is_CAF"] = d in unique_caf_dates
-                    row["CAF_Blockers"] = "; ".join(caf_by_date.get(d, []))
-                    row["Slot_rows"] = int(slots_on_date_count.get(d, 0)) if slot_dates else 0
-                    row["In_slot_universe"] = (d in slot_dates) if slot_dates else False
-                day_rows.append(row)
-            st.dataframe(pd.DataFrame(day_rows), width="stretch", height=520)
+                    _dr["Is_FIFA"] = _dd in fifa_dates
+                    _dr["Is_CAF"] = _dd in unique_caf_dates
+                    _dr["CAF_Blockers"] = "; ".join(caf_by_date.get(_dd, []))
+                    _dr["Slot_rows"] = int(slots_on_date_count.get(_dd, 0)) if slot_dates else 0
+                    _dr["In_slot_universe"] = (_dd in slot_dates) if slot_dates else False
+                _day_rows.append(_dr)
+            st.dataframe(pd.DataFrame(_day_rows), width="stretch", height=520)
 
 
 def _render_monte_carlo_tab() -> None:
