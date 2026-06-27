@@ -104,22 +104,7 @@ PHASE_POLL_INTERVAL_S = 0.2
 
 
 MODEL_CONTROL_GROUPS = [
-    (
-        "League shape",
-        [
-            ("NUM_TEAMS", "Teams", NUM_TEAMS, 2, 40, 2, "Must match the teams workbook."),
-            ("NUM_ROUNDS", "Rounds", NUM_ROUNDS, 1, 80, 1, "Double round-robin uses (teams - 1) * 2."),
-            (
-                "MATCHES_PER_ROUND",
-                "Matches per round",
-                MATCHES_PER_ROUND,
-                1,
-                20,
-                1,
-                "Usually teams / 2.",
-            ),
-        ],
-    ),
+
     (
         "Rest and streak rules",
         [
@@ -128,7 +113,7 @@ MODEL_CONTROL_GROUPS = [
                 "Min local rest days",
                 MIN_REST_DAYS_LOCAL,
                 0,
-                14,
+                3,
                 1,
                 "League-to-league full rest days.",
             ),
@@ -137,7 +122,7 @@ MODEL_CONTROL_GROUPS = [
                 "Min CAF rest days",
                 MIN_REST_DAYS_CAF,
                 0,
-                14,
+                3,
                 1,
                 "League-to-CAF full rest days.",
             ),
@@ -171,7 +156,7 @@ MODEL_CONTROL_GROUPS = [
         ],
     ),
     (
-        "Week and slot capacity",
+        "capacity",
         [
             (
                 "HARD_MIN_MATCHES_PER_WEEK",
@@ -495,13 +480,6 @@ def _render_model_config_controls() -> Dict[str, int]:
                     )
                 )
 
-    expected_rounds = (config["NUM_TEAMS"] - 1) * 2
-    expected_matches_per_round = config["NUM_TEAMS"] // 2
-    if config["NUM_ROUNDS"] != expected_rounds or config["MATCHES_PER_ROUND"] != expected_matches_per_round:
-        st.warning(
-            "League shape is inconsistent with a double round-robin. "
-            f"Expected {expected_rounds} rounds and {expected_matches_per_round} matches per round."
-        )
 
     if config["SOFT_MIN_MATCHES_PER_WEEK"] > config["SOFT_MAX_MATCHES_PER_WEEK"]:
         st.warning("Soft week minimum is above soft week maximum.")
@@ -548,11 +526,18 @@ def _team_badge_html(team_id: object, *, size: int = 26) -> str:
     tid = html.escape(raw_tid)
     src = _team_icon_data_uri(raw_tid)
     if not src:
-        return f"<span class=\"team-fallback-mark\">{tid[:3]}</span><span>{tid}</span>"
+        return (
+            f"<div style=\"display:flex;flex-direction:column;align-items:center;gap:4px;\">"
+            f"<span class=\"team-fallback-mark\">{tid[:3]}</span>"
+            f"<span style=\"text-align:center;\">{tid}</span>"
+            f"</div>"
+        )
     return (
+        f"<div style=\"display:flex;flex-direction:column;align-items:center;gap:4px;\">"
         f"<img class=\"team-inline-logo\" src=\"{src}\" alt=\"{tid}\" "
         f"style=\"width:{size}px;height:{size}px;\" />"
-        f"<span>{tid}</span>"
+        f"<span style=\"text-align:center;\">{tid}</span>"
+        f"</div>"
     )
 
 
@@ -3383,8 +3368,13 @@ def _show_match_detail_dialog():
 
     col_home, col_vs, col_away = st.columns([1, 0.3, 1])
     with col_home:
-        _render_team_logo(home_id)
-        st.markdown(f"**{home_id}** (Home)")
+        st.markdown(
+            f"<div style='display:flex;flex-direction:column;align-items:center;text-align:center;'>"
+            f"{_team_badge_html(home_id, size=96)}"
+            f"<span style='margin-top:8px;font-weight:700;'>{home_id} (Home)</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
     with col_vs:
         st.markdown(
             "<div style='text-align:center;font-size:1.5rem;font-weight:800;"
@@ -3392,8 +3382,13 @@ def _show_match_detail_dialog():
             unsafe_allow_html=True,
         )
     with col_away:
-        _render_team_logo(away_id)
-        st.markdown(f"**{away_id}** (Away)")
+        st.markdown(
+            f"<div style='display:flex;flex-direction:column;align-items:center;text-align:center;'>"
+            f"{_team_badge_html(away_id, size=96)}"
+            f"<span style='margin-top:8px;font-weight:700;'>{away_id} (Away)</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
     st.divider()
 
