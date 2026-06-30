@@ -3635,10 +3635,18 @@ def _render_explore() -> None:
 
             if event.selection.rows:
                 idx = event.selection.rows[0]
-                st.session_state["_detail_match_data"] = _serialize_match_for_dialog(
-                    team_matches.iloc[idx]
-                )
-                _show_match_detail_dialog()
+                # Only open dialog when the selection actually changes,
+                # not on every rerun where the old selection persists.
+                _sel_key = f"{chosen_team}_{idx}"
+                if st.session_state.get("_tc_prev_sel_key") != _sel_key:
+                    st.session_state["_tc_prev_sel_key"] = _sel_key
+                    st.session_state["_detail_match_data"] = _serialize_match_for_dialog(
+                        team_matches.iloc[idx]
+                    )
+                    _show_match_detail_dialog()
+            else:
+                # Selection was cleared — reset the tracking key
+                st.session_state.pop("_tc_prev_sel_key", None)
         else:
             st.info("No matches found for this team with the current filters.")
 
@@ -3714,6 +3722,7 @@ def _render_explore() -> None:
             if not h2h.empty:
                 h2h_reset = h2h.reset_index(drop=True)
                 card_cols = st.columns(min(len(h2h_reset), 4))
+                _h2h_open_dialog = False
                 for i_card, (_, h2h_row) in enumerate(h2h_reset.iterrows()):
                     with card_cols[i_card % len(card_cols)]:
                         _home = str(h2h_row.get("Home_Team_ID", "TBD"))
@@ -3752,7 +3761,10 @@ def _render_explore() -> None:
                             use_container_width=True,
                         ):
                             st.session_state["_detail_match_data"] = _serialize_match_for_dialog(h2h_row)
-                            _show_match_detail_dialog()
+                            _h2h_open_dialog = True
+                # Open dialog once, outside the loop, to avoid duplicate element IDs
+                if _h2h_open_dialog:
+                    _show_match_detail_dialog()
             else:
                 st.info("No head-to-head matches found.")
 
@@ -3904,6 +3916,7 @@ def _render_explore() -> None:
                 )
 
         # Calendar grid (Streamlit-native)
+        _cal_open_dialog = False
         for _wi, _week in enumerate(_weeks):
             _wcols = st.columns(7)
             for _di, _d in enumerate(_week):
@@ -3962,7 +3975,7 @@ def _render_explore() -> None:
                             use_container_width=True,
                         ):
                             st.session_state["_detail_match_data"] = _serialize_match_for_dialog(_mrow)
-                            _show_match_detail_dialog()
+                            _cal_open_dialog = True
 
                     if not _day_matches and not _is_outside:
                         _reason = _empty_day_reason(
@@ -3986,6 +3999,10 @@ def _render_explore() -> None:
                             '<div style="min-height:70px;"></div>',
                             unsafe_allow_html=True,
                         )
+
+        # Open dialog once, outside the grid loops, to avoid duplicate element IDs
+        if _cal_open_dialog:
+            _show_match_detail_dialog()
 
         # ── Month summary (kept) ────────────────────────────────
         st.divider()
