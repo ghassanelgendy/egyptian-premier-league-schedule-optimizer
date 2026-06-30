@@ -3363,6 +3363,19 @@ def _show_match_detail_dialog():
         st.warning("No match data available.")
         return
 
+    # Build a team-tier lookup from the authoritative inputs so we can
+    # resolve Home_Tier / Away_Tier even when the schedule CSV lacks them.
+    _tier_lookup: Dict[str, int] = {}
+    try:
+        _data = _load_inputs_cached()
+        if _data is not None and hasattr(_data, "teams") and "Tier" in _data.teams.columns:
+            for _, _tr in _data.teams.iterrows():
+                _tid = str(_tr.get("Team_ID", "")).strip().upper()
+                if _tid:
+                    _tier_lookup[_tid] = int(_tr["Tier"])
+    except Exception:
+        pass
+
     home_id = str(match.get("Home_Team_ID") or "TBD")
     away_id = str(match.get("Away_Team_ID") or "TBD")
 
@@ -3419,15 +3432,23 @@ def _show_match_detail_dialog():
 
     st.divider()
 
+    # Resolve team tiers: prefer values from the match dict, fall back to lookup
+    _home_tier = match.get("Home_Tier")
+    if not _home_tier or str(_home_tier).strip() in ("", "N/A"):
+        _home_tier = _tier_lookup.get(home_id.strip().upper())
+    _away_tier = match.get("Away_Tier")
+    if not _away_tier or str(_away_tier).strip() in ("", "N/A"):
+        _away_tier = _tier_lookup.get(away_id.strip().upper())
+
     d1, d2, d3, d4 = st.columns(4)
     with d1:
         st.metric("Slot Tier", match.get("Slot_tier", "N/A"))
     with d2:
         st.metric("Match Tier", match.get("Match_Tier", "N/A"))
     with d3:
-        st.metric("Home Tier", match.get("Home_Tier") or "N/A")
+        st.metric("Home Tier", _home_tier if _home_tier is not None else "N/A")
     with d4:
-        st.metric("Away Tier", match.get("Away_Tier") or "N/A")
+        st.metric("Away Tier", _away_tier if _away_tier is not None else "N/A")
 
     cal_week = match.get("Calendar_Week_Num")
     if cal_week is not None:
