@@ -17,3 +17,7 @@ update_fifa_19_20.py
 generate_all_historical_fifa.py
 generate_all_historical_fifa.py
 src/historical_engine.py
+/presetnation builder
+/output
+*.pyc
+/src/__pycache__

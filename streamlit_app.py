@@ -1779,7 +1779,7 @@ def _render_validation_dashboard() -> None:
 
 
 def _render_maintenance_dashboard(dashboard_data: Dict[str, Any]) -> None:
-    st.header("🏟️ Stadiums & Venues")
+    st.header("Stadiums & Venues")
     schedule = dashboard_data.get("schedule")
     if schedule is None or schedule.empty:
         st.info("No schedule data available.")
@@ -1844,7 +1844,7 @@ def _render_maintenance_dashboard(dashboard_data: Dict[str, Any]) -> None:
 
 
 def _render_historical_tab() -> None:
-    st.header("📊 Scientific Historical Benchmark")
+    st.header("Scientific Historical Benchmark")
     st.markdown("""
     Compare your optimized schedule against the last 6 years of the Egyptian Premier League. 
     This analysis identifies the **'True Waste Gap'**—days where teams sat idle with no FIFA or CAF obligations.
@@ -1925,7 +1925,7 @@ def _render_historical_tab() -> None:
         display_df = h_df.drop(columns=["Total Travel"], errors="ignore")
         st.dataframe(display_df, width="stretch", hide_index=True)
     
-    with st.expander("🔬 Methodology & Assumptions"):
+    with st.expander("Methodology & Assumptions"):
         st.markdown("""
         **How we compare against the past:**
         1. **The Primary Stadium Assumption:** Since historical CSVs don't record the specific stadium used, we assume teams played at their primary home ground (e.g., Ahly at Cairo Intl). 
@@ -1933,7 +1933,7 @@ def _render_historical_tab() -> None:
         3. **The 'True Waste Gap':** We subtract all FIFA dates and a 4-day buffer for every CAF match from the total days between games to find 'dead time' in the calendar.
         """)
 
-    st.info("💡 **Insight:** Your optimizer reduces the historical 'Waste Gap' from ~45 days down to 5 days, effectively saving 10 weeks of the calendar.")
+    st.info("**Insight:** Your optimizer reduces the historical 'Waste Gap' from ~45 days down to 5 days, effectively saving 10 weeks of the calendar.")
 
 
 def _load_dashboard_subset(keys: List[str]) -> Dict[str, Any]:
@@ -2870,42 +2870,7 @@ def _render_fairness_insights(dashboard_data: Dict[str, Any]) -> None:
                     height=220,
                 )
 
-    st.divider()
-    longest_gap_col, pattern_col = st.columns([1.0, 1.0])
-    with longest_gap_col:
-        st.markdown("**Longest rest-gap teams**")
-        if rest_gap_summary["by_team"].empty:
-            st.info("Team-level rest-gap summaries are unavailable.")
-        else:
-            st.dataframe(
-                rest_gap_summary["by_team"].head(12),
-                width="stretch",
-                hide_index=True,
-                height=320,
-            )
 
-    with pattern_col:
-        st.markdown("**Home/away pattern summary**")
-        if home_away_patterns is None or home_away_patterns.empty:
-            st.info("Home/away pattern artifact is unavailable.")
-        else:
-            pattern_cols = [
-                col
-                for col in [
-                    "Team_ID",
-                    "Home_Count",
-                    "Away_Count",
-                    "Max_Home_Streak",
-                    "Max_Away_Streak",
-                ]
-                if col in home_away_patterns.columns
-            ]
-            st.dataframe(
-                home_away_patterns[pattern_cols].sort_values("Team_ID"),
-                width="stretch",
-                hide_index=True,
-                height=320,
-            )
 
 
 def _round_filter_options(df: pd.DataFrame) -> List[Tuple[str, Optional[int]]]:
