@@ -226,4 +226,46 @@ The following changes have been successfully implemented:
 * The solver status output file "06_baseline_solver_status.json" now logs both the final objective score and the individual objective breakdown in their normalized, dimensionless forms:
   - objective = Raw solver objective / 100,000
   - breakdown_i = Raw breakdown_i / N_i
-* All Streamlit metrics displays (Run & Progress, Insights, Monte Carlo) have been updated to dynamically render these decimal normalized values.
+* All Streamlit displays (Run & Progress, Insights, Monte Carlo) have been updated to dynamically render these decimal normalized values.
+
+---
+
+## 7. Step-by-Step Optimization Workflow & Methodology
+
+The complete execution pipeline of the hybrid AHP-MODM scheduling framework flows step-by-step from user preferences to the final normalized results:
+
+### Step 1: Decision-Maker Preferences (AHP Setup)
+* **Action:** The user configures relative preferences between the 5 high-level criteria (Venue Rest, Travel, Chronology, Weekly Balance, Slot Quality) on the AHP UI panel.
+* **Math:** The system maps the sliders (-8 to 8) to Saaty's 1-9 scale and constructs a 5x5 pairwise comparison matrix.
+* **Consistency Check:** If the Consistency Ratio (CR) is 0.10 or higher, the Consistency Advisor recommends which slider to adjust. Once CR is below 0.10, the principal eigenvector is calculated using Power Iteration to yield 5 high-level weights that sum to exactly 1.0.
+
+### Step 2: Sub-Objective Weight Mapping
+* **Action:** The system maps the 5 criteria weights to 12 sub-metric weights (W_i) representing the individual soft constraints in the solver.
+* **Math:** Weights are distributed proportionally based on empirical importance coefficients (e.g., Venue Rest weight is split into 85% stadium overlaps, 7% alternate venue relief, 5% other venue relief, and 3% home venue displacement).
+* **Output:** All 12 mapped sub-metric weights sum to exactly 1.0.
+
+### Step 3: CP-SAT Integerization and Normalization
+* **Action:** Because Google OR-Tools CP-SAT only supports integer math, weights and normalizers are combined and scaled to build integer objective coefficients.
+* **Math:** The solver calculates an integer coefficient for each objective:
+  Solver_Weight_i = round( (W_i / sum(W_k)) * (100,000 / N_i) )
+* **Objective Function:** The solver's internal objective function is formulated as:
+  Minimize: sum( Solver_Weight_i * f_i(X) )
+  Where f_i(X) represents the raw variables (like kilometers traveled, overlaps counted).
+
+### Step 4: Constrained Search & Optimization
+* **Action:** The CP-SAT solver is initiated.
+* **Execution:** The solver searches the combinatorial space of matches, slots, and rounds, strictly enforcing hard constraints (FIFA calendar windows, team rest days, stadium overlaps) while minimizing the integerized disutility objective function.
+
+### Step 5: Post-Solve Evaluation & Normalization
+* **Action:** Once the solver completes and returns a schedule X, the post-solver evaluator parses the schedule.
+* **Evaluation:** 
+  1. Computes the raw metrics f_i(X) (e.g. total travel distance = 55,380 km, slot collisions = 45).
+  2. Divides each raw metric by its normalizer denominator N_i to obtain the dimensionless normalized disutility score:
+     d_i(X) = f_i(X) / N_i
+  3. Divides the raw CP-SAT objective score (e.g., 98,304) by the 100,000 scaling factor to yield the normalized objective (e.g., 0.9830).
+  4. Calculates the overall additive disutility score:
+     U(X) = sum( w_i * d_i(X) )
+
+### Step 6: Output Visualization and Reporting
+* **Action:** The normalized objective score (0.9830) and the normalized breakdown dictionary are logged to "06_baseline_solver_status.json".
+* **Dashboard Display:** The Streamlit dashboard displays the normalized metrics on the Run & Progress tab, and renders the detailed breakdown table under Insights -> Overview, verifying that the relative weights sum to 1.0 and showing the exact disutility contribution of each soft constraint.
