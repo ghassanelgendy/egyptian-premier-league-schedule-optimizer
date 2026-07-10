@@ -1920,7 +1920,7 @@ def _render_validation_dashboard() -> None:
         "Key metrics and analysis of the optimized schedule."
     )
 
-    overview_tab, compliance_tab, fairness_tab, travel_tab, maintenance_tab, monte_carlo_tab, historical_tab = st.tabs(
+    overview_tab, compliance_tab, fairness_tab, travel_tab, maintenance_tab, tier_tab, caf_tab, monte_carlo_tab, historical_tab = st.tabs(
         [
             "Overview",
             "Constraint Compliance",
@@ -1928,7 +1928,6 @@ def _render_validation_dashboard() -> None:
             "Travel Stats",
             "Stadiums & Venues",
             "Broadcast & Tier Alignment",
-            "Constraint Compliance",
             "CAF Audit & Repair",
             "Monte Carlo Analysis",
             "Historical Comparison",
@@ -1950,12 +1949,6 @@ def _render_validation_dashboard() -> None:
             _render_validation_overview(subset)
         else:
             st.info("Run the pipeline to populate the overview dashboard.")
-
-    with compliance_tab:
-        subset = _load_dashboard_subset(
-            ["final_validation", "team_sequence", "team_sequence_validation"]
-        )
-        _render_constraint_compliance(subset)
 
     with fairness_tab:
         if available["schedule"]:
@@ -2498,9 +2491,11 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
             col_obj1, col_obj2 = st.columns(2)
             solver_obj = baseline_status.get("objective") if baseline_status else None
             if solver_obj is not None:
-                col_obj1.metric("Raw CP-SAT Solver Objective", f"{float(solver_obj):,.0f}")
+                obj_val = float(solver_obj)
+                obj_str = f"{obj_val:.4f}" if obj_val < 100 else f"{obj_val:,.0f}"
+                col_obj1.metric("CP-SAT Solver Objective", obj_str)
             else:
-                col_obj1.metric("Raw CP-SAT Solver Objective", "n/a")
+                col_obj1.metric("CP-SAT Solver Objective", "n/a")
                 
             col_obj2.metric("Overall Additive Disutility Score U(X)", f"{total_weighted_disutility:.4f} ({total_weighted_disutility * 100:.2f}%)")
             
@@ -3028,7 +3023,12 @@ def _render_feasibility_pressure(dashboard_data: Dict[str, Any]) -> None:
     row2 = st.columns(3)
     row2[0].metric("Solver status", _solver_status_label(baseline_status), _format_wall_time(baseline_status))
     objective = baseline_status.get("objective") if baseline_status else None
-    row2[1].metric("Solver objective", "n/a" if objective is None else f"{float(objective):,.0f}")
+    if objective is not None:
+        obj_val = float(objective)
+        obj_str = f"{obj_val:.4f}" if obj_val < 100 else f"{obj_val:,.0f}"
+    else:
+        obj_str = "n/a"
+    row2[1].metric("Solver objective", obj_str)
     row2[2].metric("Matches evaluated", f"{len(feasible_slots):,}")
 
     st.divider()
@@ -4831,7 +4831,9 @@ def _render_monte_carlo_tab() -> None:
     col1, col2, col3 = st.columns(3)
     best_run = df.sort_values(["validation_errors", "unresolved_count", "baseline_objective"]).iloc[0]
     col1.metric("Best seed", int(best_run["seed"]))
-    col2.metric("Best objective", f"{best_run['baseline_objective']:,.0f}")
+    best_obj = float(best_run["baseline_objective"])
+    obj_str = f"{best_obj:.4f}" if best_obj < 100 else f"{best_obj:,.0f}"
+    col2.metric("Best objective", obj_str)
     col3.metric("Min errors", int(best_run["validation_errors"]))
 
     st.divider()
