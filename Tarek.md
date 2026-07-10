@@ -302,3 +302,36 @@ To solve this, AHP groups the 12 sub-objectives into 5 high-level logical catego
 5. **Broadcasting & Slot Quality (BQ):** Kickoff slots, match tiers, and scheduling spreads.
 
 By comparing only these 5 categories (10 sliders), the user determines their high-level preferences. The system then automatically distributes these weights to the 12 sub-objectives proportionally based on their baseline ratios, combining mathematical precision with a simple, consistent user experience.
+
+---
+
+## 9. Solver Integerization (The 100,000 Scaling Factor) & Objective Proportionality
+
+Google OR-Tools CP-SAT is a pure Integer Programming solver. To execute the Normalized Weighted Sum within this environment, the model must scale and integerize its weights and divisions.
+
+### 1. Why the 100,000 Multiplier?
+In a pure normalized model, the objective coefficient for a variable represents:
+* Coefficient_i = Weight_i / Denominator_i
+Because weights are decimals (e.g. 0.20) and denominators can be very large (e.g. 50,000 for travel), the raw mathematical terms become extremely small decimals:
+* Travel Coefficient Term = 0.20 / 50,000 = 0.000004
+If we directly rounded these small decimals to integers, they would collapse to 0. The solver would completely neglect travel distance, treating it as if it has no weight at all.
+
+To prevent this collapse, the entire objective function is multiplied by a large scaling factor of **100,000**:
+* Solver_Weight_i = round( (User_Weight_i / Total_User_Weights) * (100,000 / Denominator_i) )
+
+Multiplying by 100,000 scales up the decimal coefficients so that even the smallest weight-to-denominator ratio remains represented by a non-zero integer coefficient.
+
+### 2. Safeguarding Against Neglected Objectives
+To guarantee that absolutely no objective is ever ignored or neglected by the solver, the code applies a mathematical lower bound clamp of **1** to all solver weights:
+* Solver_Weight_i = max( 1, round( (User_Weight_i / Total_User_Weights) * (100,000 / Denominator_i) ) )
+
+If an objective has a very small weight that would round down to 0, the `max(1, ...)` operator forces its coefficient to be at least 1. This ensures that every single active soft constraint retains a mathematical presence inside the solver search.
+
+### 3. Proportionality & Nearness of Contributions
+By dividing each objective's raw count by its normalization denominator (N_i), the solver evaluates them on a mathematically comparable scale. Here is how it behaves during search:
+* **For Travel Distance (Raw = 55,000 km, N_travel = 50,000):**
+  Solver contribution = (User_Weight * 55,000 / 50,000) * 100,000 = User_Weight * 110,000
+* **For Same-Day Reuse Overlaps (Raw = 1 overlap, N_reuse = 10):**
+  Solver contribution = (User_Weight * 1 / 10) * 100,000 = User_Weight * 10,000
+
+Because the contributions (110,000 vs. 10,000) are within the same order of magnitude, the solver can make intelligent tradeoffs. It will gladly accept a minor increase of 100 km of travel (which adds 200 units to the objective) to resolve a single same-day reuse overlap (which subtracts 10,000 units from the objective), ensuring all constraints are optimized proportionally according to the user's priorities.
