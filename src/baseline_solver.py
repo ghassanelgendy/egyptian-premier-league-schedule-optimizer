@@ -41,6 +41,19 @@ from src.constants import (
     W_TRAVEL,
     W_WEEK_OVERLOAD,
     W_WEEK_UNDERLOAD,
+    NORM_STADIUM_MAINTENANCE_OVERLAP,
+    NORM_ALT_STADIUM_RELIEF,
+    NORM_OTHER_STADIUM_RELIEF,
+    NORM_ROUND_ORDER,
+    NORM_HOME_VENUE_DISPLACEMENT,
+    NORM_WEEK_UNDERLOAD,
+    NORM_WEEK_OVERLOAD,
+    NORM_TRAVEL,
+    NORM_TIER_MISMATCH,
+    NORM_CAF_PREFERRED,
+    NORM_EVENING_PREFERENCE,
+    NORM_SLOT_SPREAD,
+    MOO_MODE,
 )
 
 # May be patched by UI
@@ -1435,6 +1448,55 @@ def _solve_baseline_with_venue_flex(
     print(f"[baseline] Building CP-SAT model with {solve_label}...")
     t0 = time.time()
 
+    # Map weights depending on MOO mode
+    if MOO_MODE == "NORMALIZED_WEIGHTED_SUM":
+        # First, normalize weights to sum to 100,000 (representing sum of 1.0 scaled by 100,000)
+        # to ensure they are compatible with integer CP-SAT solver
+        raw_w = [
+            float(W_STADIUM_MAINTENANCE_OVERLAP),
+            float(ALT_STADIUM_RELIEF_PENALTY),
+            float(OTHER_STADIUM_RELIEF_PENALTY),
+            float(W_ROUND_ORDER),
+            float(W_HOME_VENUE_DISPLACEMENT),
+            float(W_WEEK_UNDERLOAD),
+            float(W_WEEK_OVERLOAD),
+            float(W_TRAVEL),
+            float(W_TIER_MISMATCH),
+            float(W_CAF_PREFERRED),
+            float(W_EVENING_PREFERENCE),
+            float(W_SLOT_SPREAD)
+        ]
+        sum_w = sum(raw_w)
+        if sum_w <= 0.0:
+            sum_w = 1.0
+            
+        w_stadium_overlap = max(1, int((W_STADIUM_MAINTENANCE_OVERLAP / sum_w) * 100000 / NORM_STADIUM_MAINTENANCE_OVERLAP))
+        alt_stadium_relief = max(1, int((ALT_STADIUM_RELIEF_PENALTY / sum_w) * 100000 / NORM_ALT_STADIUM_RELIEF))
+        other_stadium_relief = max(1, int((OTHER_STADIUM_RELIEF_PENALTY / sum_w) * 100000 / NORM_OTHER_STADIUM_RELIEF))
+        w_round_order = max(1, int((W_ROUND_ORDER / sum_w) * 100000 / NORM_ROUND_ORDER))
+        w_home_displacement = max(1, int((W_HOME_VENUE_DISPLACEMENT / sum_w) * 100000 / NORM_HOME_VENUE_DISPLACEMENT))
+        w_week_underload = max(1, int((W_WEEK_UNDERLOAD / sum_w) * 100000 / NORM_WEEK_UNDERLOAD))
+        w_week_overload = max(1, int((W_WEEK_OVERLOAD / sum_w) * 100000 / NORM_WEEK_OVERLOAD))
+        w_travel = max(1, int((W_TRAVEL / sum_w) * 100000 / NORM_TRAVEL))
+        w_tier_mismatch = max(1, int((W_TIER_MISMATCH / sum_w) * 100000 / NORM_TIER_MISMATCH))
+        w_caf_preferred = max(1, int((W_CAF_PREFERRED / sum_w) * 100000 / NORM_CAF_PREFERRED))
+        w_evening_preference = max(1, int((W_EVENING_PREFERENCE / sum_w) * 100000 / NORM_EVENING_PREFERENCE))
+        w_slot_spread = max(1, int((W_SLOT_SPREAD / sum_w) * 100000 / NORM_SLOT_SPREAD))
+    else:
+        # Original raw weights
+        w_stadium_overlap = W_STADIUM_MAINTENANCE_OVERLAP
+        alt_stadium_relief = ALT_STADIUM_RELIEF_PENALTY
+        other_stadium_relief = OTHER_STADIUM_RELIEF_PENALTY
+        w_round_order = W_ROUND_ORDER
+        w_home_displacement = W_HOME_VENUE_DISPLACEMENT
+        w_week_underload = W_WEEK_UNDERLOAD
+        w_week_overload = W_WEEK_OVERLOAD
+        w_travel = W_TRAVEL
+        w_tier_mismatch = W_TIER_MISMATCH
+        w_caf_preferred = W_CAF_PREFERRED
+        w_evening_preference = W_EVENING_PREFERENCE
+        w_slot_spread = W_SLOT_SPREAD
+
     slot_ctx = _build_slot_context(data)
     slot_dates = slot_ctx["slot_dates"]
     slot_weeks = slot_ctx["slot_weeks"]
@@ -1651,7 +1713,7 @@ def _solve_baseline_with_venue_flex(
                     model.Add(sum(vars_in_window) <= 1).OnlyEnforceIf(overlap_var.Not())
                     
                     # Base maintenance penalty
-                    penalty = W_STADIUM_MAINTENANCE_OVERLAP
+                    penalty = w_stadium_overlap
                     objective_terms.append(overlap_var * penalty)
 
     _add_round_gap_constraints(model, matches_by_round, match_day, max_slot_day)
@@ -1668,7 +1730,8 @@ def _solve_baseline_with_venue_flex(
                     sd_overlap = model.NewBoolVar(f"sd_overlap_{venue}_{d}")
                     model.Add(sum(same_day_vars) > 1).OnlyEnforceIf(sd_overlap)
                     model.Add(sum(same_day_vars) <= 1).OnlyEnforceIf(sd_overlap.Not())
-                    objective_terms.append(sd_overlap * 50_000_000)
+                    same_day_penalty = w_stadium_overlap * 10 if MOO_MODE == "NORMALIZED_WEIGHTED_SUM" else 50_000_000
+                    objective_terms.append(sd_overlap * same_day_penalty)
 
     for match in matches:
         home_tier = int(teams_dict.get(match.home_team, {}).get("Tier", 4))
@@ -1680,23 +1743,23 @@ def _solve_baseline_with_venue_flex(
             
             week_diff = abs(slot_weeks[slot_idx] - nominal)
             if week_diff > 0:
-                objective_terms.append(var * (W_ROUND_ORDER * week_diff))
+                objective_terms.append(var * (w_round_order * week_diff))
 
-            travel_cost = int(meta["travel_km"] * W_TRAVEL)
+            travel_cost = int(meta["travel_km"] * w_travel)
             if travel_cost > 0:
                 objective_terms.append(var * travel_cost)
 
             tier_diff = abs(match.match_tier - slot_tiers[slot_idx])
             if tier_diff > 0:
-                objective_terms.append(var * (W_TIER_MISMATCH * tier_diff))
+                objective_terms.append(var * (w_tier_mismatch * tier_diff))
 
             if meta["is_alt"]:
-                objective_terms.append(var * (ALT_STADIUM_RELIEF_PENALTY * tier_weight))
+                objective_terms.append(var * (alt_stadium_relief * tier_weight))
             elif meta["is_other"]:
-                objective_terms.append(var * (OTHER_STADIUM_RELIEF_PENALTY * tier_weight))
+                objective_terms.append(var * (other_stadium_relief * tier_weight))
 
             home_displacement_cost = int(
-                meta["home_displacement_km"] * W_HOME_VENUE_DISPLACEMENT
+                meta["home_displacement_km"] * w_home_displacement
             )
             if home_displacement_cost > 0:
                 objective_terms.append(var * home_displacement_cost)
@@ -1725,30 +1788,30 @@ def _solve_baseline_with_venue_flex(
         under = model.NewIntVar(0, SOFT_MIN_MATCHES_PER_WEEK, f"under_w{week_num}")
         model.Add(under >= SOFT_MIN_MATCHES_PER_WEEK - load)
         model.Add(under >= 0)
-        objective_terms.append(under * W_WEEK_UNDERLOAD)
+        objective_terms.append(under * w_week_underload)
 
         over = model.NewIntVar(0, len(load_vars), f"over_w{week_num}")
         model.Add(over >= load - SOFT_MAX_MATCHES_PER_WEEK)
         model.Add(over >= 0)
-        objective_terms.append(over * W_WEEK_OVERLOAD)
+        objective_terms.append(over * w_week_overload)
 
     # --- Evening preference: penalize earlier kickoff times ---
-    if W_EVENING_PREFERENCE > 0:
+    if w_evening_preference > 0:
         for match in matches:
             for (slot_idx, venue), var in x[match.match_idx].items():
                 hour_penalty = max(0, 21 - slot_kickoff_hours[slot_idx])
                 if hour_penalty > 0:
-                    objective_terms.append(var * (W_EVENING_PREFERENCE * hour_penalty))
+                    objective_terms.append(var * (w_evening_preference * hour_penalty))
 
     # --- Slot spread: penalize >1 match in the same kickoff slot on same day ---
-    if W_SLOT_SPREAD > 0:
+    if w_slot_spread > 0:
         for slot_idx in range(n_slots):
             vars_in_slot = all_vars_by_slot.get(slot_idx, [])
             if len(vars_in_slot) > 1:
                 collision = model.NewBoolVar(f"slot_collision_{slot_idx}")
                 model.Add(sum(vars_in_slot) > 1).OnlyEnforceIf(collision)
                 model.Add(sum(vars_in_slot) <= 1).OnlyEnforceIf(collision.Not())
-                objective_terms.append(collision * W_SLOT_SPREAD)
+                objective_terms.append(collision * w_slot_spread)
 
     if objective_terms:
         model.Minimize(sum(objective_terms))
