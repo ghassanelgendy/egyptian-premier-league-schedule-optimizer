@@ -137,7 +137,7 @@ This project was developed as a Graduation Project for the **Data Science (DS)**
 *   **Academic Year:** 2024/2025
 
 ### Project Team & Contributors
-*   **Ghassan Tarek** ([@ghassanelgendy](https://github.com/ghassanelgendy))
+*   **Ghassan Elgendy** ([@ghassanelgendy](https://github.com/ghassanelgendy))
 *   **Ibrahim Medhat** ([@zennary04](https://github.com/zennary04))
 *   **Mohamed Osama** ([@mohamedosama25](https://github.com/mohamedosama25))
 *   **Rawan Ehab** ([@rowanammar](https://github.com/rowanammar))
