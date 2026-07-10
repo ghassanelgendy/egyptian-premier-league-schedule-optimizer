@@ -1,2 +1,0 @@
-2026-05-16 16:46:45.791 Did not auto detect external IP.
-Please go to https://docs.streamlit.io/ for debugging hints.
