@@ -2,10 +2,6 @@
 
 <div align="center">
   <img align="center" width="480" height="138" alt="Egyptian Premier League Optimizer Logo" src="https://github.com/user-attachments/assets/aa8aaf1d-149b-4873-8345-56bfa5fc9299" />
-  
-  <p>
-    <b>EPL-SO</b> is a decision-support and optimization framework that combines Saaty's Analytic Hierarchy Process (AHP) with Google OR-Tools CP-SAT to compile mathematically optimized, conflict-free, and broadcast-aligned league schedules.
-  </p>
 </div>
 
 ## 🌟 Project Significance: Addressing Complex League Logistics
@@ -133,12 +129,12 @@ Open your browser and navigate to `http://localhost:8501` to use the interactive
 
 ## 🎓 Graduation Project Credits
 
-This project was developed as a Graduation Project for the **Data Science (DS)** program at the **Faculty of Computers and Artificial Intelligence, Cairo University (FCAI-CU)**.
+This project was developed as a Graduation Project for the **Decision Support & Operations Research (DS&OR)** program at the **Faculty of Computers and Artificial Intelligence, Cairo University (FCAI-CU)**.
 
 *   **Institution:** Cairo University
 *   **Faculty:** Faculty of Computers and Artificial Intelligence (FCAI)
-*   **Department:** Data Science
-*   **Academic Year:** 2024/2025
+*   **Department:** Decision Support & Operations Research
+*   **Academic Year:** 2025/2025
 
 ### Project Team & Contributors
 *   **Ghassan Elgendy** ([@ghassanelgendy](https://github.com/ghassanelgendy))
