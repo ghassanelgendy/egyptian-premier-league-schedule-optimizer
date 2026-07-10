@@ -466,6 +466,7 @@ def _render_model_config_controls() -> Dict[str, int]:
         options=["NORMALIZED_WEIGHTED_SUM", "WEIGHTED_SUM"],
         index=0,
         help="Normalized Weighted Sum (Additive Utility Function) scales all objectives into dimensionless intervals. Weighted Sum (Original) uses raw values.",
+        key="ui::moo_mode",
     )
     config["MOO_MODE"] = moo_mode
 
@@ -473,6 +474,7 @@ def _render_model_config_controls() -> Dict[str, int]:
         "Use AHP (Analytic Hierarchy Process) to calculate weights",
         value=False,
         help="Use Saaty's pairwise comparisons to calculate objective weights mathematically rather than guessing them.",
+        key="use_ahp",
     )
     config["USE_AHP_WEIGHTS"] = int(use_ahp)
 
@@ -560,17 +562,18 @@ def _render_model_config_controls() -> Dict[str, int]:
             from src.ahp import calculate_ahp_weights, map_criteria_to_subweights
             weights, cr = calculate_ahp_weights(matrix)
             ahp_weights = map_criteria_to_subweights(weights)
+            st.session_state["ahp_weights"] = ahp_weights
 
             # Display weights and consistency index
-            st.markdown("**Computed Criteria Weights:**")
+            st.markdown("**Computed Criteria Weights (Decimal 0–1):**")
             col1, col2, col3 = st.columns(3)
-            col1.metric("Venue Rest (VR)", f"{weights[0]*100:.1f}%")
-            col2.metric("Travel Eff (TE)", f"{weights[1]*100:.1f}%")
-            col3.metric("Round Chron (RC)", f"{weights[2]*100:.1f}%")
+            col1.metric("Venue Rest (VR)", f"{weights[0]:.4f}")
+            col2.metric("Travel Eff (TE)", f"{weights[1]:.4f}")
+            col3.metric("Round Chron (RC)", f"{weights[2]:.4f}")
             
             col4, col5, col6 = st.columns(3)
-            col4.metric("Weekly Bal (WB)", f"{weights[3]*100:.1f}%")
-            col5.metric("Broadcasting (BQ)", f"{weights[4]*100:.1f}%")
+            col4.metric("Weekly Bal (WB)", f"{weights[3]:.4f}")
+            col5.metric("Broadcasting (BQ)", f"{weights[4]:.4f}")
             
             if cr < 0.10:
                 col6.metric("Consistency Ratio", f"{cr:.3f}", delta="Pass (CR < 0.1)", delta_color="normal")
@@ -578,6 +581,52 @@ def _render_model_config_controls() -> Dict[str, int]:
             else:
                 col6.metric("Consistency Ratio", f"{cr:.3f}", delta="Fail (CR >= 0.1)", delta_color="inverse")
                 st.error("❌ Pairwise comparisons are inconsistent. Please adjust sliders.")
+                
+                # Math Consistency Advisor
+                comp_indices = [
+                    ("Venue Rest vs Travel Efficiency", 0, 1, "VR vs TE"),
+                    ("Venue Rest vs Round Chronology", 0, 2, "VR vs RC"),
+                    ("Venue Rest vs Weekly Balance", 0, 3, "VR vs WB"),
+                    ("Venue Rest vs Broadcasting & Slot Quality", 0, 4, "VR vs BQ"),
+                    ("Travel Efficiency vs Round Chronology", 1, 2, "TE vs RC"),
+                    ("Travel Efficiency vs Weekly Balance", 1, 3, "TE vs WB"),
+                    ("Travel Efficiency vs Broadcasting & Slot Quality", 1, 4, "TE vs BQ"),
+                    ("Round Chronology vs Weekly Balance", 2, 3, "RC vs WB"),
+                    ("Round Chronology vs Broadcasting & Slot Quality", 2, 4, "RC vs BQ"),
+                    ("Weekly Balance vs Broadcasting & Slot Quality", 3, 4, "WB vs BQ")
+                ]
+                worst_err = -1.0
+                worst_comp = None
+                worst_suggest = 0
+                for label, idx_i, idx_j, comp_key in comp_indices:
+                    w_i = weights[idx_i]
+                    w_j = weights[idx_j]
+                    R = (w_i / w_j) if w_j > 0 else 1.0
+                    if R >= 1.0:
+                        s_target = int(round(R - 1.0))
+                    else:
+                        s_target = int(round(-(1.0 / R - 1.0)))
+                    s_target = max(-8, min(8, s_target))
+                    current_val = comp_vals[comp_key]
+                    err = abs(current_val - s_target)
+                    if err > worst_err:
+                        worst_err = err
+                        worst_comp = (label, comp_key, current_val)
+                        worst_suggest = s_target
+                
+                if worst_comp:
+                    w_lbl, w_key, w_val = worst_comp
+                    def val_desc(v):
+                        if v == 0:
+                            return "0 (equal)"
+                        elif v > 0:
+                            return f"+{v} (favors left)"
+                        else:
+                            return f"{v} (favors right)"
+                    st.warning(
+                        f"💡 **Consistency Advisor**: Try adjusting the **{w_lbl}** slider "
+                        f"from **{val_desc(w_val)}** towards **{val_desc(worst_suggest)}** to improve consistency."
+                    )
 
     st.markdown("---")
     st.markdown("**Model variables**")
@@ -1892,6 +1941,7 @@ def _render_validation_dashboard() -> None:
                 "schedule",
                 "week_round_map",
                 "team_sequence",
+                "baseline_solver_status",
             ]
             subset = _load_dashboard_subset(data_keys)
             _render_validation_overview(subset)
@@ -2107,11 +2157,149 @@ def _load_dashboard_subset(keys: List[str]) -> Dict[str, Any]:
     return subset
 
 
+def _calculate_objective_breakdown(schedule_df: pd.DataFrame, data: Any, config: Dict[str, Any], moo_mode: str) -> Dict[str, Any]:
+    from src.venue_rules import get_ranked_venue_candidates, build_team_lookup, stadium_distance
+    from datetime import datetime, date
+    import pandas as pd
+    
+    # 1. Setup contexts
+    teams_dict = build_team_lookup(data)
+    sec_rules = data.sec_rules
+    stadium_ids = sorted(data.stadiums["Stadium_ID"].astype(str).str.strip().str.upper().tolist())
+    dist_matrix = data.dist_matrix
+    tier_weights = {1: 10, 2: 5, 3: 2, 4: 1}
+    
+    # Extract week parameters
+    all_weeks = pd.to_numeric(schedule_df["Calendar_Week_Num"], errors="coerce").dropna().astype(int).tolist()
+    min_week = min(all_weeks) if all_weeks else 1
+    max_week = max(all_weeks) if all_weeks else 45
+    week_span = max_week - min_week
+    
+    # Compute nominal week mapping
+    nominal_week = {}
+    for round_num in range(1, 35):
+        nominal_week[round_num] = min_week + int((round_num - 1) * week_span / 33)
+        
+    # 2. Iterate matches and sum objective items
+    travel_km = 0.0
+    round_order_deviation = 0
+    tier_mismatch = 0
+    home_displacement = 0.0
+    alt_relief_cost = 0
+    other_relief_cost = 0
+    evening_penalty = 0.0
+    
+    for _, row in schedule_df.iterrows():
+        # Parse fields
+        home = str(row["Home_Team_ID"]).strip()
+        away = str(row["Away_Team_ID"]).strip()
+        venue = str(row["Venue_Stadium_ID"]).strip()
+        rnd = int(row["Round"])
+        week = int(row["Calendar_Week_Num"])
+        
+        match_tier = int(row["Match_Tier"])
+        slot_tier = int(row["Slot_tier"])
+        
+        # Travel Distance
+        travel_km += float(row.get("Travel_km", 0.0))
+        
+        # Round Order Deviation
+        nominal = nominal_week.get(rnd, rnd)
+        round_order_deviation += abs(week - nominal)
+        
+        # Tier Mismatch
+        tier_mismatch += abs(match_tier - slot_tier)
+        
+        # Venue Options and relief/displacement
+        candidates = get_ranked_venue_candidates(
+            home, away, teams_dict, sec_rules, stadium_ids, dist_matrix, allow_other_stadiums=True
+        )
+        
+        matched_candidate = None
+        for c in candidates:
+            if c.venue.strip().upper() == venue.upper():
+                matched_candidate = c
+                break
+                
+        if matched_candidate:
+            home_displacement += matched_candidate.home_displacement_km
+            home_tier = int(teams_dict.get(home, {}).get("Tier", 4))
+            tw = tier_weights.get(home_tier, 1)
+            
+            if matched_candidate.is_alt:
+                alt_relief_cost += tw
+            elif matched_candidate.is_other:
+                other_relief_cost += tw
+        else:
+            # Fallback if venue not found in candidates list
+            primary = str(teams_dict[home].get("Home_Stadium_ID", "")).strip().upper()
+            dist = stadium_distance(dist_matrix, primary, venue)
+            home_displacement += dist
+            
+        # Evening Preference
+        dt_str = str(row["Date_time"])
+        try:
+            dt = pd.to_datetime(dt_str)
+            hour = dt.hour
+        except Exception:
+            hour = 12
+        evening_penalty += float(max(0, 21 - hour))
+        
+    # 3. Weekly Load Balance
+    week_counts = schedule_df["Calendar_Week_Num"].value_counts()
+    underload = 0
+    overload = 0
+    for w in range(min_week, max_week + 1):
+        cnt = week_counts.get(w, 0)
+        if cnt < 6:
+            underload += (6 - cnt)
+        elif cnt > 12:
+            overload += (cnt - 12)
+            
+    # 4. Slot Collision
+    slot_counts = schedule_df["Date_time"].value_counts()
+    collisions = sum(1 for cnt in slot_counts.values if cnt > 1)
+    
+    # 5. Same-Day Venue Reuse
+    venue_date_counts = schedule_df.groupby(["Venue_Stadium_ID", "Date"]).size()
+    same_day_venue_reuse = sum(1 for cnt in venue_date_counts.values if cnt > 1)
+    
+    # 6. Stadium Service Gap Overlap
+    stadium_service_overlaps = 0
+    service_gap = int(config.get("MIN_STADIUM_SERVICE_GAP_DAYS", 2))
+    if service_gap > 0:
+        for venue, group in schedule_df.groupby("Venue_Stadium_ID"):
+            dates = sorted(pd.to_datetime(group["Date"]).dt.date.tolist())
+            for i in range(len(dates)):
+                for j in range(i + 1, len(dates)):
+                    gap = (dates[j] - dates[i]).days
+                    if gap <= service_gap:
+                        stadium_service_overlaps += 1
+                    else:
+                        break
+                        
+    return {
+        "W_STADIUM_MAINTENANCE_OVERLAP": stadium_service_overlaps,
+        "W_SAME_DAY_VENUE_OVERLAP": same_day_venue_reuse,
+        "ALT_STADIUM_RELIEF_PENALTY": alt_relief_cost,
+        "OTHER_STADIUM_RELIEF_PENALTY": other_relief_cost,
+        "W_ROUND_ORDER": round_order_deviation,
+        "W_HOME_VENUE_DISPLACEMENT": home_displacement,
+        "W_WEEK_UNDERLOAD": underload,
+        "W_WEEK_OVERLOAD": overload,
+        "W_TRAVEL": travel_km,
+        "W_TIER_MISMATCH": tier_mismatch,
+        "W_EVENING_PREFERENCE": evening_penalty,
+        "W_SLOT_SPREAD": collisions,
+    }
+
+
 def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
     schedule = dashboard_data["schedule"]
     rest_gap_summary = _build_rest_gap_summary(dashboard_data["team_sequence"])
     round_span_summary = _build_round_span_summary(dashboard_data["week_round_map"])
     monthly_volume = _build_monthly_match_volume(schedule)
+    baseline_status = dashboard_data.get("baseline_solver_status", {})
 
     total_matches = 0
     team_count = 0
@@ -2166,6 +2354,125 @@ def _render_validation_overview(dashboard_data: Dict[str, Any]) -> None:
     )
 
     st.divider()
+    
+    # Render AHP-MODM Performance Breakdown
+    if schedule is not None:
+        try:
+            st.markdown("### 🎯 Multi-Objective Optimization (AHP-MODM) Performance")
+            data_inputs = _load_inputs_cached()
+            
+            # Retrieve active config
+            active_config = {}
+            for group_name, fields in MODEL_CONTROL_GROUPS:
+                for name, _, default, _, _, _, _ in fields:
+                    active_config[name] = st.session_state.get(f"model_cfg::{name}", default)
+                    
+            moo_mode = st.session_state.get("ui::moo_mode", "NORMALIZED_WEIGHTED_SUM")
+            use_ahp = st.session_state.get("use_ahp", False)
+            ahp_weights = st.session_state.get("ahp_weights", {})
+            
+            raw_scores = _calculate_objective_breakdown(schedule, data_inputs, active_config, moo_mode)
+            
+            # Define normalizers
+            normalizers = {
+                "W_STADIUM_MAINTENANCE_OVERLAP": 10,
+                "W_SAME_DAY_VENUE_OVERLAP": 10,
+                "ALT_STADIUM_RELIEF_PENALTY": 100,
+                "OTHER_STADIUM_RELIEF_PENALTY": 50,
+                "W_ROUND_ORDER": 200,
+                "W_HOME_VENUE_DISPLACEMENT": 5000,
+                "W_WEEK_UNDERLOAD": 50,
+                "W_WEEK_OVERLOAD": 50,
+                "W_TRAVEL": 50000,
+                "W_TIER_MISMATCH": 300,
+                "W_EVENING_PREFERENCE": 200,
+                "W_SLOT_SPREAD": 50,
+            }
+            
+            # Active solver weights mapping
+            solver_raw_w = {}
+            if use_ahp and ahp_weights:
+                for name in raw_scores.keys():
+                    if name == "W_SAME_DAY_VENUE_OVERLAP":
+                        solver_raw_w[name] = float(ahp_weights.get("W_STADIUM_MAINTENANCE_OVERLAP", 0.0)) * 10.0
+                    else:
+                        solver_raw_w[name] = float(ahp_weights.get(name, 0.0))
+            else:
+                for name in raw_scores.keys():
+                    if name == "W_SAME_DAY_VENUE_OVERLAP":
+                        stadium_overlap_weight = float(active_config.get("W_STADIUM_MAINTENANCE_OVERLAP", 5000000.0))
+                        if moo_mode == "NORMALIZED_WEIGHTED_SUM":
+                            solver_raw_w[name] = stadium_overlap_weight * 10.0
+                        else:
+                            solver_raw_w[name] = 50000000.0
+                    else:
+                        solver_raw_w[name] = float(active_config.get(name, 1.0))
+                        
+            active_weight_sum = sum(solver_raw_w.values())
+            if active_weight_sum <= 0.0:
+                active_weight_sum = 1.0
+                
+            normalized_weights = {name: w / active_weight_sum for name, w in solver_raw_w.items()}
+            
+            friendly_names = {
+                "W_STADIUM_MAINTENANCE_OVERLAP": "Stadium Turnaround Overlap",
+                "W_SAME_DAY_VENUE_OVERLAP": "Same-Day Stadium Reuse",
+                "ALT_STADIUM_RELIEF_PENALTY": "Alt Stadium Relief",
+                "OTHER_STADIUM_RELIEF_PENALTY": "Other Stadium Relief",
+                "W_ROUND_ORDER": "Round Order (Chronology)",
+                "W_HOME_VENUE_DISPLACEMENT": "Home Displacement Distance",
+                "W_WEEK_UNDERLOAD": "Week Load Underload Deficit",
+                "W_WEEK_OVERLOAD": "Week Load Overload Excess",
+                "W_TRAVEL": "Travel Distance (km)",
+                "W_TIER_MISMATCH": "Match-to-Slot Tier Mismatch",
+                "W_EVENING_PREFERENCE": "Evening Kickoff Penalty",
+                "W_SLOT_SPREAD": "Simultaneous Slot Collisions",
+            }
+            
+            rows = []
+            total_weighted_disutility = 0.0
+            
+            for name, raw_score in raw_scores.items():
+                norm_factor = normalizers[name]
+                norm_score = raw_score / norm_factor
+                weight = normalized_weights[name]
+                contribution = weight * norm_score
+                
+                total_weighted_disutility += contribution
+                
+                rows.append({
+                    "Objective Metric": friendly_names.get(name, name),
+                    "Raw Value": f"{raw_score:,.2f}" if isinstance(raw_score, float) else f"{raw_score:,}",
+                    "Normalizer (N_i)": f"{norm_factor:,}",
+                    "Normalized Score (d_i)": f"{norm_score:.4f}",
+                    "Relative Weight (w_i)": f"{weight:.4f} ({weight * 100:.2f}%)",
+                    "Disutility Contribution": f"{contribution:.4f}"
+                })
+                
+            breakdown_df = pd.DataFrame(rows)
+            
+            col_obj1, col_obj2 = st.columns(2)
+            solver_obj = baseline_status.get("objective") if baseline_status else None
+            if solver_obj is not None:
+                col_obj1.metric("Raw CP-SAT Solver Objective", f"{float(solver_obj):,.0f}")
+            else:
+                col_obj1.metric("Raw CP-SAT Solver Objective", "n/a")
+                
+            col_obj2.metric("Overall Additive Disutility Score U(X)", f"{total_weighted_disutility:.4f} ({total_weighted_disutility * 100:.2f}%)")
+            
+            st.dataframe(breakdown_df, width="stretch", hide_index=True)
+            
+            st.info(
+                "📝 **AHP-MODM Mathematical Verification**:\n"
+                "1. All weights above are displayed as decimals in the range `[0.0, 1.0]`.\n"
+                "2. The sum of the **Relative Weight (w_i)** column is exactly **1.0000 (100.0%)**.\n"
+                "3. The **Overall Additive Disutility Score U(X)** is the exact sum of the **Disutility Contribution** column."
+            )
+        except Exception as ex:
+            st.error(f"Error calculating objective breakdown: {ex}")
+            
+        st.divider()
+
     st.markdown("**Season timeline — matches per month**")
     if monthly_volume.empty:
         st.info("No schedule dates were available for monthly density.")
