@@ -117,15 +117,144 @@ FINAL_ROUND_RESCUE_ROUND_GAP_SHORTFALL_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 
 FINAL_ROUND_RESCUE_WEEK_OVERFLOW_PENALTY = OTHER_STADIUM_RELIEF_PENALTY * 6
 
 
+def _compute_objective_breakdown_dict(
+    scheduled: List[ScheduledMatch],
+    data: LeagueData,
+) -> dict:
+    from src.venue_rules import get_ranked_venue_candidates, build_team_lookup, stadium_distance
+    from datetime import datetime, date
+    from collections import Counter
+    
+    # 1. Contexts
+    teams_dict = build_team_lookup(data)
+    sec_rules = data.sec_rules
+    stadium_ids = sorted(data.stadiums["Stadium_ID"].astype(str).str.strip().str.upper().tolist())
+    dist_matrix = data.dist_matrix
+    tier_weights = {1: 10, 2: 5, 3: 2, 4: 1}
+    
+    all_weeks = [sm.week_num for sm in scheduled]
+    min_week = min(all_weeks) if all_weeks else 1
+    max_week = max(all_weeks) if all_weeks else 45
+    week_span = max_week - min_week
+    
+    nominal_week = {}
+    for round_num in range(1, NUM_ROUNDS + 1):
+        nominal_week[round_num] = min_week + int(
+            (round_num - 1) * week_span / (NUM_ROUNDS - 1)
+        )
+        
+    # 2. Iterate and evaluate
+    travel_km = 0.0
+    round_order_deviation = 0
+    tier_mismatch = 0
+    home_displacement = 0.0
+    alt_relief_cost = 0
+    other_relief_cost = 0
+    evening_penalty = 0.0
+    
+    for sm in scheduled:
+        travel_km += sm.travel_km
+        
+        nominal = nominal_week.get(sm.round_num, sm.round_num)
+        round_order_deviation += abs(sm.week_num - nominal)
+        
+        tier_mismatch += abs(sm.match_tier - sm.slot_tier)
+        
+        candidates = get_ranked_venue_candidates(
+            sm.home_team, sm.away_team, teams_dict, sec_rules, stadium_ids, dist_matrix, allow_other_stadiums=True
+        )
+        
+        matched_candidate = None
+        for c in candidates:
+            if c.venue.strip().upper() == sm.venue.strip().upper():
+                matched_candidate = c
+                break
+                
+        if matched_candidate:
+            home_displacement += matched_candidate.home_displacement_km
+            home_tier = int(teams_dict.get(sm.home_team, {}).get("Tier", 4))
+            tw = tier_weights.get(home_tier, 1)
+            
+            if matched_candidate.is_alt:
+                alt_relief_cost += tw
+            elif matched_candidate.is_other:
+                other_relief_cost += tw
+        else:
+            primary = str(teams_dict[sm.home_team].get("Home_Stadium_ID", "")).strip().upper()
+            dist = stadium_distance(dist_matrix, primary, sm.venue)
+            home_displacement += dist
+            
+        hour = 12
+        if sm.date_time is not None:
+            try:
+                hour = sm.date_time.hour
+            except AttributeError:
+                pass
+        evening_penalty += max(0, 21 - hour)
+        
+    # 3. Weekly Load Balance
+    week_counts = Counter(sm.week_num for sm in scheduled)
+    underload = 0
+    overload = 0
+    for w in range(min_week, max_week + 1):
+        cnt = week_counts[w]
+        if cnt < SOFT_MIN_MATCHES_PER_WEEK:
+            underload += (SOFT_MIN_MATCHES_PER_WEEK - cnt)
+        elif cnt > SOFT_MAX_MATCHES_PER_WEEK:
+            overload += (cnt - SOFT_MAX_MATCHES_PER_WEEK)
+            
+    # 4. Slot Collision
+    slot_counts = Counter(sm.date_time for sm in scheduled if sm.date_time is not None)
+    collisions = sum(1 for cnt in slot_counts.values() if cnt > 1)
+    
+    # 5. Same-Day Venue Reuse
+    venue_date_counts = Counter((sm.venue, sm.date) for sm in scheduled)
+    same_day_venue_reuse = sum(1 for cnt in venue_date_counts.values() if cnt > 1)
+    
+    # 6. Stadium Service Gap Overlap
+    stadium_service_overlaps = 0
+    from collections import defaultdict
+    venue_dates = defaultdict(list)
+    for sm in scheduled:
+        venue_dates[sm.venue].append(sm.date)
+        
+    for venue, dates_list in venue_dates.items():
+        sorted_dates = sorted(dates_list)
+        for i in range(len(sorted_dates)):
+            for j in range(i + 1, len(sorted_dates)):
+                gap = (sorted_dates[j] - sorted_dates[i]).days
+                if gap <= MIN_STADIUM_SERVICE_GAP_DAYS:
+                    stadium_service_overlaps += 1
+                else:
+                    break
+                    
+    return {
+        "stadium_turnaround_overlaps": stadium_service_overlaps,
+        "same_day_venue_reuses": same_day_venue_reuse,
+        "alt_stadium_relief_cost": alt_relief_cost,
+        "other_stadium_relief_cost": other_relief_cost,
+        "round_order_deviation": round_order_deviation,
+        "home_displacement_km": home_displacement,
+        "week_underload": underload,
+        "week_overload": overload,
+        "travel_distance_km": travel_km,
+        "tier_mismatch": tier_mismatch,
+        "evening_kickoff_penalty": evening_penalty,
+        "slot_collisions": collisions,
+    }
+
+
 def solve_baseline(
     data: LeagueData,
     matches: List[Match],
     domains: Dict[int, List[int]],
 ) -> Optional[List[ScheduledMatch]]:
     """Build and solve the baseline model."""
+    res = None
     if ENFORCE_FINAL_ROUND_SINGLE_SLOT or MIN_STADIUM_SERVICE_GAP_DAYS > 0:
         try:
             baseline = _solve_baseline_with_venue_flex(data, matches, domains)
+            res = baseline
         except RuntimeError as exc:
             if not collect_final_round_matches(matches):
                 raise
@@ -136,19 +265,31 @@ def solve_baseline(
             )
             rescued = _solve_baseline_with_final_round_rescue(data, matches, domains)
             _attach_rescue_attempt_metadata(strict_status, rescued is not None)
-            return rescued
-        if baseline is not None or not collect_final_round_matches(matches):
-            return baseline
-
-        strict_status = _read_baseline_status()
-        print(
-            "[baseline] Strict final-round model is infeasible. Retrying with a "
-            "dedicated Round 34 rescue model."
-        )
-        rescued = _solve_baseline_with_final_round_rescue(data, matches, domains)
-        _attach_rescue_attempt_metadata(strict_status, rescued is not None)
-        return rescued
-    return _solve_baseline_legacy(data, matches, domains)
+            res = rescued
+        if res is None and collect_final_round_matches(matches):
+            strict_status = _read_baseline_status()
+            print(
+                "[baseline] Strict final-round model is infeasible. Retrying with a "
+                "dedicated Round 34 rescue model."
+            )
+            rescued = _solve_baseline_with_final_round_rescue(data, matches, domains)
+            _attach_rescue_attempt_metadata(strict_status, rescued is not None)
+            res = rescued
+    else:
+        res = _solve_baseline_legacy(data, matches, domains)
+        
+    if res is not None:
+        try:
+            breakdown = _compute_objective_breakdown_dict(res, data)
+            status = _read_baseline_status()
+            status["objective_breakdown"] = breakdown
+            path = _baseline_status_path()
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(status, f, indent=2)
+        except Exception as exc:
+            print(f"[baseline] Warning: failed to write objective breakdown: {exc}")
+            
+    return res
 
 
 def _baseline_status_path() -> str:
