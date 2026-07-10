@@ -1,4 +1,4 @@
-# ⚽ Egyptian Premier League Schedule Optimizer (EPL-SO)
+#Egyptian Premier League Schedule Optimizer (EPL-SO)
 
 <div align="center">
   <img align="center" width="480" height="138" alt="Egyptian Premier League Optimizer Logo" src="https://github.com/user-attachments/assets/aa8aaf1d-149b-4873-8345-56bfa5fc9299" />
