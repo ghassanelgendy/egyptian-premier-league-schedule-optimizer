@@ -2,6 +2,10 @@
 
 <div align="center">
   <img align="center" width="480" height="138" alt="Egyptian Premier League Optimizer Logo" src="https://github.com/user-attachments/assets/aa8aaf1d-149b-4873-8345-56bfa5fc9299" />
+  
+  <p>
+    <b>EPL-SO</b> is a decision-support and optimization framework that combines Saaty's Analytic Hierarchy Process (AHP) with Google OR-Tools CP-SAT to compile mathematically optimized, conflict-free, and broadcast-aligned league schedules.
+  </p>
 </div>
 
 ## 🌟 Project Significance: Addressing Complex League Logistics
