@@ -58,14 +58,18 @@ def get_team_id(name):
 def analyze_season(csv_path):
     season_tag = os.path.basename(csv_path).replace('egyptian_league_', '').replace('.csv', '')
     
+    base_past_path = 'data/past seasons data' if os.path.exists('data/past seasons data') else '../data/past seasons data'
+    if not os.path.exists(base_past_path):
+        base_past_path = 'past seasons data'  # fallback
+
     # 1. Load Contextual Dates
     fifa_dates = set()
-    fifa_path = f'past seasons data/fifa_dates_{season_tag}.csv'
+    fifa_path = os.path.join(base_past_path, f'fifa_dates_{season_tag}.csv')
     if os.path.exists(fifa_path):
         fifa_dates = set(pd.to_datetime(pd.read_csv(fifa_path)['Date']).dt.date)
         
     caf_dates_by_team = {} # team_id -> set of dates
-    caf_path = f'past seasons data/caf_dates_{season_tag}.csv'
+    caf_path = os.path.join(base_past_path, f'caf_dates_{season_tag}.csv')
     if os.path.exists(caf_path):
         cdf = pd.read_csv(caf_path)
         for _, row in cdf.iterrows():
@@ -136,7 +140,10 @@ def analyze_season(csv_path):
     return metrics
 
 def main():
-    files = sorted(glob.glob('past seasons data/egyptian_league_*.csv'))
+    base_past_path = 'data/past seasons data' if os.path.exists('data/past seasons data') else '../data/past seasons data'
+    if not os.path.exists(base_past_path):
+        base_past_path = 'past seasons data'  # fallback
+    files = sorted(glob.glob(os.path.join(base_past_path, 'egyptian_league_*.csv')))
     results = []
     for f in files:
         results.append(analyze_season(f))

@@ -102,7 +102,10 @@ def analyze_season(csv_path):
     }
 
 def main():
-    files = sorted(glob.glob('past seasons data/egyptian_league_*.csv'))
+    base_past_path = 'data/past seasons data' if os.path.exists('data/past seasons data') else '../data/past seasons data'
+    if not os.path.exists(base_past_path):
+        base_past_path = 'past seasons data'  # fallback
+    files = sorted(glob.glob(os.path.join(base_past_path, 'egyptian_league_*.csv')))
     results = []
     for f in files:
         results.append(analyze_season(f))
