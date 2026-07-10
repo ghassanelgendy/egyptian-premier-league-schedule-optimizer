@@ -269,3 +269,36 @@ The complete execution pipeline of the hybrid AHP-MODM scheduling framework flow
 ### Step 6: Output Visualization and Reporting
 * **Action:** The normalized objective score (0.9830) and the normalized breakdown dictionary are logged to "06_baseline_solver_status.json".
 * **Dashboard Display:** The Streamlit dashboard displays the normalized metrics on the Run & Progress tab, and renders the detailed breakdown table under Insights -> Overview, verifying that the relative weights sum to 1.0 and showing the exact disutility contribution of each soft constraint.
+
+---
+
+## 8. AHP Method Details & Slider Interface Interpretation
+
+To make the multi-objective weights selection intuitive for the user, the dashboard wraps Saaty's Analytic Hierarchy Process (AHP) in a 10-slider interface.
+
+### 1. The Meaning of Each Slider (-8 to 8)
+Each slider compares two high-level criteria (Criterion A vs. Criterion B) on a scale from -8 to 8, which represents Saaty's relative importance index:
+* **Slider Value = 0 (Equal Importance):** Both criteria have equal importance. The comparison matrix entry is set to 1.0.
+* **Slider Value is Positive (e.g. +2, Left is more important):** Criterion A is more important than Criterion B. The value is mapped to (Slider + 1) on Saaty's scale (e.g., +2 maps to 3, representing "Slightly More Important").
+* **Slider Value is Negative (e.g. -2, Right is more important):** Criterion B is more important than Criterion A. The value is mapped to 1 / (|Slider| + 1) on Saaty's scale (e.g., -2 maps to 1/3, representing "Slightly Less Important").
+
+The system uses these values to fill the pairwise matrix entry `a_ij` and sets `a_ji` to its reciprocal `1 / a_ij`.
+
+### 2. Why 5 High-Level Criteria instead of 8 or 12 Objectives?
+Comparing all 12 solver objectives (or even 8 objectives) directly is mathematically and cognitively impractical:
+* **Cognitive Limit (Miller's Law):** Human decision-makers cannot consistently compare more than 7 (+/- 2) items at a time without making contradictory judgments (e.g. A > B, B > C, but C > A).
+* **Combinatorial Explosion of Comparisons:** The number of comparisons required for N items is calculated as:
+  Comparisons = N * (N - 1) / 2
+  - **For 5 Criteria:** 10 comparisons (10 sliders). This is highly manageable and takes a user under 2 minutes.
+  - **For 8 Criteria:** 28 comparisons (28 sliders). This leads to high user fatigue and results in highly inconsistent weights.
+  - **For 12 Criteria:** 66 comparisons (66 sliders). This is practically unusable for human decision-makers.
+
+### 3. Hierarchical Decomposition
+To solve this, AHP groups the 12 sub-objectives into 5 high-level logical categories:
+1. **Venue Rest & Integrity (VR):** Turns overlaps, relief stadiums, and home venue changes.
+2. **Travel Efficiency (TE):** Away team travel kilometers.
+3. **Round Chronology (RC):** Scheduling round order and calendar delay.
+4. **Weekly Balance (WB):** Match counts per week.
+5. **Broadcasting & Slot Quality (BQ):** Kickoff slots, match tiers, and scheduling spreads.
+
+By comparing only these 5 categories (10 sliders), the user determines their high-level preferences. The system then automatically distributes these weights to the 12 sub-objectives proportionally based on their baseline ratios, combining mathematical precision with a simple, consistent user experience.
