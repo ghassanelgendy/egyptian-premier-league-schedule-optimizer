@@ -228,7 +228,7 @@ def _compute_objective_breakdown_dict(
                 else:
                     break
                     
-    return {
+    raw_breakdown = {
         "stadium_turnaround_overlaps": stadium_service_overlaps,
         "same_day_venue_reuses": same_day_venue_reuse,
         "alt_stadium_relief_cost": alt_relief_cost,
@@ -242,6 +242,28 @@ def _compute_objective_breakdown_dict(
         "evening_kickoff_penalty": evening_penalty,
         "slot_collisions": collisions,
     }
+    
+    normalizers = {
+        "stadium_turnaround_overlaps": 10.0,
+        "same_day_venue_reuses": 10.0,
+        "alt_stadium_relief_cost": 100.0,
+        "other_stadium_relief_cost": 50.0,
+        "round_order_deviation": 200.0,
+        "home_displacement_km": 5000.0,
+        "week_underload": 50.0,
+        "week_overload": 50.0,
+        "travel_distance_km": 50000.0,
+        "tier_mismatch": 300.0,
+        "evening_kickoff_penalty": 200.0,
+        "slot_collisions": 50.0,
+    }
+    
+    normalized_breakdown = {}
+    for key, val in raw_breakdown.items():
+        norm = normalizers.get(key, 1.0)
+        normalized_breakdown[key] = round(val / norm, 4)
+        
+    return normalized_breakdown
 
 
 def solve_baseline(
@@ -312,11 +334,15 @@ def _write_baseline_status(
     *,
     extra: Optional[dict] = None,
 ) -> None:
+    norm_obj = None
+    if objective is not None:
+        norm_obj = round(objective / 100000.0, 4) if objective > 100 else round(objective, 4)
+
     payload = {
         "status": int(status),
         "status_name": status_name,
         "wall_time_s": round(wall_time_s, 2),
-        "objective": objective,
+        "objective": norm_obj,
         "stadium_service_gap_days": MIN_STADIUM_SERVICE_GAP_DAYS,
     }
     if extra:
