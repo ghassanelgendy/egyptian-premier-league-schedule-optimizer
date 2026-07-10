@@ -2,7 +2,7 @@
 
 ### *A Hybrid AHP-MODM Decision Support and Optimization Framework*
 
-![Egyptian Premier League Optimizer Header](Nile_League.png)
+![Egyptian Premier League Optimizer Header](header.gif)
 
 ---
 
