@@ -66,7 +66,7 @@ from src.constants import (
 
 
 APP_TITLE = "Egyptian Premier League Schedule Optimizer"
-ICON_PATH = Path("Nile_League.png")
+ICON_PATH = Path("icons/Nile_League.png")
 ICONS_DIR = Path("icons")
 
 TEAM_ICON_FILES = {
