@@ -1,10 +1,10 @@
-#Egyptian Premier League Schedule Optimizer (EPL-SO)
+# Egyptian Premier League Schedule Optimizer (EPL-SO)
 
 <div align="center">
   <img align="center" width="480" height="138" alt="Egyptian Premier League Optimizer Logo" src="https://github.com/user-attachments/assets/aa8aaf1d-149b-4873-8345-56bfa5fc9299" />
 </div>
 
-##Project Significance: Addressing Complex League Logistics
+## Project Significance: Addressing Complex League Logistics
 #### *A Hybrid AHP-MODM Decision Support and Optimization Framework*
 
 Scheduling the **Egyptian Premier League** presents a highly constrained, multi-criteria logistical challenge. Historically, the Egyptian Football Association (EFA) has struggled to construct balanced, conflict-free calendars due to several operational disruptions:
