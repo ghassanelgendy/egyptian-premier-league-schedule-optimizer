@@ -1,12 +1,11 @@
 # ⚽ Egyptian Premier League Schedule Optimizer (EPL-SO)
 
-### *A Hybrid AHP-MODM Decision Support and Optimization Framework*
-
-![Egyptian Premier League Optimizer Header](header.gif)
-
----
+<div align="center">
+  <img align="center" width="480" height="138" alt="Egyptian Premier League Optimizer Logo" src="https://github.com/user-attachments/assets/aa8aaf1d-149b-4873-8345-56bfa5fc9299" />
+</div>
 
 ## 🌟 Project Significance: Solving Egypt's Logistical Nightmare
+#### *A Hybrid AHP-MODM Decision Support and Optimization Framework*
 
 Scheduling the **Egyptian Premier League** is a highly complex logistical challenge. The Egyptian Football Association (EFA) has historically struggled to compile workable calendars due to severe, competing constraints:
 1. **CAF Commitments:** Top clubs (like Al Ahly and Zamalek) frequently play in continental CAF Champions League matches, leading to massive local match postponements.
@@ -32,33 +31,53 @@ Scheduling the **Egyptian Premier League** is a highly complex logistical challe
 
 The optimizer delivers significant improvements over historical, manually-compiled Egyptian Premier League schedules.
 
-### 1. Saving 10 Weeks of the Calendar (The "Ghost Gap" Reduction)
-Manually created schedules suffer from long idle stretches (where teams do not play for weeks without a FIFA or CAF reason). Our model reduces this historical "Waste Gap" from an average of ~45 days down to **5 days**, effectively saving **10 weeks** of the calendar and ensuring a compressed, predictable season.
+### 1. Calendar Efficiency & Live Travel Metrics
+Manually created schedules suffer from long idle stretches. Our model reduces this historical "Waste Gap" from an average of ~45 days down to **5 days**, effectively saving **10 weeks** of the calendar. It simultaneously balances travel fairness among Cairo and non-Cairo clubs using a computed distance matrix.
 
-![Ghost Gap and Calendar Stats](Diagrams/chart_historical_3panel.png)
+<table width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <p><b>Ghost Gap and Calendar Stats</b></p>
+      <img src="Diagrams/chart_historical_3panel.png" alt="Ghost Gap and Calendar Stats" width="95%"/>
+    </td>
+    <td width="50%" align="center">
+      <p><b>Travel Performance Analysis</b></p>
+      <img src="Diagrams/chart_travel_stats.png" alt="Travel Performance Analysis" width="95%"/>
+    </td>
+  </tr>
+</table>
 
-### 2. travel Disparity & Distance Reduction
-By analyzing the distance matrix between all Egyptian cities, the optimizer minimizes cumulative travel while balancing travel fairness among Cairo and non-Cairo teams.
+### 2. Historical Baselines & Broadcast Alignments
+The optimized model achieves up to a **25% reduction** in average team travel over past seasonal peaks. Furthermore, marquee high-tier matches (such as the Cairo Derby) are guaranteed prime weekend evening slots (Slot Tier 1 & 2) instead of wasteful weekday match drops.
 
-![Travel Performance Analysis](Diagrams/chart_travel_stats.png)
+<table width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <p><b>Historical Travel Comparison</b></p>
+      <img src="Diagrams/chart_travel_historical.png" alt="Historical Travel Comparison" width="95%"/>
+    </td>
+    <td width="50%" align="center">
+      <p><b>Broadcasting Slot and Tier Alignment</b></p>
+      <img src="Diagrams/chart_tier_alignment.png" alt="Broadcasting Slot and Tier Alignment" width="95%"/>
+    </td>
+  </tr>
+</table>
 
-Our model achieves up to a **25% reduction** in average team travel compared to the 2023/2024 season peak, saving clubs significant transport and lodging expenses.
+### 3. Commercial KPIs & Infrastructure Loads
+The solver eliminates slot mismatch errors entirely, locking down **100% of Tier-1 matches** in prime television real estate. Concurrently, it tracks stadium densities to prevent overlapping match bookings and honor pitch maintenance intervals.
 
-![Historical Travel Comparison](Diagrams/chart_travel_historical.png)
-
-### 3. Maximizing Broadcasting Revenue (Slot & Tier Alignment)
-High-tier matches (e.g., Cairo Derbies) are automatically scheduled for prime weekend evening slots (Slot Tier 1 & 2) while lower-tier matches are placed in weekday slots, maximizing TV viewership and sponsorship value.
-
-![Broadcasting Slot and Tier Alignment](Diagrams/chart_tier_alignment.png)
-
-Our model ensures that **100% of Tier-1 matches** are placed in prime weekend slots with **zero** tier mismatch errors.
-
-![Broadcasting KPIs](Diagrams/chart_tier_kpis.png)
-
-### 4. Stadium Turnaround & Congestion Control
-The optimizer prevents same-day stadium reuse conflicts and enforces a strict turnaround gap (e.g., 2 days) between non-forced matches at shared venues.
-
-![Venue Congestion Control](Diagrams/chart_venues.png)
+<table width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <p><b>Broadcasting KPIs</b></p>
+      <img src="Diagrams/chart_tier_kpis.png" alt="Broadcasting KPIs" width="95%"/>
+    </td>
+    <td width="50%" align="center">
+      <p><b>Venue Congestion Control</b></p>
+      <img src="Diagrams/chart_venues.png" alt="Venue Congestion Control" width="95%"/>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -105,3 +124,46 @@ Start the Streamlit dashboard:
 streamlit run streamlit_app.py
 ```
 Open your browser and navigate to `http://localhost:8501` to use the interactive optimizer interface.
+
+---
+
+## 🎓 Graduation Project Credits
+
+This project was developed as a Graduation Project for the **Data Science (DS)** program at the **Faculty of Computers and Artificial Intelligence, Cairo University (FCAI-CU)**.
+
+*   **Institution:** Cairo University
+*   **Faculty:** Faculty of Computers and Artificial Intelligence (FCAI)
+*   **Department:** Data Science
+*   **Academic Year:** 2024/2025
+
+### Project Team & Contributors
+*   **Ghassan Tarek** ([@ghassanelgendy](https://github.com/ghassanelgendy))
+*   **Ibrahim Medhat** ([@zennary04](https://github.com/zennary04))
+*   **Mohamed Osama** ([@mohamedosama25](https://github.com/mohamedosama25))
+*   **Rawan Ehab** ([@rowanammar](https://github.com/rowanammar))
+*   **Abdelrahman Ashraf** ([@Abdu-Ashry](https://github.com/Abdu-Ashry))
+
+### Academic Supervision
+*   **Supervisor:** Prof. Sally Kassem
+*   **Co-Supervisor:** Dr. Rawaa Bidweihy
+
+---
+
+## 🤝 Contribution Guidelines
+
+We welcome contributions to improve the **EPL-SO** scheduling framework! If you want to optimize constraints, enhance the dashboard analytics, or adapt this for another sports league, follow these steps:
+
+1. **Fork the Repository:** Click the `Fork` button at the top right of this page.
+2. **Create a Feature Branch:** 
+   ```bash
+   git checkout -b feature/amazing-optimization
+   ```
+3. **Commit Your Changes:** Provide a clear, detailed message describing your addition.
+   ```bash
+   git commit -m "Add new stadium turnaround constraint"
+   ```
+4. **Push to Your Branch:**
+   ```bash
+   git push origin feature/amazing-optimization
+   ```
+5. **Open a Pull Request:** Submit your branch to our `main` repository for academic and code review.
