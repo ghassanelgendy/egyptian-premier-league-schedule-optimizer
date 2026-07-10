@@ -4,7 +4,7 @@
   <img align="center" width="480" height="138" alt="Egyptian Premier League Optimizer Logo" src="https://github.com/user-attachments/assets/aa8aaf1d-149b-4873-8345-56bfa5fc9299" />
 </div>
 
-## 🌟 Project Significance: Addressing Complex League Logistics
+##Project Significance: Addressing Complex League Logistics
 #### *A Hybrid AHP-MODM Decision Support and Optimization Framework*
 
 Scheduling the **Egyptian Premier League** presents a highly constrained, multi-criteria logistical challenge. Historically, the Egyptian Football Association (EFA) has struggled to construct balanced, conflict-free calendars due to several operational disruptions:
@@ -17,7 +17,7 @@ Scheduling the **Egyptian Premier League** presents a highly constrained, multi-
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 * **Multi-Criteria Preference Tuning (AHP):** Interactive 10-slider pairwise comparison matrix derived from Saaty's MCDM framework to determine objective weights.
 * **Consistency Monitoring:** Real-time advisor tracking of the Consistency Ratio (CR < 0.10) to guide users toward mathematically consistent preferences.
@@ -27,7 +27,7 @@ Scheduling the **Egyptian Premier League** presents a highly constrained, multi-
 
 ---
 
-## 📊 Effectiveness & Performance Metrics (Results)
+## Effectiveness & Performance Metrics (Results)
 
 The optimizer delivers significant improvements over historical, manually-compiled Egyptian Premier League schedules.
 
@@ -81,7 +81,7 @@ The solver eliminates slot mismatch errors entirely, locking down **100% of Tier
 
 ---
 
-## 🛠️ System Architecture & Workflow
+## System Architecture & Workflow
 
 The system is split into three main layers: the AHP preference engine, the CP-SAT constraint-solving engine, and the Streamlit analytics UI.
 
@@ -97,11 +97,44 @@ graph TD
 ```
 
 ### Component Architecture
-![System Component Diagram](Diagrams/Component%20Diagram.png)
+```mermaid
+graph TD
+    %% Input Data
+    DataIn["Data_Model.xlsx<br>expanded_calendar.xlsx"]
+
+    %% Core Layers
+    Pres("Presentation Layer<br>streamlit_app.py")
+    DataAccess("Data Access Layer<br>data_loader.py")
+    Fixture("Fixture Generation Layer<br>fixture_generator.py")
+    Domain("Domain & Solver Layer<br>slot_domain.py<br>baseline_solver.py<br>baseline_retry.py")
+    OutputVal("Output & Validation Layer<br>output_writer.py<br>validation.py<br>historical_engine.py")
+
+    %% Output Data
+    DataOut["output/*.csv<br>output/phases/*.csv, *.json"]
+
+    %% Support & Solvers
+    Shared("Shared Support Modules<br>constants.py • tiers.py<br>venue_rules.py • final_round.py")
+    ORTools("Google OR-Tools<br>CP-SAT Solver")
+
+    %% Main Solid Connections
+    Pres --> DataAccess
+    DataIn --> DataAccess
+    DataAccess --> Fixture
+    Fixture --> Domain
+    Domain --> OutputVal
+    OutputVal --> DataOut
+
+    %% Dashed Dependency Connections
+    Shared -.-> Fixture
+    Shared -.-> Domain
+    Shared -.-> OutputVal
+    ORTools -.-> Shared
+
+```
 
 ---
 
-## 💻 How to Run the Project
+## How to Run the Project
 
 ### Prerequisites
 * Python 3.9 to 3.12 (OR-Tools is compatible with Python 3.12)
@@ -127,7 +160,7 @@ Open your browser and navigate to `http://localhost:8501` to use the interactive
 
 ---
 
-## 🎓 Graduation Project Credits
+## Graduation Project Credits
 
 This project was developed as a Graduation Project for the **Decision Support & Operations Research (DS&OR)** program at the **Faculty of Computers and Artificial Intelligence, Cairo University (FCAI-CU)**.
 
@@ -149,7 +182,7 @@ This project was developed as a Graduation Project for the **Decision Support & 
 
 ---
 
-## 🤝 Contribution Guidelines
+## Contribution Guidelines
 
 We welcome contributions to improve the **EPL-SO** scheduling framework! If you want to optimize constraints, enhance the dashboard analytics, or adapt this for another sports league, follow these steps:
 
