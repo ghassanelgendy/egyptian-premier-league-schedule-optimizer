@@ -74,6 +74,28 @@ OTHER_STADIUM_RELIEF_PENALTY = 3_000_000   # base penalty for using a non-home, 
 W_HOME_VENUE_DISPLACEMENT = 1              # per-km penalty for moving a home team away from its primary stadium
 
 # ---------------------------------------------------------------------------
+# Multi-Objective Normalization Denominators (N_i)
+# ---------------------------------------------------------------------------
+NORM_STADIUM_MAINTENANCE_OVERLAP = 10
+NORM_ALT_STADIUM_RELIEF = 100
+NORM_OTHER_STADIUM_RELIEF = 50
+NORM_ROUND_ORDER = 200
+NORM_HOME_VENUE_DISPLACEMENT = 5000
+NORM_WEEK_UNDERLOAD = 50
+NORM_WEEK_OVERLOAD = 50
+NORM_TRAVEL = 50000
+NORM_TIER_MISMATCH = 300
+NORM_CAF_PREFERRED = 50
+NORM_EVENING_PREFERENCE = 200
+NORM_SLOT_SPREAD = 50
+
+# ---------------------------------------------------------------------------
+# Multi-Objective Optimization (MOO) Settings
+# ---------------------------------------------------------------------------
+MOO_MODE = "NORMALIZED_WEIGHTED_SUM"   # choices: "WEIGHTED_SUM", "NORMALIZED_WEIGHTED_SUM"
+USE_AHP_WEIGHTS = False
+
+# ---------------------------------------------------------------------------
 # Solver limits
 # ---------------------------------------------------------------------------
 BASELINE_SOLVER_TIME_LIMIT_S = 600   # 5 minutes
