@@ -177,3 +177,53 @@ The total sum of these contributions matches the overall disutility score:
 $$U(X) = \sum_{i=1}^{k} C_i(X)$$
 
 This breakdown allows the Egyptian Football Association (EFA) to immediately identify which scheduling compromises (e.g., travel vs. kickoff slots) are driving the disutility score of the generated schedule.
+
+---
+
+## 5. Comparison: Normalized Weighted Sum vs. Weighted Sum
+
+The optimizer supports two primary formulation modes. Here is the mathematical comparison:
+
+### 1. Classical Weighted Sum Method
+The classical weighted sum minimizes the raw weighted sum of the objectives:
+* Objective = sum( W_i * f_i(X) )
+Where f_i(X) is the raw value of objective i (e.g., 55,000 kilometers of travel, 10 stadium overlaps).
+
+* **Limitation (Dimensional Inhomogeneity):** It directly adds values of different units (kilometers, weeks, match counts). Because travel distance is numerically massive (in the tens of thousands), it completely dominates the objective function. The solver will ignore small-scale objectives like stadium turnaround overlaps or slot collisions, rendering their weights ineffective unless they are manually scaled up by millions.
+
+### 2. Normalized Weighted Sum Method (Additive Utility)
+The normalized weighted sum scales all objectives using normalization constants N_i to make them dimensionless:
+* Objective = sum( w_i * [ f_i(X) / N_i ] )
+Where w_i represents the normalized relative weights (sum of w_i = 1.0) and N_i represents the normalization constant (e.g. 50,000 for travel, 10 for overlaps).
+
+* **Advantage:** By dividing each raw value f_i(X) by its normalizer N_i, all objectives are transformed into a dimensionless disutility score between 0.0 and 1.5. This ensures that a 10% increase in travel distance has the same mathematical impact as a 10% increase in stadium overlaps when weights are equal. The weights w_i represent true decision-maker priorities.
+
+---
+
+## 6. System Modifications & Recent Enhancements Log
+
+The following changes have been successfully implemented:
+
+### 1. Decimal AHP Weights
+* High-level criteria weights are displayed as decimals in the range [0.0, 1.0] (instead of percentages) under the AHP comparisons matrix setup, ensuring mathematical transparency and verification of sum(w_i) = 1.0.
+
+### 2. Real-Time AHP Consistency Advisor
+* The system computes target consistent slider values:
+  Target_Slider_ij = w_i / w_j
+* If the Consistency Ratio (CR) is 0.10 or higher, the Consistency Advisor identifies the slider with the largest absolute deviation from its consistent target and displays a suggestion guiding the user on how to adjust it to achieve mathematical consistency.
+
+### 3. Multi-Objective Performance Breakdown Table
+* Added a breakdown table to the Insights Overview tab showing for each objective:
+  - Metric Name
+  - Raw Value f_i(X)
+  - Normalizer N_i
+  - Normalized Score d_i(X) = f_i(X) / N_i
+  - Relative Weight w_i
+  - Weighted Contribution = w_i * d_i(X)
+* The sum of the weighted contributions matches the overall disutility score U(X) = sum( w_i * d_i(X) ).
+
+### 4. Normalized Solver Status and JSON Reporting
+* The solver status output file "06_baseline_solver_status.json" now logs both the final objective score and the individual objective breakdown in their normalized, dimensionless forms:
+  - objective = Raw solver objective / 100,000
+  - breakdown_i = Raw breakdown_i / N_i
+* All Streamlit metrics displays (Run & Progress, Insights, Monte Carlo) have been updated to dynamically render these decimal normalized values.
