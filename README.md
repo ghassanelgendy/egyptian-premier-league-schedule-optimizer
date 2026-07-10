@@ -4,26 +4,26 @@
   <img align="center" width="480" height="138" alt="Egyptian Premier League Optimizer Logo" src="https://github.com/user-attachments/assets/aa8aaf1d-149b-4873-8345-56bfa5fc9299" />
 </div>
 
-## 🌟 Project Significance: Solving Egypt's Logistical Nightmare
+## 🌟 Project Significance: Addressing Complex League Logistics
 #### *A Hybrid AHP-MODM Decision Support and Optimization Framework*
 
-Scheduling the **Egyptian Premier League** is a highly complex logistical challenge. The Egyptian Football Association (EFA) has historically struggled to compile workable calendars due to severe, competing constraints:
-1. **CAF Commitments:** Top clubs (like Al Ahly and Zamalek) frequently play in continental CAF Champions League matches, leading to massive local match postponements.
-2. **Stadium Approvals & turnarounds:** Shared stadiums (like Cairo International Stadium) experience high congestion, requiring maintenance gaps and security/police approvals.
-3. **Extreme Weather:** High summer temperatures demand evening kickoffs, conflicting with prime-time broadcasting slots.
-4. **Geography & Travel:** High travel disparity between Cairo-based teams and clubs in Aswan or Alexandria.
+Scheduling the **Egyptian Premier League** presents a highly constrained, multi-criteria logistical challenge. Historically, the Egyptian Football Association (EFA) has struggled to construct balanced, conflict-free calendars due to several operational disruptions:
+1. **Continental Match Congestion:** Frequent CAF Champions League and Confederation Cup participations by top-tier clubs (e.g., Al Ahly, Zamalek, Pyramids) necessitate dynamic scheduling buffers and match postponements.
+2. **Shared Venue Bottlenecks:** Multiple clubs sharing primary stadiums (e.g., Cairo International Stadium) create critical resource contention, demanding strict turnaround windows and security approval intervals.
+3. **Climatic Constraints:** Extreme summer temperatures restrict viable kickoff slots to evening hours, directly conflicting with broadcasting schedules.
+4. **Geographical & Travel Disparities:** Substantial travel distance variations between Cairo-based teams and coastal or upper-Egypt clubs require balanced scheduling to ensure competitive fairness.
 
-**EPL-SO** resolves these challenges by combining **Analytic Hierarchy Process (AHP)** decision theory with **Constraint Programming (Google OR-Tools CP-SAT)**. It transforms a combinatorial problem with billions of permutations into an optimized, mathematically validated, and broadcast-aligned league calendar in seconds.
+**EPL-SO** addresses these challenges by combining the **Analytic Hierarchy Process (AHP)** with **Constraint Programming (Google OR-Tools CP-SAT)**. It models the scheduling domain as a Multi-Objective Decision Making (MODM) problem, transforming billions of potential fixture permutations into mathematically validated, broadcast-aligned calendars in seconds.
 
 ---
 
 ## 🚀 Key Features
 
-* **Analytic Hierarchy Process (AHP) UI Panel:** A 10-slider pairwise comparison interface (based on Saaty's MCDM framework) that lets decision-makers define high-level scheduling priorities logically.
-* **Real-Time Consistency Advisor:** Displays automatic feedback if the user's pairwise comparisons are mathematically inconsistent (Consistency Ratio >= 0.10), guiding them on which slider to adjust.
-* **Dimensionless MODM Normalization:** Normalizes all conflicting objectives (kilometers, weeks, counts) into dimensionless disutility scores between 0.0 and 1.5, ensuring no single objective dominates the solver.
-* **CP-SAT Integer Programming Solver:** A robust mathematical model that solves constraints (FIFA windows, rest gaps, venue locks) and minimizes disutility.
-* **Insights & Analytics Dashboard:** A Streamlit-based web dashboard displaying constraint compliance, travel analytics, club rest gap spreads, and stadium densities.
+* **Multi-Criteria Preference Tuning (AHP):** Interactive 10-slider pairwise comparison matrix derived from Saaty's MCDM framework to determine objective weights.
+* **Consistency Monitoring:** Real-time advisor tracking of the Consistency Ratio (CR < 0.10) to guide users toward mathematically consistent preferences.
+* **Dimensionless Normalization:** Conversion of heterogeneous objectives (distance, occurrences, time deviations) into normalized disutility scores to maintain dimensional homogeneity.
+* **Combinatorial Optimization Engine:** CP-SAT integer programming solver to efficiently construct schedules under strict constraints (FIFA windows, rest-day rules, venue locks).
+* **Operational Dashboard:** Full analytics suite for evaluating schedule quality, travel equity, venue load distributions, and historical benchmarks.
 
 ---
 
