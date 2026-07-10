@@ -151,3 +151,29 @@ To ensure the DM's judgments are mathematically consistent:
 
 ### Step 4: Sub-metric Mapping
 The calculated high-level weights ($w_{VR}, w_{TE}, w_{RC}, w_{WB}, w_{BQ}$) are distributed to the 12 sub-metric weights ($W_j$) proportionally based on their standard default ratios, ensuring $\sum_{j=1}^{12} W_j = 1.0$.
+
+---
+
+## 4. Empirical Evaluation: Decision Support & Metric Breakdown Dashboard
+
+To bridge the gap between abstract mathematical formulas and decision-making utility, the system incorporates two real-time feedback loops:
+
+### 1. Interactive AHP Consistency Advisor
+Saaty's AHP allows for subjective inconsistency, but requires the Consistency Ratio ($CR$) to remain below $0.10$ to be mathematically valid. To guide the user toward a consistent comparisons matrix:
+* **Ideal Consistent Target**: For any comparison $a_{ij}$ between criteria $i$ and $j$, the mathematically consistent target value is the ratio of their computed weights:
+  $$a'_{ij} = \frac{w_i}{w_j}$$
+* **Inconsistency Advisor**: The system calculates the error between the user's selected slider value $S_{ij}$ and the consistent target slider value $S'_{ij}$ (derived by mapping $a'_{ij}$ back to the $[-8, 8]$ scale) for all 10 pairwise comparisons. 
+* **Correction Suggestion**: If $CR \ge 0.10$, the system highlights the comparison $(i, j)$ with the largest absolute error $|S_{ij} - S'_{ij}|$ and recommends moving it towards $S'_{ij}$, guaranteeing a rapid convergence to a valid, consistent matrix.
+
+### 2. Multi-Objective Performance Breakdown
+Once the CP-SAT solver generates a schedule $X$, the dashboard decomposes the global objective score into its constituent disutility functions. It computes and displays:
+1. **Raw Metric Value $f_i(X)$**: The physical count (e.g., total kilometers, number of overlaps).
+2. **Dimensionless Normalized Disutility $d_i(X) = f_i(X) / N_i$**: The scaled disutility for each objective.
+3. **Normalized Weights $w'_i$**: The sub-metric weights normalized over the active solver objectives to ensure they sum to exactly 1.0:
+   $$w'_i = \frac{w_i}{\sum_{k \in \text{active}} w_k}, \quad \sum w'_i = 1.0$$
+4. **Weighted Contribution $C_i(X) = w'_i \cdot d_i(X)$**: The direct contribution of objective $i$ to the overall schedule disutility.
+
+The total sum of these contributions matches the overall disutility score:
+$$U(X) = \sum_{i=1}^{k} C_i(X)$$
+
+This breakdown allows the Egyptian Football Association (EFA) to immediately identify which scheduling compromises (e.g., travel vs. kickoff slots) are driving the disutility score of the generated schedule.
